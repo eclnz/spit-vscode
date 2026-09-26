@@ -1,6 +1,7 @@
 {
   "name": "spit-language",
   "displayName": "SPIT",
+  "icon": "icon.png",
   "description": "Live diagnostics for SPIT pipeline files",
   "version": "0.1.0",
   "publisher": "spit-local",
