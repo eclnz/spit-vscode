@@ -1,0 +1,43 @@
+{
+  "name": "spit-language",
+  "displayName": "SPIT",
+  "description": "Live diagnostics for SPIT pipeline files",
+  "version": "0.1.0",
+  "publisher": "spit-local",
+  "private": true,
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Linters"],
+  "main": "./extension.js",
+  "activationEvents": ["onLanguage:spit"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "spit",
+        "aliases": ["SPIT"],
+        "extensions": [".spit"]
+      }
+    ],
+    "configuration": {
+      "title": "SPIT",
+      "properties": {
+        "spit.executablePath": {
+          "type": "string",
+          "scope": "resource",
+          "default": "",
+          "description": "Path to the SPIT executable. Leave empty to use a sibling SPIT build or the executable on PATH."
+        },
+        "spit.sourcesFile": {
+          "type": "string",
+          "scope": "resource",
+          "default": "",
+          "description": "Inventory file for this pipeline. Relative paths are resolved from the pipeline file. Leave empty to use a sibling file with the same name and a .sources extension, when present."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}
