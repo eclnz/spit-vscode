@@ -98,6 +98,106 @@ test('checks unsaved edits and clears fixed errors', { skip: !fs.existsSync(bina
   extension.deactivate();
 });
 
+test('highlights declared products, operations, and dimensions by role', () => {
+  const vscode = {
+    Range,
+    SemanticTokensLegend: class {
+      constructor(tokenTypes, tokenModifiers) { Object.assign(this, { tokenTypes, tokenModifiers }); }
+    },
+    SemanticTokensBuilder: class {
+      constructor() { this.entries = []; }
+      push(line, char, length, tokenType, tokenModifiers) { this.entries.push({ line, char, length, tokenType, tokenModifiers }); }
+      build() { return this.entries; }
+    },
+    languages: {
+      createDiagnosticCollection() { return { set() {}, delete() {}, dispose() {} }; },
+      registerDocumentSemanticTokensProvider(_selector, provider) { return { dispose() {}, provider }; }
+    },
+    workspace: {
+      textDocuments: [],
+      getConfiguration() { return { get() { return ''; } }; },
+      onDidOpenTextDocument() { return { dispose() {} }; },
+      onDidChangeTextDocument() { return { dispose() {} }; },
+      onDidCloseTextDocument() { return { dispose() {} }; },
+      onDidChangeConfiguration() { return { dispose() {} }; },
+      createFileSystemWatcher() {
+        const disposable = { dispose() {} };
+        return { ...disposable, onDidChange() { return disposable; }, onDidCreate() { return disposable; }, onDidDelete() { return disposable; } };
+      }
+    }
+  };
+  const originalLoad = Module._load;
+  Module._load = function (request, parent, isMain) {
+    return request === 'vscode' ? vscode : originalLoad.call(this, request, parent, isMain);
+  };
+  let extension;
+  let registered;
+  try {
+    extension = require('./extension');
+    const subscriptions = [];
+    extension.activate({ extensionPath: __dirname, subscriptions });
+    registered = subscriptions.find(item => item.provider)?.provider;
+  } finally {
+    Module._load = originalLoad;
+  }
+  assert.ok(registered, 'semantic tokens provider was registered');
+
+  const text = [
+    'products:',
+    '    reading : Reading<Raw> [site, device]',
+    '    gain    [site, device]',
+    '',
+    'operations:',
+    '    normalize(Reading<Raw>, one Gain) -> Reading<Normalized>',
+    '',
+    'pipeline:',
+    '    normalized = normalize(reading @ vary(device), gain)',
+    '',
+    'constraints:',
+    '    require reading count>=1 per [site, device]',
+    '',
+    'sources:',
+    '    reading[site=A,device=D1]',
+    '',
+    'contexts:',
+    '    [site=A,device=D1]',
+    ''
+  ].join('\n');
+  const lines = text.split('\n');
+  const document = {
+    getText() { return text; },
+    lineCount: lines.length,
+    lineAt(index) { return { text: lines[index] }; }
+  };
+
+  const tokens = registered.provideDocumentSemanticTokens(document);
+  const at = (line, needle) => tokens.find(t => t.line === line && lines[line].slice(t.char, t.char + t.length) === needle);
+  const typeIndex = name => vscode_types().indexOf(name);
+  function vscode_types() { return ['variable', 'function', 'type', 'parameter', 'enumMember']; }
+
+  const readingDecl = at(1, 'reading');
+  assert.ok(readingDecl, 'declares the `reading` product');
+  assert.equal(readingDecl.tokenType, typeIndex('variable'));
+  assert.equal(readingDecl.tokenModifiers, 1, 'declaration modifier set');
+
+  assert.equal(at(1, 'Reading').tokenType, typeIndex('type'));
+  assert.equal(at(1, 'site').tokenType, typeIndex('parameter'));
+
+  const normalizeDecl = at(5, 'normalize');
+  assert.equal(normalizeDecl.tokenType, typeIndex('function'));
+  assert.equal(normalizeDecl.tokenModifiers, 1);
+
+  const normalizeCall = at(8, 'normalize');
+  assert.equal(normalizeCall.tokenType, typeIndex('function'));
+  assert.equal(normalizeCall.tokenModifiers, 0, 'a call site is not a declaration');
+
+  assert.equal(at(8, 'device').tokenType, typeIndex('parameter'));
+  assert.equal(at(11, 'reading').tokenType, typeIndex('variable'));
+  assert.equal(at(14, 'D1').tokenType, typeIndex('enumMember'));
+  assert.equal(at(17, 'site').tokenType, typeIndex('parameter'));
+  extension.deactivate();
+});
+
 class Range {
   constructor(startLine, startCharacter, endLine, endCharacter) {
     this.start = { line: startLine, character: startCharacter };
