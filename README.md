@@ -1,6 +1,6 @@
 # SPIT for VS Code
 
-This local extension shows SPIT validation errors as you edit `.spit` files. It checks unsaved text after a short pause and reports syntax errors throughout the file. Semantic validation runs once the syntax is valid; semantic errors point to the related declaration when SPIT can identify it.
+This local extension shows SPIT validation errors as you edit `.spit` files. It checks unsaved text after a short pause and reports syntax errors throughout the file. Once the syntax is valid, it reports every semantic, command, and path error, each on its related line, and shows warnings for likely mistakes such as unused definitions.
 Errors in an external inventory are shown on the pipeline's first line with the inventory path and line number.
 
 ## Try it locally
