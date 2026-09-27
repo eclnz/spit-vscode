@@ -67,7 +67,7 @@ function lint(context, document) {
   const key = document.uri.toString();
   const version = document.version;
   const source = sourcesPath(document);
-  const args = ['diagnose', document.uri.fsPath];
+  const args = ['check', document.uri.fsPath, '--json', '--stdin'];
   if (source) args.push('--sources', source);
 
   const child = spawn(executablePath(context, document), args, {
