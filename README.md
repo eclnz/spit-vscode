@@ -12,7 +12,7 @@ Errors in an external inventory are shown on the pipeline's first line with the 
 
 The extension uses a build at `../spit/target/debug/spit` if present, then tries `spit` on PATH. Set `spit.executablePath` to use a build elsewhere. The SPIT executable needs the `diagnose` command.
 
-For a pipeline with an external inventory, the extension automatically uses a sibling file with the same stem and a `.sources` extension. An embedded inventory takes priority. Set `spit.sourcesFile` to another file path if needed; relative paths are resolved from the pipeline's folder. If no inventory is available, SPIT still checks declarations, but it cannot validate jobs against observed inputs.
+For a pipeline with an external inventory, the extension automatically uses a sibling file with the same stem and a `.sources` extension, unless the pipeline embeds its own inventory. Set `spit.sourcesFile` to another file path if needed; relative paths are resolved from the pipeline's folder. That file replaces an embedded inventory, which SPIT then skips and marks with a warning. If no inventory is available, SPIT still checks declarations, but it cannot validate jobs against observed inputs.
 
 The extension reads inventory files from disk. Save changes to a `.sources` file to refresh pipeline diagnostics.
 
