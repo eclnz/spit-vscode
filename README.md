@@ -10,7 +10,7 @@ Errors in an external inventory are shown on the pipeline's first line with the 
 3. Choose **Run > Run Without Debugging** (Control-F5 on macOS) to launch an Extension Development Host.
 4. In the new window, open a `.spit` file and edit it. Errors appear in the editor and Problems panel.
 
-The extension uses a build at `../spit/target/debug/spit` if present, then tries `spit` on PATH. Set `spit.executablePath` to use a build elsewhere. The SPIT executable needs the `diagnose` command.
+The extension uses a build at `../spit/target/debug/spit` if present, then tries `spit` on PATH. Set `spit.executablePath` to use a build elsewhere. The SPIT executable needs `check --json --stdin`.
 
 For a pipeline with an external inventory, the extension automatically uses a sibling file with the same stem and a `.sources` extension, unless the pipeline embeds its own inventory. Set `spit.sourcesFile` to another file path if needed; relative paths are resolved from the pipeline's folder. That file replaces an embedded inventory, which SPIT then skips and marks with a warning. If no inventory is available, SPIT still checks declarations, but it cannot validate jobs against observed inputs.
 
