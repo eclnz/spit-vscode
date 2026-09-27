@@ -26,7 +26,7 @@ test('checks unsaved edits and clears fixed errors', { skip: !fs.existsSync(bina
     Diagnostic: class {
       constructor(range, message, severity) { Object.assign(this, { range, message, severity }); }
     },
-    DiagnosticSeverity: { Error: 0 },
+    DiagnosticSeverity: { Error: 0, Warning: 1 },
     languages: {
       createDiagnosticCollection() {
         return {
@@ -79,6 +79,15 @@ test('checks unsaved edits and clears fixed errors', { skip: !fs.existsSync(bina
   document.version++;
   onChange({ document });
   await until(() => results.get(document.uri.toString())?.length === 0);
+
+  document.text = 'source raw [id]\nsource spare [id]\noperation copy(one)\nresult = copy(raw)\n';
+  document.version++;
+  onChange({ document });
+  await until(() => results.get(document.uri.toString())?.length === 1);
+  const [warning] = results.get(document.uri.toString());
+  assert.equal(warning.range.line, 1);
+  assert.equal(warning.severity, 1);
+  assert.match(warning.message, /never used/);
   extension.deactivate();
 });
 

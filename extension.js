@@ -26,10 +26,11 @@ function sourcesPath(document) {
   return fs.existsSync(sibling) ? sibling : undefined;
 }
 
-function issue(document, line, message) {
+function issue(document, line, message, severity = 'error') {
   const index = Number.isInteger(line) ? Math.max(0, Math.min(line - 1, document.lineCount - 1)) : 0;
   const range = document.lineAt(index).range;
-  const item = new vscode.Diagnostic(range, message, vscode.DiagnosticSeverity.Error);
+  const level = severity === 'warning' ? vscode.DiagnosticSeverity.Warning : vscode.DiagnosticSeverity.Error;
+  const item = new vscode.Diagnostic(range, message, level);
   item.source = 'SPIT';
   return item;
 }
@@ -80,10 +81,10 @@ function lint(context, document) {
     try {
       const result = JSON.parse(output);
       diagnostics.set(document.uri, result.diagnostics.map(item => {
-        const message = item.source === 'inventory'
-          ? `Inventory ${source}:${item.line}: ${item.message}`
-          : item.message;
-        return issue(document, item.source === 'inventory' ? null : item.line, message);
+        // Only an external inventory's lines lie outside this document.
+        const external = item.source === 'inventory' && source;
+        const message = external ? `Inventory ${source}:${item.line}: ${item.message}` : item.message;
+        return issue(document, external ? null : item.line, message, item.severity);
       }));
     } catch (error) {
       diagnostics.set(document.uri, [issue(document, null, `SPIT returned invalid diagnostics: ${error.message}`)]);
