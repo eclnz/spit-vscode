@@ -26,9 +26,19 @@ function sourcesPath(document) {
   return fs.existsSync(sibling) ? sibling : undefined;
 }
 
-function issue(document, line, message, severity = 'error') {
+// `column` and `end_column` are 1-based UTF-16 offsets, as SPIT reports them;
+// without them the whole line is marked.
+function issue(document, line, message, severity = 'error', column, endColumn) {
   const index = Number.isInteger(line) ? Math.max(0, Math.min(line - 1, document.lineCount - 1)) : 0;
-  const range = document.lineAt(index).range;
+  const lineRange = document.lineAt(index).range;
+  const range = Number.isInteger(column) && Number.isInteger(endColumn) && index === line - 1
+    ? (() => {
+        const length = lineRange.end.character;
+        const start = Math.max(0, Math.min(column - 1, length));
+        const end = Math.max(start, Math.min(endColumn - 1, length));
+        return new vscode.Range(index, start, index, end);
+      })()
+    : lineRange;
   const level = severity === 'warning' ? vscode.DiagnosticSeverity.Warning : vscode.DiagnosticSeverity.Error;
   const item = new vscode.Diagnostic(range, message, level);
   item.source = 'SPIT';
@@ -84,7 +94,9 @@ function lint(context, document) {
         // Only an external inventory's lines lie outside this document.
         const external = item.source === 'inventory' && source;
         const message = external ? `Inventory ${source}:${item.line}: ${item.message}` : item.message;
-        return issue(document, external ? null : item.line, message, item.severity);
+        return external
+          ? issue(document, null, message, item.severity)
+          : issue(document, item.line, message, item.severity, item.column, item.end_column);
       }));
     } catch (error) {
       diagnostics.set(document.uri, [issue(document, null, `SPIT returned invalid diagnostics: ${error.message}`)]);

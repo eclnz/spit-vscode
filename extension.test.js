@@ -19,10 +19,11 @@ test('checks unsaved edits and clears fixed errors', { skip: !fs.existsSync(bina
     getText() { return this.text; },
     get lineCount() { return this.text.split('\n').length; },
     lineAt(index) {
-      return { range: { line: index, text: this.text.split('\n')[index] } };
+      return { range: new Range(index, 0, index, this.text.split('\n')[index].length) };
     }
   };
   const vscode = {
+    Range,
     Diagnostic: class {
       constructor(range, message, severity) { Object.assign(this, { range, message, severity }); }
     },
@@ -65,7 +66,11 @@ test('checks unsaved edits and clears fixed errors', { skip: !fs.existsSync(bina
   document.version++;
   onChange({ document });
   await until(() => results.get(document.uri.toString())?.length === 2);
-  assert.deepEqual(results.get(document.uri.toString()).map(item => item.range.line), [2, 3]);
+  // Syntax errors without a narrower token mark the line's content.
+  assert.deepEqual(results.get(document.uri.toString()).map(item => span(item)), [
+    [2, 0, 16],
+    [3, 0, 16]
+  ]);
   assert.match(results.get(document.uri.toString())[0].message, /expected `=`/);
   assert.match(results.get(document.uri.toString())[1].message, /expected closing `\)`/);
 
@@ -73,7 +78,7 @@ test('checks unsaved edits and clears fixed errors', { skip: !fs.existsSync(bina
   document.version++;
   onChange({ document });
   await until(() => results.get(document.uri.toString())?.length === 1);
-  assert.equal(results.get(document.uri.toString())[0].range.line, 3);
+  assert.equal(results.get(document.uri.toString())[0].range.start.line, 3);
 
   document.text = 'source raw [id]\noperation copy(one)\nresult = copy(raw)\nlater = copy(raw)\n';
   document.version++;
@@ -85,11 +90,25 @@ test('checks unsaved edits and clears fixed errors', { skip: !fs.existsSync(bina
   onChange({ document });
   await until(() => results.get(document.uri.toString())?.length === 1);
   const [warning] = results.get(document.uri.toString());
-  assert.equal(warning.range.line, 1);
+  // The warning marks only the unused name, `spare`.
+  assert.deepEqual(span(warning), [1, 7, 12]);
   assert.equal(warning.severity, 1);
   assert.match(warning.message, /never used/);
   extension.deactivate();
 });
+
+class Range {
+  constructor(startLine, startCharacter, endLine, endCharacter) {
+    this.start = { line: startLine, character: startCharacter };
+    this.end = { line: endLine, character: endCharacter };
+  }
+}
+
+// A single-line diagnostic's line and character span.
+function span(item) {
+  assert.equal(item.range.start.line, item.range.end.line);
+  return [item.range.start.line, item.range.start.character, item.range.end.character];
+}
 
 async function until(condition) {
   const deadline = Date.now() + 3000;
