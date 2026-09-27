@@ -1,6 +1,6 @@
 # SPIT for VS Code
 
-This local extension shows SPIT validation errors as you edit `.spit` files. It checks unsaved text after a short pause and reports syntax errors throughout the file. Once the syntax is valid, it reports every semantic, command, and path error, each on its related line, and shows warnings for likely mistakes such as unused definitions. Each problem underlines the text it is about, such as a misspelled input or one `{placeholder}`; with an older SPIT build that reports no columns, the whole line is marked.
+This local extension provides syntax highlighting and shows SPIT validation errors as you edit `.spit` files. Section headers (`products:`, `operations:`, `pipeline:`, `constraints:`, `commands:`, `sources:`, `contexts:`), keywords (`require`, `per`, `many`, `one`, `vary`, `verify`), product and operation names, types (including `<generic>` parameters), dimension lists (`[site, device]`), `{placeholder}` text in commands, and `#` comments are each highlighted distinctly. It checks unsaved text after a short pause and reports syntax errors throughout the file. Once the syntax is valid, it reports every semantic, command, and path error, each on its related line, and shows warnings for likely mistakes such as unused definitions. Each problem underlines the text it is about, such as a misspelled input or one `{placeholder}`; with an older SPIT build that reports no columns, the whole line is marked.
 Errors in an external inventory are shown on the pipeline's first line with the inventory path and line number.
 
 ## Try it locally

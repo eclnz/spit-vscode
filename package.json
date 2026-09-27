@@ -17,7 +17,15 @@
       {
         "id": "spit",
         "aliases": ["SPIT"],
-        "extensions": [".spit"]
+        "extensions": [".spit"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "spit",
+        "scopeName": "source.spit",
+        "path": "./syntaxes/spit.tmLanguage.json"
       }
     ],
     "configuration": {
