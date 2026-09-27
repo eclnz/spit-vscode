@@ -66,10 +66,11 @@ test('checks unsaved edits and clears fixed errors', { skip: !fs.existsSync(bina
   document.version++;
   onChange({ document });
   await until(() => results.get(document.uri.toString())?.length === 2);
-  // Syntax errors without a narrower token mark the line's content.
+  // A missing `=` has no narrower token, so it marks the line's content; an
+  // unclosed `(` is marked from the opener to the end of the line.
   assert.deepEqual(results.get(document.uri.toString()).map(item => span(item)), [
     [2, 0, 16],
-    [3, 0, 16]
+    [3, 12, 16]
   ]);
   assert.match(results.get(document.uri.toString())[0].message, /expected `=`/);
   assert.match(results.get(document.uri.toString())[1].message, /expected closing `\)`/);
