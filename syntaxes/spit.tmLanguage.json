@@ -259,7 +259,7 @@
       "patterns": [
         { "name": "keyword.control.spit", "match": "\\b(require|per|verify|use|from|as|source|operation|command|path)\\b" },
         { "name": "storage.modifier.cardinality.spit", "match": "\\b(many|one)\\b" },
-        { "name": "keyword.other.selector.spit", "match": "\\b(vary|where|same|drop|min)\\b" },
+        { "name": "keyword.other.selector.spit", "match": "\\b(vary|where|same|each|drop|min)\\b" },
         { "include": "#strings" },
         { "name": "keyword.operator.at.spit", "match": "@" },
         { "name": "keyword.operator.arrow.spit", "match": "->" },

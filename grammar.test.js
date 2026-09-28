@@ -85,3 +85,9 @@ test('command templates mark the placeholders every operation has', { skip }, as
   assert.match(scopes(line, 'dwi', line.indexOf('{dwi')), /variable\.parameter\.placeholder\.spit/);
   assert.doesNotMatch(scopes(line, 'dwi', line.indexOf('{dwi')), /variable\.language/);
 });
+
+test('each is a selector keyword', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'connectome = connect(tracks, parcels @ each(atlas), lut)';
+  assert.match(scopes(line, 'each'), /keyword\.other\.selector\.spit/);
+});
