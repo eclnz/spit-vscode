@@ -12,6 +12,12 @@
   "categories": ["Linters"],
   "main": "./extension.js",
   "activationEvents": ["onLanguage:spit"],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "SPIT runs the `spit` executable on the files of the workspace."
+    }
+  },
   "contributes": {
     "languages": [
       {
@@ -33,9 +39,9 @@
       "properties": {
         "spit.executablePath": {
           "type": "string",
-          "scope": "resource",
+          "scope": "machine-overridable",
           "default": "",
-          "description": "Path to the SPIT executable. Leave empty to use a sibling SPIT build or the executable on PATH."
+          "description": "Path to the SPIT executable. Set in user settings only, so that a workspace cannot choose a program to run. Leave empty to use a sibling SPIT build or the executable on PATH."
         },
         "spit.sourcesFile": {
           "type": "string",

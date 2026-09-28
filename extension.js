@@ -3,6 +3,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 
+const CHECK_TIMEOUT_MS = 15000;
+
 const pending = new Map();
 const timers = new Map();
 let diagnostics;
@@ -447,15 +449,25 @@ function lint(context, document) {
     stdio: ['pipe', 'pipe', 'pipe']
   });
   pending.set(key, child);
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    child.kill();
+  }, CHECK_TIMEOUT_MS);
   let output = '';
   let errors = '';
   child.stdout.setEncoding('utf8').on('data', chunk => { output += chunk; });
   child.stderr.setEncoding('utf8').on('data', chunk => { errors += chunk; });
   child.on('error', error => { errors += error.message; });
   child.on('close', code => {
+    clearTimeout(timeout);
     if (pending.get(key) !== child) return;
     pending.delete(key);
     if (document.isClosed || document.version !== version) return;
+    if (timedOut) {
+      diagnostics.set(document.uri, [issue(document, null, `SPIT check did not finish within ${CHECK_TIMEOUT_MS / 1000} seconds and was stopped`)]);
+      return;
+    }
     if (code !== 0) {
       diagnostics.set(document.uri, [issue(document, null, `SPIT check failed: ${errors.trim() || `exit ${code}`}`)]);
       return;
@@ -497,9 +509,12 @@ function activate(context) {
       for (const document of vscode.workspace.textDocuments) schedule(context, document, 0);
     }
   }));
-  const watcher = vscode.workspace.createFileSystemWatcher('**/*.sources');
-  const refresh = () => {
-    for (const document of vscode.workspace.textDocuments) schedule(context, document, 0);
+  // Re-check when an inventory or an imported pipeline changes.
+  const watcher = vscode.workspace.createFileSystemWatcher('**/*.{sources,spit}');
+  const refresh = changed => {
+    for (const document of vscode.workspace.textDocuments) {
+      if (document.uri.toString() !== changed.toString()) schedule(context, document, 0);
+    }
   };
   context.subscriptions.push(watcher, watcher.onDidChange(refresh), watcher.onDidCreate(refresh), watcher.onDidDelete(refresh));
   for (const document of vscode.workspace.textDocuments) schedule(context, document, 0);

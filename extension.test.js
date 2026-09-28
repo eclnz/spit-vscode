@@ -225,3 +225,9 @@ async function until(condition) {
     await new Promise(resolve => setTimeout(resolve, 20));
   }
 }
+
+test('a workspace cannot choose the executable, and untrusted folders are not checked', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
+  assert.equal(manifest.contributes.configuration.properties['spit.executablePath'].scope, 'machine-overridable');
+  assert.equal(manifest.capabilities.untrustedWorkspaces.supported, false);
+});
