@@ -88,6 +88,6 @@ test('command templates mark the placeholders every operation has', { skip }, as
 
 test('each is a selector keyword', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = 'connectome = connect(tracks, parcels @ each(atlas), lut)';
+  const line = 'forecast = predict(reading, model @ each(scenario), parameters)';
   assert.match(scopes(line, 'each'), /keyword\.other\.selector\.spit/);
 });
