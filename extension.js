@@ -3,8 +3,6 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 
-// A check that has not finished by then is stopped, so a stuck process
-// cannot linger until the next edit.
 const CHECK_TIMEOUT_MS = 15000;
 
 const pending = new Map();
@@ -511,7 +509,7 @@ function activate(context) {
       for (const document of vscode.workspace.textDocuments) schedule(context, document, 0);
     }
   }));
-  // An inventory, or a pipeline another one imports, can change on disk.
+  // Re-check when an inventory or an imported pipeline changes.
   const watcher = vscode.workspace.createFileSystemWatcher('**/*.{sources,spit}');
   const refresh = changed => {
     for (const document of vscode.workspace.textDocuments) {
