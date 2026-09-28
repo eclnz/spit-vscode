@@ -1,6 +1,10 @@
 # SPIT for VS Code
 
-This local extension shows SPIT validation errors as you edit `.spit` files. It checks unsaved text after a short pause and reports syntax errors throughout the file. Once the syntax is valid, it reports every semantic, command, and path error, each on its related line, and shows warnings for likely mistakes such as unused definitions. Each problem underlines the text it is about, such as a misspelled input or one `{placeholder}`; with an older SPIT build that reports no columns, the whole line is marked.
+This local extension provides syntax highlighting and shows SPIT validation errors as you edit `.spit` files. Section headers (`products:`, `operations:`, `pipeline:`, `constraints:`, `commands:`, `sources:`, `contexts:`), every keyword (`require`, `per`, `many`, `one`, `vary`, `where`, `same`, `drop`, `min`, `verify`, `use`, `from`, `as`, `source`, `operation`, `command`, `path`, `stage`), stage names, product and operation names, types (including `<generic>` parameters), dimension lists (`[site, device]`), `{placeholder}` text in commands and paths, quoted paths, and `#` comments are each highlighted distinctly. Placeholders SPIT defines itself are colored as built-ins, apart from the ones a pipeline names: `{product}`, `{entities}`, and `{stage}` in a path, against a dimension such as `{sub}`; and `{output}`, `{input}`, `{input1}`, and `{inputs}` in a command, against a named port such as `{dwi}`. Lines inside a `stage` fold with it, and a new line after `stage name:` is indented.
+
+For a sectioned pipeline (one with `products:`, `operations:`, `pipeline:`, `constraints:`, or `commands:` headers) the extension goes further with semantic highlighting: it reads the actual declarations in the file, so a product's name is colored differently at its declaration than at each place it is used, an operation call is recognized by matching it against `operations:`, and dimension names and their values in `sources:`/`contexts:`/`constraints:` are colored by role rather than by generic pattern. The older, header-less flow style (`source name`, `operation name(...)`, `output = op(...)`) still gets full keyword and structural coloring from the syntax grammar alone.
+
+It checks unsaved text after a short pause and reports syntax errors throughout the file. Once the syntax is valid, it reports every semantic, command, and path error, each on its related line, and shows warnings for likely mistakes such as unused definitions. Each problem underlines the text it is about, such as a misspelled input or one `{placeholder}`; with an older SPIT build that reports no columns, the whole line is marked.
 Errors in an external inventory are shown on the pipeline's first line with the inventory path and line number.
 
 ## Try it locally
@@ -18,4 +22,4 @@ The extension reads inventory files from disk. Save changes to a `.sources` file
 
 ## Test
 
-Run `npm test` with a sibling SPIT build. Set `SPIT_TEST_EXECUTABLE` to another SPIT binary path if the repositories are elsewhere.
+Run `npm install`, then `npm test` with a sibling SPIT build. The grammar tests tokenize SPIT text with `vscode-textmate`, the engine VS Code uses, and are skipped until it is installed. Set `SPIT_TEST_EXECUTABLE` to another SPIT binary path if the repositories are elsewhere.

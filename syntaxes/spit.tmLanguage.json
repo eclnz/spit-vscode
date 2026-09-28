@@ -1,0 +1,276 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "SPIT",
+  "scopeName": "source.spit",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#section-headers" },
+    { "include": "#stage-header" },
+    { "include": "#use-line" },
+    { "include": "#flow-declaration" },
+    { "include": "#constraint-rule" },
+    { "include": "#invocation" },
+    { "include": "#operation-signature" },
+    { "include": "#product-declaration" },
+    { "include": "#inventory-entry" },
+    { "include": "#context-entry" },
+    { "include": "#command-line" },
+    { "include": "#expression" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.number-sign.spit",
+          "match": "#.*$"
+        }
+      ]
+    },
+    "section-headers": {
+      "patterns": [
+        {
+          "name": "entity.name.section.spit keyword.other.section.spit",
+          "match": "^\\s*(products|operations|pipeline|constraints|commands|sources|contexts)\\s*:\\s*$"
+        }
+      ]
+    },
+    "stage-header": {
+      "comment": "`stage name:` opens a stage; its lines are indented beneath it.",
+      "match": "^\\s*(stage)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(:)(?=\\s*(?:#.*)?$)",
+      "captures": {
+        "1": { "name": "keyword.control.stage.spit" },
+        "2": { "name": "entity.name.section.stage.spit" },
+        "3": { "name": "punctuation.separator.colon.spit" }
+      }
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.spit",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [{ "name": "constant.character.escape.spit", "match": "\\\\." }]
+        },
+        {
+          "name": "string.quoted.single.spit",
+          "begin": "'",
+          "end": "'",
+          "patterns": [{ "name": "constant.character.escape.spit", "match": "\\\\." }]
+        }
+      ]
+    },
+    "use-line": {
+      "begin": "^(\\s*)(use)\\s+",
+      "beginCaptures": {
+        "2": { "name": "keyword.control.import.spit" }
+      },
+      "end": "$",
+      "patterns": [
+        { "name": "keyword.control.import.spit", "match": "\\b(from|as)\\b" },
+        { "include": "#strings" },
+        { "name": "punctuation.separator.comma.spit", "match": "," },
+        { "name": "variable.other.spit", "match": "[A-Za-z_][A-Za-z0-9_]*" }
+      ]
+    },
+    "flow-declaration": {
+      "patterns": [
+        {
+          "match": "^(\\s*)(source)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "2": { "name": "keyword.control.spit" },
+            "3": { "name": "variable.other.product.spit" }
+          }
+        },
+        {
+          "match": "^(\\s*)(command)\\s+",
+          "captures": { "2": { "name": "keyword.control.spit" } }
+        },
+        {
+          "comment": "`path:` or `path product:`, then a template.",
+          "begin": "^(\\s*)(path)(?:\\s+([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*))?\\s*(:)",
+          "beginCaptures": {
+            "2": { "name": "keyword.control.spit" },
+            "3": { "name": "variable.other.product.spit" },
+            "4": { "name": "punctuation.separator.colon.spit" }
+          },
+          "end": "$",
+          "patterns": [{ "include": "#word-comment" }, { "include": "#brace-escape" }, { "include": "#path-placeholder" }]
+        }
+      ]
+    },
+    "constraint-rule": {
+      "match": "^(\\s*)(require)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+(count)(>=|=)(\\d+)(?:\\s+(per)\\s+(\\[[^\\]]*\\]))?",
+      "captures": {
+        "2": { "name": "keyword.control.require.spit" },
+        "3": { "name": "variable.other.product.spit" },
+        "4": { "name": "keyword.other.count.spit" },
+        "5": { "name": "keyword.operator.comparison.spit" },
+        "6": { "name": "constant.numeric.spit" },
+        "7": { "name": "keyword.control.per.spit" },
+        "8": { "name": "meta.dimension-list.spit" }
+      },
+      "patterns": [{ "include": "#dimension-list-inner" }]
+    },
+    "operation-signature": {
+      "begin": "^(\\s*)(?:(operation)\\s+)?([A-Za-z_][A-Za-z0-9_]*)(\\()",
+      "beginCaptures": {
+        "2": { "name": "keyword.control.spit" },
+        "3": { "name": "entity.name.function.spit" },
+        "4": { "name": "punctuation.definition.parameters.begin.spit" }
+      },
+      "end": "\\)\\s*(->)\\s*(.+)$|\\)",
+      "endCaptures": {
+        "1": { "name": "keyword.operator.arrow.spit" },
+        "2": { "name": "support.type.spit" }
+      },
+      "patterns": [
+        { "name": "storage.modifier.cardinality.spit", "match": "\\b(many|one)\\b" },
+        { "name": "keyword.other.selector.spit", "match": "\\b(drop|min)\\b" },
+        { "name": "keyword.operator.at.spit", "match": "@" },
+        { "name": "punctuation.separator.comma.spit", "match": "," },
+        { "include": "#type-reference" }
+      ]
+    },
+    "product-declaration": {
+      "match": "^(\\s*)([A-Za-z_][A-Za-z0-9_]*)\\s*(:)?\\s*((?:[A-Za-z_][A-Za-z0-9_]*(?:<[^>]*>)?)?)\\s*(\\[[^\\]]*\\])?\\s*$",
+      "captures": {
+        "2": { "name": "variable.other.product.spit" },
+        "3": { "name": "punctuation.separator.colon.spit" },
+        "4": { "patterns": [{ "include": "#type-reference" }] },
+        "5": { "patterns": [{ "include": "#dimension-list-inner" }] }
+      }
+    },
+    "invocation": {
+      "match": "^(\\s*)([A-Za-z_][A-Za-z0-9_]*)\\s*(=)\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*(\\()",
+      "captures": {
+        "2": { "name": "variable.other.product.spit" },
+        "3": { "name": "keyword.operator.assignment.spit" },
+        "4": { "name": "entity.name.function.spit" },
+        "5": { "name": "punctuation.definition.arguments.begin.spit" }
+      }
+    },
+    "inventory-entry": {
+      "match": "^(\\s*)([A-Za-z_][A-Za-z0-9_]*)(\\[)([^\\]]*)(\\])",
+      "captures": {
+        "2": { "name": "variable.other.product.spit" },
+        "3": { "name": "punctuation.definition.dimensions.begin.spit" },
+        "4": { "patterns": [{ "include": "#dimension-assignment-list" }] },
+        "5": { "name": "punctuation.definition.dimensions.end.spit" }
+      }
+    },
+    "context-entry": {
+      "match": "^(\\s*)(\\[)([^\\]]*)(\\])\\s*$",
+      "captures": {
+        "2": { "name": "punctuation.definition.dimensions.begin.spit" },
+        "3": { "patterns": [{ "include": "#dimension-assignment-list" }] },
+        "4": { "name": "punctuation.definition.dimensions.end.spit" }
+      }
+    },
+    "command-line": {
+      "begin": "^(\\s*)(verify)\\s+",
+      "beginCaptures": {
+        "2": { "name": "keyword.control.verify.spit" }
+      },
+      "end": "$",
+      "patterns": [{ "include": "#placeholder" }]
+    },
+    "dimension-list-inner": {
+      "patterns": [
+        { "name": "punctuation.definition.dimensions.begin.spit", "match": "\\[" },
+        { "name": "punctuation.definition.dimensions.end.spit", "match": "\\]" },
+        { "name": "punctuation.separator.comma.spit", "match": "," },
+        { "name": "variable.parameter.dimension.spit", "match": "[A-Za-z_][A-Za-z0-9_]*" }
+      ]
+    },
+    "dimension-assignment-list": {
+      "patterns": [
+        {
+          "match": "([A-Za-z_][A-Za-z0-9_]*)(=)([A-Za-z0-9_]+)",
+          "captures": {
+            "1": { "name": "variable.parameter.dimension.spit" },
+            "2": { "name": "keyword.operator.assignment.spit" },
+            "3": { "name": "constant.character.dimension-value.spit" }
+          }
+        },
+        { "name": "punctuation.separator.comma.spit", "match": "," }
+      ]
+    },
+    "type-reference": {
+      "patterns": [
+        {
+          "match": "\\b([A-Z][A-Za-z0-9_]*)(<)([^>]*)(>)",
+          "captures": {
+            "1": { "name": "support.type.spit" },
+            "2": { "name": "punctuation.definition.typeparameters.begin.spit" },
+            "3": { "patterns": [{ "name": "support.type.spit", "match": "[A-Za-z_][A-Za-z0-9_]*" }, { "name": "punctuation.separator.comma.spit", "match": "," }] },
+            "4": { "name": "punctuation.definition.typeparameters.end.spit" }
+          }
+        },
+        { "name": "support.type.spit", "match": "\\b[A-Z][A-Za-z0-9_]*\\b" }
+      ]
+    },
+    "word-comment": {
+      "comment": "As in SPIT, `#` starts a comment only at the start of a word.",
+      "name": "comment.line.number-sign.spit",
+      "match": "(?:^|(?<=\\s))#.*$"
+    },
+    "brace-escape": {
+      "name": "constant.character.escape.brace.spit",
+      "match": "\\{\\{|\\}\\}"
+    },
+    "path-placeholder": {
+      "patterns": [
+        {
+          "comment": "Placeholders every path template reserves; no product may declare a dimension with these names.",
+          "match": "(\\{)(product|entities|stage)(\\})",
+          "captures": {
+            "1": { "name": "punctuation.definition.template-expression.begin.spit" },
+            "2": { "name": "variable.language.placeholder.spit" },
+            "3": { "name": "punctuation.definition.template-expression.end.spit" }
+          }
+        },
+        {
+          "comment": "A dimension of the product.",
+          "match": "(\\{)([A-Za-z_][A-Za-z0-9_]*)(\\})",
+          "captures": {
+            "1": { "name": "punctuation.definition.template-expression.begin.spit" },
+            "2": { "name": "variable.parameter.placeholder.dimension.spit" },
+            "3": { "name": "punctuation.definition.template-expression.end.spit" }
+          }
+        }
+      ]
+    },
+    "placeholder": {
+      "patterns": [
+        { "include": "#brace-escape" },
+        {
+          "comment": "Placeholders an operation has without naming its ports.",
+          "match": "(\\{)(output|inputs|input[0-9]*)(\\})",
+          "captures": {
+            "1": { "name": "punctuation.definition.template-expression.begin.spit" },
+            "2": { "name": "variable.language.placeholder.spit" },
+            "3": { "name": "punctuation.definition.template-expression.end.spit" }
+          }
+        },
+        { "name": "variable.parameter.placeholder.spit", "match": "\\{[^}]*\\}" }
+      ]
+    },
+    "expression": {
+      "patterns": [
+        { "name": "keyword.control.spit", "match": "\\b(require|per|verify|use|from|as|source|operation|command|path)\\b" },
+        { "name": "storage.modifier.cardinality.spit", "match": "\\b(many|one)\\b" },
+        { "name": "keyword.other.selector.spit", "match": "\\b(vary|where|same|drop|min)\\b" },
+        { "include": "#strings" },
+        { "name": "keyword.operator.at.spit", "match": "@" },
+        { "name": "keyword.operator.arrow.spit", "match": "->" },
+        { "name": "keyword.operator.comparison.spit", "match": ">=|<=|=" },
+        { "name": "constant.numeric.spit", "match": "\\b\\d+\\b" },
+        { "include": "#type-reference" },
+        { "include": "#placeholder" },
+        { "name": "punctuation.separator.comma.spit", "match": "," },
+        { "name": "punctuation.section.parens.spit", "match": "[()]" },
+        { "name": "variable.other.spit", "match": "[A-Za-z_][A-Za-z0-9_]*" }
+      ]
+    }
+  }
+}
