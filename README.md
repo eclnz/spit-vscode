@@ -23,3 +23,11 @@ The extension reads inventory files from disk. Save changes to a `.sources` file
 ## Test
 
 Run `npm install`, then `npm test` with a sibling SPIT build. The grammar tests tokenize SPIT text with `vscode-textmate`, the engine VS Code uses, and are skipped until it is installed. Set `SPIT_TEST_EXECUTABLE` to another SPIT binary path if the repositories are elsewhere.
+
+## Disclaimer
+
+This extension was developed with the help of generative AI tools. Code and documentation have been reviewed and are covered by tests, but may still contain errors. The extension runs the SPIT executable on the files you open, so use it only in workspaces you trust. The software is provided as is, without warranty of any kind; see the [license](LICENSE).
+
+## License
+
+Released under the [MIT License](LICENSE).
