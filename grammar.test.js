@@ -91,3 +91,11 @@ test('each is a selector keyword', { skip }, async () => {
   const line = 'forecast = predict(reading, model @ each(scenario), parameters)';
   assert.match(scopes(line, 'each'), /keyword\.other\.selector\.spit/);
 });
+
+test('placeholders show in double quotes, and single-quoted text is literal', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = `command label: tool "--in={input}" '{print $1}' {output}`;
+  assert.match(scopes(line, 'input'), /variable\.language\.placeholder\.spit/);
+  assert.doesNotMatch(scopes(line, 'print'), /placeholder/);
+  assert.match(scopes(line, 'print'), /string\.quoted\.single\.spit/);
+});

@@ -46,10 +46,11 @@
     "strings": {
       "patterns": [
         {
+          "comment": "SPIT fills placeholders in double quotes; single-quoted text is literal, as in Bash.",
           "name": "string.quoted.double.spit",
           "begin": "\"",
           "end": "\"",
-          "patterns": [{ "name": "constant.character.escape.spit", "match": "\\\\." }]
+          "patterns": [{ "name": "constant.character.escape.spit", "match": "\\\\." }, { "include": "#placeholder" }]
         },
         {
           "name": "string.quoted.single.spit",
