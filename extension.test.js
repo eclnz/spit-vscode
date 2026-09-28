@@ -28,6 +28,9 @@ test('checks unsaved edits and clears fixed errors', { skip: !fs.existsSync(bina
       constructor(range, message, severity) { Object.assign(this, { range, message, severity }); }
     },
     DiagnosticSeverity: { Error: 0, Warning: 1 },
+    // The extension builds its semantic token legend when it loads.
+    SemanticTokensLegend: class {},
+    SemanticTokensBuilder: class {},
     languages: {
       createDiagnosticCollection() {
         return {
@@ -35,7 +38,8 @@ test('checks unsaved edits and clears fixed errors', { skip: !fs.existsSync(bina
           delete(uri) { results.delete(uri.toString()); },
           dispose() {}
         };
-      }
+      },
+      registerDocumentSemanticTokensProvider() { return disposable; }
     },
     workspace: {
       textDocuments: [document],
@@ -58,6 +62,8 @@ test('checks unsaved edits and clears fixed errors', { skip: !fs.existsSync(bina
     extension = require('./extension');
   } finally {
     Module._load = originalLoad;
+    // Each test loads the extension against its own `vscode` mock.
+    delete require.cache[require.resolve('./extension')];
   }
 
   extension.activate({ extensionPath: __dirname, subscriptions: [] });
