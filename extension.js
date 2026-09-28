@@ -237,7 +237,7 @@ function handlePipelineLine(content, push) {
     if (productMatch) push(argsBase + item.start + productMatch.index, productMatch[0].length, 'variable');
     for (let index = 1; index < selectorSplit.length; index++) {
       const clauseBase = argsBase + item.start + selectorSplit[index].start;
-      const clauseMatch = /^\s*(vary|where|same)\s*\(([^)]*)\)/.exec(selectorSplit[index].text);
+      const clauseMatch = /^\s*(vary|where|same|each)\s*\(([^)]*)\)/.exec(selectorSplit[index].text);
       if (!clauseMatch) continue;
       const innerBase = clauseBase + clauseMatch[0].indexOf('(') + 1;
       if (clauseMatch[1] === 'where') {

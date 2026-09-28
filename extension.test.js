@@ -157,7 +157,7 @@ test('highlights declared products, operations, and dimensions by role', () => {
     '    normalize(Reading<Raw>, one Gain) -> Reading<Normalized>',
     '',
     'pipeline:',
-    '    normalized = normalize(reading @ vary(device), gain)',
+    '    normalized = normalize(reading @ vary(device), gain @ each(site))',
     '',
     'constraints:',
     '    require reading count>=1 per [site, device]',
@@ -198,6 +198,7 @@ test('highlights declared products, operations, and dimensions by role', () => {
   assert.equal(normalizeCall.tokenModifiers, 0, 'a call site is not a declaration');
 
   assert.equal(at(8, 'device').tokenType, typeIndex('parameter'));
+  assert.equal(at(8, 'site').tokenType, typeIndex('parameter'), 'an `each` dimension is a parameter');
   assert.equal(at(11, 'reading').tokenType, typeIndex('variable'));
   assert.equal(at(14, 'D1').tokenType, typeIndex('enumMember'));
   assert.equal(at(17, 'site').tokenType, typeIndex('parameter'));
