@@ -46,7 +46,9 @@ function stripComment(line) {
     } else if (quote === null && character === '#' && atWordStart) {
       return line.slice(0, index);
     }
-    wordStart = quote === null && /\s/.test(character);
+    // Whitespace as Rust's char::is_whitespace has it, which unlike `\s`
+    // leaves out a byte order mark.
+    wordStart = quote === null && /\p{White_Space}/u.test(character);
   }
   return line;
 }
@@ -540,4 +542,5 @@ function deactivate() {
   for (const key of pending.keys()) stop(vscode.Uri.parse(key));
 }
 
-module.exports = { activate, deactivate };
+// stripComment is exported for the tests that check it against SPIT's own.
+module.exports = { activate, deactivate, stripComment };

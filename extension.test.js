@@ -143,6 +143,24 @@ function mockVscode(document, results, onChange) {
 }
 
 // Load the extension against a `vscode` mock, fresh for each test.
+// SPIT's repository, beside this one as for the binary above. Its fixture
+// holds the comment stripping SPIT does, which highlighting must match.
+const spitRepository = process.env.SPIT_REPOSITORY || path.resolve(__dirname, '..', 'spit');
+const commentFixture = path.join(spitRepository, 'tests', 'fixtures', 'comments.txt');
+
+test('strips comments as SPIT does', { skip: !fs.existsSync(commentFixture) }, () => {
+  const { stripComment } = load({ SemanticTokensLegend: class {} });
+  const lines = fs.readFileSync(commentFixture, 'utf8').split('\n').filter(line => !line.startsWith('#'));
+  let cases = 0;
+  for (let index = 0; index + 1 < lines.length; index += 2) {
+    assert.ok(lines[index].startsWith('in:') && lines[index + 1].startsWith('out:'), lines[index]);
+    const input = lines[index].slice('in:'.length);
+    assert.equal(stripComment(input), lines[index + 1].slice('out:'.length), JSON.stringify(input));
+    cases++;
+  }
+  assert.ok(cases > 10);
+});
+
 function load(vscode) {
   const originalLoad = Module._load;
   Module._load = function (request, parent, isMain) {
