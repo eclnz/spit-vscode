@@ -4,6 +4,8 @@ This local extension provides syntax highlighting and shows SPIT validation erro
 
 For a sectioned pipeline (one with `products:`, `operations:`, `pipeline:`, `constraints:`, or `commands:` headers) the extension goes further with semantic highlighting: it reads the actual declarations in the file, so a product's name is colored differently at its declaration than at each place it is used, an operation call is recognized by matching it against `operations:`, and dimension names and their values in `sources:`/`contexts:`/`constraints:` are colored by role rather than by generic pattern. The older, header-less flow style (`source name`, `operation name(...)`, `output = op(...)`) still gets full keyword and structural coloring from the syntax grammar alone.
 
+`.spitin` input recipes use the same syntax highlighting. Pipelines load a same-name sibling recipe automatically; set `spit.inputsFile` to choose another one. Saving a recipe rechecks open pipelines. The extension currently shows recipe errors on the pipeline tab when it runs `spit check`.
+
 It checks unsaved text after a short pause and reports syntax errors throughout the file. Once the syntax is valid, it reports every semantic, command, and path error, each on its related line, and shows warnings for likely mistakes such as unused definitions. Each problem underlines the text it is about, such as a misspelled input or one `{placeholder}`; with an older SPIT build that reports no columns, the whole line is marked.
 Errors in an external inventory are shown on the pipeline's first line with the inventory path and line number.
 

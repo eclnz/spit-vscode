@@ -24,7 +24,7 @@
       {
         "id": "spit",
         "aliases": ["SPIT"],
-        "extensions": [".spit"],
+        "extensions": [".spit", ".spitin"],
         "configuration": "./language-configuration.json"
       }
     ],
@@ -49,6 +49,12 @@
           "scope": "resource",
           "default": "",
           "description": "Inventory file for this pipeline. Relative paths are resolved from the pipeline file. Leave empty to use a sibling file with the same name and a .sources extension, when present."
+        },
+        "spit.inputsFile": {
+          "type": "string",
+          "scope": "resource",
+          "default": "",
+          "description": "Input recipe for this pipeline. Relative paths are resolved from the pipeline file. Leave empty to use a sibling .spitin file when present."
         },
         "spit.rootDirectory": {
           "type": "string",

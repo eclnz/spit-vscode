@@ -424,6 +424,15 @@ function sourcesPath(document) {
   return fs.existsSync(sibling) ? sibling : undefined;
 }
 
+function inputsPath(document) {
+  const configured = (vscode.workspace.getConfiguration('spit', document.uri).get('inputsFile') || '').trim();
+  if (configured) {
+    return path.isAbsolute(configured) ? configured : path.resolve(path.dirname(document.uri.fsPath), configured);
+  }
+  const sibling = document.uri.fsPath.replace(/\.spit$/i, '.spitin');
+  return fs.existsSync(sibling) ? sibling : undefined;
+}
+
 // `column` and `end_column` are 1-based UTF-16 offsets, as SPIT reports them;
 // without them the whole line is marked.
 function issue(document, line, message, severity = 'error', column, endColumn) {
@@ -452,7 +461,7 @@ function stop(uri) {
 }
 
 function schedule(context, document, delay = 250) {
-  if (document.languageId !== 'spit' || document.uri.scheme !== 'file') return;
+  if (document.languageId !== 'spit' || document.uri.scheme !== 'file' || !/\.spit$/i.test(document.uri.fsPath)) return;
   const key = document.uri.toString();
   stop(document.uri);
   timers.set(key, setTimeout(() => {
@@ -464,8 +473,10 @@ function schedule(context, document, delay = 250) {
 function lint(context, document) {
   const key = document.uri.toString();
   const version = document.version;
-  const source = sourcesPath(document);
+  const inputs = inputsPath(document);
+  const source = inputs ? undefined : sourcesPath(document);
   const args = ['check', document.uri.fsPath, '--json', '--stdin'];
+  if (inputs) args.push('--inputs', inputs);
   if (source) args.push('--sources', source);
   const configuredRoot = vscode.workspace.getConfiguration('spit', document.uri).get('rootDirectory').trim();
   if (!source && (configuredRoot || /^\s*discover\s+/m.test(document.getText()))) {
@@ -541,7 +552,7 @@ function activate(context) {
     }
   }));
   // Re-check when an inventory or an imported pipeline changes.
-  const watcher = vscode.workspace.createFileSystemWatcher('**/*.{sources,spit}');
+  const watcher = vscode.workspace.createFileSystemWatcher('**/*.{sources,spit,spitin}');
   const refresh = changed => {
     for (const document of vscode.workspace.textDocuments) {
       if (document.uri.toString() !== changed.toString()) schedule(context, document, 0);
