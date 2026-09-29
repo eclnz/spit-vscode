@@ -20,6 +20,8 @@ For a pipeline with an external inventory, the extension automatically uses a si
 
 The extension reads inventory files from disk. Save changes to a `.sources` file to refresh pipeline diagnostics.
 
+The extension highlights `discover sessions: [sub, ses] from dirs data/sub-{sub}/ses-{ses}` and checks its directory pattern against the pipeline's folder. Set `spit.rootDirectory` when the data root is elsewhere; relative values use the pipeline's folder. A discovery that matches no directories appears as an error. An explicit or sibling `.sources` inventory takes precedence. This requires a SPIT build that supports `check --json --root`.
+
 ## Test
 
 Run `npm install`, then `npm test` with a sibling SPIT build. The grammar tests tokenize SPIT text with `vscode-textmate`, the engine VS Code uses, and are skipped until it is installed. Set `SPIT_TEST_EXECUTABLE` to another SPIT binary path if the repositories are elsewhere.

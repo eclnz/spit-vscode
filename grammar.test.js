@@ -49,6 +49,19 @@ test('path templates mark the reserved placeholders apart from dimensions', { sk
   assert.match(scopes(line, '{', line.indexOf('{sub')), /punctuation\.definition\.template-expression\.begin/);
 });
 
+test('directory discovery marks its name, dimensions, and path captures', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'discover sessions: [sub, ses] from dirs data/sub-{sub}/ses-{ses}';
+  assert.match(scopes(line, 'discover'), /keyword\.control\.discovery\.spit/);
+  assert.match(scopes(line, 'sessions'), /entity\.name\.collection\.spit/);
+  assert.match(scopes(line, ':'), /punctuation\.separator\.colon\.spit/);
+  assert.match(scopes(line, 'sub', line.indexOf('[')), /variable\.parameter\.dimension\.spit/);
+  assert.match(scopes(line, 'ses', line.indexOf('[')), /variable\.parameter\.dimension\.spit/);
+  assert.match(scopes(line, 'from'), /keyword\.control\.discovery\.spit/);
+  assert.match(scopes(line, 'dirs'), /keyword\.other\.discovery\.spit/);
+  assert.match(scopes(line, 'sub', line.indexOf('{sub')), /variable\.parameter\.placeholder\.dimension\.spit/);
+});
+
 test('a default path rule, a comment, and escaped braces', { skip }, async () => {
   const scopes = await tokenizer();
   const line = '    path: out/{{literal}}/{run}.txt # per stage';

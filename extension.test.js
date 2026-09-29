@@ -101,6 +101,12 @@ test('checks unsaved edits and clears fixed errors', { skip: !fs.existsSync(bina
   assert.deepEqual(span(warning), [1, 7, 12]);
   assert.equal(warning.severity, 1);
   assert.match(warning.message, /never used/);
+
+  document.text = 'discover sessions: [sub, ses] from dirs absent/sub-{sub}/ses-{ses}\n';
+  document.version++;
+  onChange({ document });
+  await until(() => results.get(document.uri.toString())?.some(item => /matched no directories/.test(item.message)));
+  assert.match(results.get(document.uri.toString())[0].message, /discovery `sessions` matched no directories/);
   extension.deactivate();
 });
 
@@ -167,6 +173,7 @@ test('highlights declared products, operations, and dimensions by role', () => {
     '',
     'contexts:',
     '    [site=A,device=D1]',
+    'discover sessions: [site, device] from dirs data/site-{site}/device-{device}',
     ''
   ].join('\n');
   const lines = text.split('\n');
@@ -202,6 +209,8 @@ test('highlights declared products, operations, and dimensions by role', () => {
   assert.equal(at(11, 'reading').tokenType, typeIndex('variable'));
   assert.equal(at(14, 'D1').tokenType, typeIndex('enumMember'));
   assert.equal(at(17, 'site').tokenType, typeIndex('parameter'));
+  assert.equal(at(18, 'sessions').tokenModifiers, 1);
+  assert.equal(at(18, 'site').tokenType, typeIndex('parameter'));
   extension.deactivate();
 });
 

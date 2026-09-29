@@ -336,6 +336,21 @@ function handleInventoryLine(content, push, hasName) {
   }
 }
 
+function handleDiscoverLine(content, push) {
+  const declaration = /^discover\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*\[([^\]]*)\]\s+from\s+dirs\s+/.exec(content);
+  if (!declaration) return;
+  const nameStart = content.indexOf(declaration[1], 'discover'.length);
+  push(nameStart, declaration[1].length, 'variable', DECLARATION);
+  const bracketStart = content.indexOf('[', nameStart + declaration[1].length);
+  pushIdentifiers(declaration[2], bracketStart + 1, 'parameter', push);
+  const pattern = content.slice(declaration[0].length);
+  const placeholder = /\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
+  let match;
+  while ((match = placeholder.exec(pattern))) {
+    push(declaration[0].length + match.index + 1, match[1].length, 'parameter');
+  }
+}
+
 function provideSpitSemanticTokens(document) {
   const builder = new vscode.SemanticTokensBuilder(spitSemanticLegend);
   try {
@@ -360,6 +375,11 @@ function provideSpitSemanticTokens(document) {
               builder.push(index, indent + start, length, SEMANTIC_TOKEN_TYPES.indexOf(type), modifiers);
             }
           };
+          if (content.startsWith('discover ')) {
+            handleDiscoverLine(content, push);
+            section = null;
+            continue;
+          }
           switch (section) {
             case 'products': handleProductLine(content, push); break;
             case 'operations': handleOperationLine(content, push); break;
@@ -443,6 +463,13 @@ function lint(context, document) {
   const source = sourcesPath(document);
   const args = ['check', document.uri.fsPath, '--json', '--stdin'];
   if (source) args.push('--sources', source);
+  const configuredRoot = vscode.workspace.getConfiguration('spit', document.uri).get('rootDirectory').trim();
+  if (!source && (configuredRoot || /^\s*discover\s+/m.test(document.getText()))) {
+    const root = configuredRoot
+      ? (path.isAbsolute(configuredRoot) ? configuredRoot : path.resolve(path.dirname(document.uri.fsPath), configuredRoot))
+      : path.dirname(document.uri.fsPath);
+    args.push('--root', root);
+  }
 
   const child = spawn(executablePath(context, document), args, {
     cwd: path.dirname(document.uri.fsPath),

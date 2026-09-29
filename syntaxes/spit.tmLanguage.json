@@ -6,6 +6,7 @@
     { "include": "#comments" },
     { "include": "#section-headers" },
     { "include": "#stage-header" },
+    { "include": "#discover-line" },
     { "include": "#use-line" },
     { "include": "#flow-declaration" },
     { "include": "#constraint-rule" },
@@ -42,6 +43,22 @@
         "2": { "name": "entity.name.section.stage.spit" },
         "3": { "name": "punctuation.separator.colon.spit" }
       }
+    },
+    "discover-line": {
+      "comment": "Discover observed entity bindings from matching directories.",
+      "begin": "^(\\s*)(discover)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(:)\\s*(\\[)([^\\]]*)(\\])\\s+(from)\\s+(dirs)\\s+",
+      "beginCaptures": {
+        "2": { "name": "keyword.control.discovery.spit" },
+        "3": { "name": "entity.name.collection.spit" },
+        "4": { "name": "punctuation.separator.colon.spit" },
+        "5": { "name": "punctuation.definition.dimensions.begin.spit" },
+        "6": { "patterns": [{ "include": "#dimension-list-inner" }] },
+        "7": { "name": "punctuation.definition.dimensions.end.spit" },
+        "8": { "name": "keyword.control.discovery.spit" },
+        "9": { "name": "keyword.other.discovery.spit" }
+      },
+      "end": "$",
+      "patterns": [{ "include": "#word-comment" }, { "include": "#brace-escape" }, { "include": "#path-placeholder" }]
     },
     "strings": {
       "patterns": [
@@ -258,7 +275,8 @@
     },
     "expression": {
       "patterns": [
-        { "name": "keyword.control.spit", "match": "\\b(require|per|verify|use|from|as|source|operation|command|path)\\b" },
+        { "name": "keyword.control.spit", "match": "\\b(require|per|verify|use|from|as|source|discover|operation|command|path)\\b" },
+        { "name": "keyword.other.discovery.spit", "match": "\\bdirs\\b" },
         { "name": "storage.modifier.cardinality.spit", "match": "\\b(many|one)\\b" },
         { "name": "keyword.other.selector.spit", "match": "\\b(vary|where|same|each|drop|min)\\b" },
         { "include": "#strings" },

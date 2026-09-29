@@ -49,6 +49,12 @@
           "scope": "resource",
           "default": "",
           "description": "Inventory file for this pipeline. Relative paths are resolved from the pipeline file. Leave empty to use a sibling file with the same name and a .sources extension, when present."
+        },
+        "spit.rootDirectory": {
+          "type": "string",
+          "scope": "resource",
+          "default": "",
+          "description": "Root for discovering source files and directory contexts. Relative paths are resolved from the pipeline file. A pipeline with a discover declaration uses its own folder when this is empty. An explicit inventory takes precedence."
         }
       }
     }
