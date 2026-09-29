@@ -171,7 +171,7 @@ test('highlights declared products, operations, and dimensions by role', () => {
     'sources:',
     '    reading[site=A,device=D1]',
     '',
-    'contexts:',
+    'contexts sessions:',
     '    [site=A,device=D1]',
     'discover sessions: [site, device] from dirs data/site-{site}/device-{device}',
     ''

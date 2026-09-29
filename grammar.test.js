@@ -62,6 +62,22 @@ test('directory discovery marks its name, dimensions, and path captures', { skip
   assert.match(scopes(line, 'sub', line.indexOf('{sub')), /variable\.parameter\.placeholder\.dimension\.spit/);
 });
 
+test('named discovery contexts have a section header', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'contexts sessions:';
+  assert.match(scopes(line, 'contexts'), /keyword\.other\.section\.spit/);
+  assert.match(scopes(line, 'sessions'), /entity\.name\.section\.discovery\.spit/);
+});
+
+test('skip rule highlights its count and group', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'skip sessions count>=2 per [sub]';
+  assert.match(scopes(line, 'skip'), /keyword\.control/);
+  assert.match(scopes(line, 'sessions'), /variable\.other\.product/);
+  assert.match(scopes(line, 'count'), /keyword\.other\.count/);
+  assert.match(scopes(line, 'sub'), /meta\.dimension-list/);
+});
+
 test('a default path rule, a comment, and escaped braces', { skip }, async () => {
   const scopes = await tokenizer();
   const line = '    path: out/{{literal}}/{run}.txt # per stage';

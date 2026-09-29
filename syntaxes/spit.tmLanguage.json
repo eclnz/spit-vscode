@@ -30,6 +30,14 @@
     "section-headers": {
       "patterns": [
         {
+          "match": "^\\s*(contexts)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(:)\\s*$",
+          "captures": {
+            "1": { "name": "keyword.other.section.spit" },
+            "2": { "name": "entity.name.section.discovery.spit" },
+            "3": { "name": "punctuation.separator.colon.spit" }
+          }
+        },
+        {
           "name": "entity.name.section.spit keyword.other.section.spit",
           "match": "^\\s*(products|operations|pipeline|constraints|commands|sources|contexts)\\s*:\\s*$"
         }
@@ -117,9 +125,9 @@
       ]
     },
     "constraint-rule": {
-      "match": "^(\\s*)(require)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+(count)(>=|=)(\\d+)(?:\\s+(per)\\s+(\\[[^\\]]*\\]))?",
+      "match": "^(\\s*)(require|skip)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+(count)(>=|=)(\\d+)(?:\\s+(per)\\s+(\\[[^\\]]*\\]))?",
       "captures": {
-        "2": { "name": "keyword.control.require.spit" },
+        "2": { "name": "keyword.control.constraint.spit" },
         "3": { "name": "variable.other.product.spit" },
         "4": { "name": "keyword.other.count.spit" },
         "5": { "name": "keyword.operator.comparison.spit" },
@@ -275,7 +283,7 @@
     },
     "expression": {
       "patterns": [
-        { "name": "keyword.control.spit", "match": "\\b(require|per|verify|use|from|as|source|discover|operation|command|path)\\b" },
+        { "name": "keyword.control.spit", "match": "\\b(require|skip|per|verify|use|from|as|source|discover|operation|command|path)\\b" },
         { "name": "keyword.other.discovery.spit", "match": "\\bdirs\\b" },
         { "name": "storage.modifier.cardinality.spit", "match": "\\b(many|one)\\b" },
         { "name": "keyword.other.selector.spit", "match": "\\b(vary|where|same|each|drop|min)\\b" },

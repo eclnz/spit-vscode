@@ -259,7 +259,7 @@ function handlePipelineLine(content, push) {
 }
 
 function handleConstraintLine(content, push) {
-  const leading = /^require\s+/.exec(content);
+  const leading = /^(?:require|skip)\s+/.exec(content);
   if (!leading) return;
   const subjectStart = leading[0].length;
   const perIndex = content.indexOf(' per ');
@@ -370,6 +370,10 @@ function provideSpitSemanticTokens(document) {
             section = header[1];
             continue;
           }
+          if (/^contexts\s+[A-Za-z_][A-Za-z0-9_]*:$/.test(content)) {
+            section = 'contexts';
+            continue;
+          }
           const push = (start, length, type, modifiers = 0) => {
             if (length > 0 && start >= 0) {
               builder.push(index, indent + start, length, SEMANTIC_TOKEN_TYPES.indexOf(type), modifiers);
@@ -415,7 +419,7 @@ function sourcesPath(document) {
   if (configured) {
     return path.isAbsolute(configured) ? configured : path.resolve(path.dirname(document.uri.fsPath), configured);
   }
-  if (/^\s*(sources|contexts):\s*(?:#.*)?$/m.test(document.getText())) return undefined;
+  if (/^\s*(?:sources|contexts(?:\s+[A-Za-z_][A-Za-z0-9_]*)?):\s*(?:#.*)?$/m.test(document.getText())) return undefined;
   const sibling = document.uri.fsPath.replace(/\.spit$/i, '.sources');
   return fs.existsSync(sibling) ? sibling : undefined;
 }
