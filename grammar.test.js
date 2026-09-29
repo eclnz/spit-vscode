@@ -128,3 +128,24 @@ test('placeholders show in double quotes, and single-quoted text is literal', { 
   assert.doesNotMatch(scopes(line, 'print'), /placeholder/);
   assert.match(scopes(line, 'print'), /string\.quoted\.single\.spit/);
 });
+
+test('a recipe names its pipeline', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'pipeline analysis.spit  # the pipeline this recipe serves';
+  assert.match(scopes(line, 'pipeline'), /keyword\.control\.import\.spit/);
+  assert.match(scopes(line, 'analysis.spit'), /string\.unquoted\.file\.spit/);
+  assert.match(scopes(line, '# the'), /comment\.line/);
+  // The sectioned header and a product called `pipeline` stay as they were.
+  assert.match(scopes('pipeline:', 'pipeline'), /keyword\.other\.section\.spit/);
+  assert.doesNotMatch(scopes('pipeline = copy(raw)', 'pipeline'), /keyword\.control\.import/);
+});
+
+test('a record may end with its file', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = '    image[sub=01,ses=01]: data/sub-01/ses-01/image.nii.gz';
+  assert.match(scopes(line, 'image'), /variable\.other\.product\.spit/);
+  assert.match(scopes(line, 'sub'), /variable\.parameter/);
+  assert.match(scopes(line, ':', line.indexOf(']')), /punctuation\.separator\.colon\.spit/);
+  assert.match(scopes(line, 'data/'), /string\.unquoted\.file\.spit/);
+  assert.doesNotMatch(scopes('    image[sub=01]', 'image'), /string/);
+});

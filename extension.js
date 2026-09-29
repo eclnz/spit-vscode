@@ -12,7 +12,8 @@ let diagnostics;
 // Semantic highlighting: colors names by what they *are* in this document
 // (a declared product, a declared operation, a dimension, ...) rather than
 // by shape alone, which a TextMate grammar cannot know. Sectioned documents
-// only (products:/operations:/pipeline:/constraints:/commands:); the older
+// only (products:/operations:/pipeline:/constraints:/commands:, and the
+// sources:/contexts: records of a .spitout or .spitin); the older
 // flow style (`source name`, `operation name(...)`, `output = op(...)`) is
 // still colored by the TextMate grammar's regex rules.
 const SEMANTIC_TOKEN_TYPES = ['variable', 'function', 'type', 'parameter', 'enumMember'];
@@ -54,7 +55,8 @@ function isSectionedDocument(lines) {
   return lines.some(line => {
     const trimmed = stripComment(line).trim();
     return trimmed === 'products:' || trimmed === 'operations:' || trimmed === 'pipeline:' ||
-      trimmed === 'constraints:' || trimmed === 'commands:';
+      trimmed === 'constraints:' || trimmed === 'commands:' || trimmed === 'sources:' ||
+      /^contexts(?:\s+[A-Za-z_][A-Za-z0-9_]*)?:$/.test(trimmed);
   });
 }
 
@@ -414,25 +416,6 @@ function executablePath(context, document) {
   return fs.existsSync(built) ? built : 'spit';
 }
 
-function sourcesPath(document) {
-  const configured = vscode.workspace.getConfiguration('spit', document.uri).get('sourcesFile').trim();
-  if (configured) {
-    return path.isAbsolute(configured) ? configured : path.resolve(path.dirname(document.uri.fsPath), configured);
-  }
-  if (/^\s*(?:sources|contexts(?:\s+[A-Za-z_][A-Za-z0-9_]*)?):\s*(?:#.*)?$/m.test(document.getText())) return undefined;
-  const sibling = document.uri.fsPath.replace(/\.spit$/i, '.sources');
-  return fs.existsSync(sibling) ? sibling : undefined;
-}
-
-function inputsPath(document) {
-  const configured = (vscode.workspace.getConfiguration('spit', document.uri).get('inputsFile') || '').trim();
-  if (configured) {
-    return path.isAbsolute(configured) ? configured : path.resolve(path.dirname(document.uri.fsPath), configured);
-  }
-  const sibling = document.uri.fsPath.replace(/\.spit$/i, '.spitin');
-  return fs.existsSync(sibling) ? sibling : undefined;
-}
-
 // `column` and `end_column` are 1-based UTF-16 offsets, as SPIT reports them;
 // without them the whole line is marked.
 function issue(document, line, message, severity = 'error', column, endColumn) {
@@ -460,8 +443,14 @@ function stop(uri) {
   pending.delete(key);
 }
 
+// `spit check` compiles a pipeline, or checks a recipe against the pipeline
+// its `pipeline` line names; a .spitout has nothing to check on its own.
+function checkable(document) {
+  return document.languageId === 'spit' && document.uri.scheme === 'file' && /\.spit(?:in)?$/i.test(document.uri.fsPath);
+}
+
 function schedule(context, document, delay = 250) {
-  if (document.languageId !== 'spit' || document.uri.scheme !== 'file' || !/\.spit$/i.test(document.uri.fsPath)) return;
+  if (!checkable(document)) return;
   const key = document.uri.toString();
   stop(document.uri);
   timers.set(key, setTimeout(() => {
@@ -473,18 +462,7 @@ function schedule(context, document, delay = 250) {
 function lint(context, document) {
   const key = document.uri.toString();
   const version = document.version;
-  const inputs = inputsPath(document);
-  const source = inputs ? undefined : sourcesPath(document);
   const args = ['check', document.uri.fsPath, '--json', '--stdin'];
-  if (inputs) args.push('--inputs', inputs);
-  if (source) args.push('--sources', source);
-  const configuredRoot = vscode.workspace.getConfiguration('spit', document.uri).get('rootDirectory').trim();
-  if (!source && (configuredRoot || /^\s*discover\s+/m.test(document.getText()))) {
-    const root = configuredRoot
-      ? (path.isAbsolute(configuredRoot) ? configuredRoot : path.resolve(path.dirname(document.uri.fsPath), configuredRoot))
-      : path.dirname(document.uri.fsPath);
-    args.push('--root', root);
-  }
 
   const child = spawn(executablePath(context, document), args, {
     cwd: path.dirname(document.uri.fsPath),
@@ -516,14 +494,9 @@ function lint(context, document) {
     }
     try {
       const result = JSON.parse(output);
-      diagnostics.set(document.uri, result.diagnostics.map(item => {
-        // Only an external inventory's lines lie outside this document.
-        const external = item.source === 'inventory' && source;
-        const message = external ? `Inventory ${source}:${item.line}: ${item.message}` : item.message;
-        return external
-          ? issue(document, null, message, item.severity)
-          : issue(document, item.line, message, item.severity, item.column, item.end_column);
-      }));
+      diagnostics.set(document.uri, result.diagnostics.map(item =>
+        issue(document, item.line, item.message, item.severity, item.column, item.end_column)
+      ));
     } catch (error) {
       diagnostics.set(document.uri, [issue(document, null, `SPIT returned invalid diagnostics: ${error.message}`)]);
     }
@@ -551,8 +524,9 @@ function activate(context) {
       for (const document of vscode.workspace.textDocuments) schedule(context, document, 0);
     }
   }));
-  // Re-check when an inventory or an imported pipeline changes.
-  const watcher = vscode.workspace.createFileSystemWatcher('**/*.{sources,spit,spitin}');
+  // Re-check when a pipeline changes on disk: another pipeline may import it,
+  // and a recipe is checked against it.
+  const watcher = vscode.workspace.createFileSystemWatcher('**/*.spit');
   const refresh = changed => {
     for (const document of vscode.workspace.textDocuments) {
       if (document.uri.toString() !== changed.toString()) schedule(context, document, 0);

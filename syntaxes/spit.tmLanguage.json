@@ -7,6 +7,7 @@
     { "include": "#section-headers" },
     { "include": "#stage-header" },
     { "include": "#discover-line" },
+    { "include": "#recipe-header" },
     { "include": "#use-line" },
     { "include": "#flow-declaration" },
     { "include": "#constraint-rule" },
@@ -84,6 +85,14 @@
           "patterns": [{ "name": "constant.character.escape.spit", "match": "\\\\." }]
         }
       ]
+    },
+    "recipe-header": {
+      "comment": "A .spitin names the pipeline it serves: `pipeline analysis.spit`.",
+      "match": "^(\\s*)(pipeline)\\s+([^\\s=:#][^#]*?)\\s*(?=#|$)",
+      "captures": {
+        "2": { "name": "keyword.control.import.spit" },
+        "3": { "name": "string.unquoted.file.spit" }
+      }
     },
     "use-line": {
       "begin": "^(\\s*)(use)\\s+",
@@ -176,12 +185,15 @@
       }
     },
     "inventory-entry": {
-      "match": "^(\\s*)([A-Za-z_][A-Za-z0-9_]*)(\\[)([^\\]]*)(\\])",
+      "comment": "A record, with its file after a colon when it gives one.",
+      "match": "^(\\s*)([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)(\\[)([^\\]]*)(\\])(?:\\s*(:)\\s*([^#]*?))?\\s*(?=#|$)",
       "captures": {
         "2": { "name": "variable.other.product.spit" },
         "3": { "name": "punctuation.definition.dimensions.begin.spit" },
         "4": { "patterns": [{ "include": "#dimension-assignment-list" }] },
-        "5": { "name": "punctuation.definition.dimensions.end.spit" }
+        "5": { "name": "punctuation.definition.dimensions.end.spit" },
+        "6": { "name": "punctuation.separator.colon.spit" },
+        "7": { "name": "string.unquoted.file.spit" }
       }
     },
     "context-entry": {
