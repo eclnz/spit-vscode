@@ -9,13 +9,10 @@ const pending = new Map();
 const timers = new Map();
 let diagnostics;
 
-// Semantic highlighting: colors names by what they *are* in this document
-// (a declared product, a declared operation, a dimension, ...) rather than
-// by shape alone, which a TextMate grammar cannot know. Sectioned documents
-// only (products:/operations:/pipeline:/constraints:/commands:, and the
-// sources:/contexts: records of a .spitout or .spitin); the older
-// flow style (`source name`, `operation name(...)`, `output = op(...)`) is
-// still colored by the TextMate grammar's regex rules.
+// Semantic highlighting: colors names by what they are in this document (a
+// declared product, operation, dimension, ...), which a TextMate grammar
+// cannot know. Sectioned documents only; the flow style is colored by the
+// grammar's regex rules.
 const SEMANTIC_TOKEN_TYPES = ['variable', 'function', 'type', 'parameter', 'enumMember'];
 const SEMANTIC_TOKEN_MODIFIERS = ['declaration'];
 const DECLARATION = 1;
