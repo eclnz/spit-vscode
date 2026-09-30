@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const Module = require('node:module');
 
@@ -9,62 +10,8 @@ const binary = process.env.SPIT_TEST_EXECUTABLE || path.resolve(__dirname, '..',
 test('checks unsaved edits and clears fixed errors', { skip: !fs.existsSync(binary) }, async () => {
   let onChange;
   const results = new Map();
-  const disposable = { dispose() {} };
-  const document = {
-    uri: { scheme: 'file', fsPath: path.join(__dirname, 'unsaved.spit'), toString() { return `file://${this.fsPath}`; } },
-    languageId: 'spit',
-    version: 1,
-    isClosed: false,
-    text: 'source raw [id]\noperation copy(one)\nresult = copy(raw)\nlater = copy(raw)\n',
-    getText() { return this.text; },
-    get lineCount() { return this.text.split('\n').length; },
-    lineAt(index) {
-      return { range: new Range(index, 0, index, this.text.split('\n')[index].length) };
-    }
-  };
-  const vscode = {
-    Range,
-    Diagnostic: class {
-      constructor(range, message, severity) { Object.assign(this, { range, message, severity }); }
-    },
-    DiagnosticSeverity: { Error: 0, Warning: 1 },
-    // The extension builds its semantic token legend when it loads.
-    SemanticTokensLegend: class {},
-    SemanticTokensBuilder: class {},
-    languages: {
-      createDiagnosticCollection() {
-        return {
-          set(uri, items) { results.set(uri.toString(), items); },
-          delete(uri) { results.delete(uri.toString()); },
-          dispose() {}
-        };
-      },
-      registerDocumentSemanticTokensProvider() { return disposable; }
-    },
-    workspace: {
-      textDocuments: [document],
-      getConfiguration() { return { get(key) { return key === 'executablePath' ? binary : ''; } }; },
-      onDidOpenTextDocument() { return disposable; },
-      onDidChangeTextDocument(callback) { onChange = callback; return disposable; },
-      onDidCloseTextDocument() { return disposable; },
-      onDidChangeConfiguration() { return disposable; },
-      createFileSystemWatcher() {
-        return { ...disposable, onDidChange() { return disposable; }, onDidCreate() { return disposable; }, onDidDelete() { return disposable; } };
-      }
-    }
-  };
-  const originalLoad = Module._load;
-  Module._load = function (request, parent, isMain) {
-    return request === 'vscode' ? vscode : originalLoad.call(this, request, parent, isMain);
-  };
-  let extension;
-  try {
-    extension = require('./extension');
-  } finally {
-    Module._load = originalLoad;
-    // Each test loads the extension against its own `vscode` mock.
-    delete require.cache[require.resolve('./extension')];
-  }
+  const document = fakeDocument(path.join(__dirname, 'unsaved.spit'), 'source raw [id]\noperation copy(one)\nresult = copy(raw)\nlater = copy(raw)\n');
+  const extension = load(mockVscode(document, results, callback => { onChange = callback; }));
 
   extension.activate({ extensionPath: __dirname, subscriptions: [] });
   await until(() => results.get(document.uri.toString())?.length === 0);
@@ -101,8 +48,131 @@ test('checks unsaved edits and clears fixed errors', { skip: !fs.existsSync(bina
   assert.deepEqual(span(warning), [1, 7, 12]);
   assert.equal(warning.severity, 1);
   assert.match(warning.message, /never used/);
+
+  // Rules about a dataset belong in its recipe, not the pipeline.
+  document.text = 'source raw [id]\nrequire raw count>=1 per [id]\n';
+  document.version++;
+  onChange({ document });
+  await until(() => results.get(document.uri.toString())?.some(item => /belong in/.test(item.message)));
+  assert.equal(results.get(document.uri.toString()).length, 1);
+  assert.deepEqual(span(results.get(document.uri.toString())[0]), [1, 0, 29]);
+  assert.match(results.get(document.uri.toString())[0].message, /belong in a \.spitin recipe/);
   extension.deactivate();
 });
+
+test('checks a recipe against the pipeline it names', { skip: !fs.existsSync(binary) }, async () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-'));
+  fs.writeFileSync(path.join(folder, 'analysis.spit'), 'source raw [id]\noperation copy(one)\nresult = copy(raw)\n');
+  let onChange;
+  const results = new Map();
+  const document = fakeDocument(path.join(folder, 'cohort.spitin'), 'pipeline analysis.spit\nrequire raw count>=1 per [id]\n');
+  const extension = load(mockVscode(document, results, callback => { onChange = callback; }));
+  try {
+    extension.activate({ extensionPath: __dirname, subscriptions: [] });
+    await until(() => results.get(document.uri.toString())?.length === 0);
+
+    document.text = 'pipeline analysis.spit\nrequire raw count>=1 per [id]\nrequire rwa count>=1 per [id]\n';
+    document.version++;
+    onChange({ document });
+    await until(() => results.get(document.uri.toString())?.length === 1);
+    const [error] = results.get(document.uri.toString());
+    assert.equal(error.range.start.line, 2);
+    assert.match(error.message, /rwa/);
+  } finally {
+    extension.deactivate();
+    fs.rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test('leaves a .spitout unchecked, since check reads no data', () => {
+  const results = new Map();
+  const document = fakeDocument(path.join(__dirname, 'inputs.spitout'), 'sources:\n    raw[id=1]\n');
+  const extension = load(mockVscode(document, results, () => {}));
+  extension.activate({ extensionPath: __dirname, subscriptions: [] });
+  assert.equal(results.size, 0);
+  extension.deactivate();
+});
+
+function fakeDocument(fsPath, text) {
+  return {
+    uri: { scheme: 'file', fsPath, toString() { return `file://${this.fsPath}`; } },
+    languageId: 'spit',
+    version: 1,
+    isClosed: false,
+    text,
+    getText() { return this.text; },
+    get lineCount() { return this.text.split('\n').length; },
+    lineAt(index) {
+      return { range: new Range(index, 0, index, this.text.split('\n')[index].length) };
+    }
+  };
+}
+
+function mockVscode(document, results, onChange) {
+  const disposable = { dispose() {} };
+  return {
+    Range,
+    Diagnostic: class {
+      constructor(range, message, severity) { Object.assign(this, { range, message, severity }); }
+    },
+    DiagnosticSeverity: { Error: 0, Warning: 1 },
+    SemanticTokensLegend: class {},
+    SemanticTokensBuilder: class {},
+    languages: {
+      createDiagnosticCollection() {
+        return {
+          set(uri, items) { results.set(uri.toString(), items); },
+          delete(uri) { results.delete(uri.toString()); },
+          dispose() {}
+        };
+      },
+      registerDocumentSemanticTokensProvider() { return disposable; }
+    },
+    workspace: {
+      textDocuments: [document],
+      getConfiguration() { return { get(key) { return key === 'executablePath' ? binary : ''; } }; },
+      onDidOpenTextDocument() { return disposable; },
+      onDidChangeTextDocument(callback) { onChange(callback); return disposable; },
+      onDidCloseTextDocument() { return disposable; },
+      onDidChangeConfiguration() { return disposable; },
+      createFileSystemWatcher() {
+        return { ...disposable, onDidChange() { return disposable; }, onDidCreate() { return disposable; }, onDidDelete() { return disposable; } };
+      }
+    }
+  };
+}
+
+// Load the extension against a `vscode` mock, fresh for each test.
+// SPIT's repository, beside this one as for the binary above. Its fixture
+// holds the comment stripping SPIT does, which highlighting must match.
+const spitRepository = process.env.SPIT_REPOSITORY || path.resolve(__dirname, '..', 'spit');
+const commentFixture = path.join(spitRepository, 'tests', 'fixtures', 'comments.txt');
+
+test('strips comments as SPIT does', { skip: !fs.existsSync(commentFixture) }, () => {
+  const { stripComment } = load({ SemanticTokensLegend: class {} });
+  const lines = fs.readFileSync(commentFixture, 'utf8').split('\n').filter(line => !line.startsWith('#'));
+  let cases = 0;
+  for (let index = 0; index + 1 < lines.length; index += 2) {
+    assert.ok(lines[index].startsWith('in:') && lines[index + 1].startsWith('out:'), lines[index]);
+    const input = lines[index].slice('in:'.length);
+    assert.equal(stripComment(input), lines[index + 1].slice('out:'.length), JSON.stringify(input));
+    cases++;
+  }
+  assert.ok(cases > 10);
+});
+
+function load(vscode) {
+  const originalLoad = Module._load;
+  Module._load = function (request, parent, isMain) {
+    return request === 'vscode' ? vscode : originalLoad.call(this, request, parent, isMain);
+  };
+  try {
+    return require('./extension');
+  } finally {
+    Module._load = originalLoad;
+    delete require.cache[require.resolve('./extension')];
+  }
+}
 
 test('highlights declared products, operations, and dimensions by role', () => {
   const vscode = {
@@ -165,8 +235,9 @@ test('highlights declared products, operations, and dimensions by role', () => {
     'sources:',
     '    reading[site=A,device=D1]',
     '',
-    'contexts:',
+    'contexts sessions:',
     '    [site=A,device=D1]',
+    'discover sessions: [site, device] from dirs data/site-{site}/device-{device}',
     ''
   ].join('\n');
   const lines = text.split('\n');
@@ -202,6 +273,20 @@ test('highlights declared products, operations, and dimensions by role', () => {
   assert.equal(at(11, 'reading').tokenType, typeIndex('variable'));
   assert.equal(at(14, 'D1').tokenType, typeIndex('enumMember'));
   assert.equal(at(17, 'site').tokenType, typeIndex('parameter'));
+  assert.equal(at(18, 'sessions').tokenModifiers, 1);
+  assert.equal(at(18, 'site').tokenType, typeIndex('parameter'));
+
+  // A .spitout holds records alone, and is colored the same way.
+  const records = ['contexts:', '    [site=A]', 'sources:', '    reading[site=A,device=D1]: data/A/D1.csv'];
+  const recordTokens = registered.provideDocumentSemanticTokens({
+    getText() { return records.join('\n'); },
+    lineCount: records.length,
+    lineAt(index) { return { text: records[index] }; }
+  });
+  const record = (line, needle) => recordTokens.find(t => t.line === line && records[line].slice(t.char, t.char + t.length) === needle);
+  assert.equal(record(1, 'site').tokenType, typeIndex('parameter'));
+  assert.equal(record(3, 'reading').tokenType, typeIndex('variable'));
+  assert.equal(record(3, 'D1').tokenType, typeIndex('enumMember'));
   extension.deactivate();
 });
 
@@ -228,6 +313,8 @@ async function until(condition) {
 
 test('a workspace cannot choose the executable, and untrusted folders are not checked', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
+  // The executable is the only setting: `spit check` needs no other file.
+  assert.deepEqual(Object.keys(manifest.contributes.configuration.properties), ['spit.executablePath']);
   assert.equal(manifest.contributes.configuration.properties['spit.executablePath'].scope, 'machine-overridable');
   assert.equal(manifest.capabilities.untrustedWorkspaces.supported, false);
 });

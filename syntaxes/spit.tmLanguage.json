@@ -6,6 +6,8 @@
     { "include": "#comments" },
     { "include": "#section-headers" },
     { "include": "#stage-header" },
+    { "include": "#discover-line" },
+    { "include": "#recipe-header" },
     { "include": "#use-line" },
     { "include": "#flow-declaration" },
     { "include": "#constraint-rule" },
@@ -29,6 +31,14 @@
     "section-headers": {
       "patterns": [
         {
+          "match": "^\\s*(contexts)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(:)\\s*$",
+          "captures": {
+            "1": { "name": "keyword.other.section.spit" },
+            "2": { "name": "entity.name.section.discovery.spit" },
+            "3": { "name": "punctuation.separator.colon.spit" }
+          }
+        },
+        {
           "name": "entity.name.section.spit keyword.other.section.spit",
           "match": "^\\s*(products|operations|pipeline|constraints|commands|sources|contexts)\\s*:\\s*$"
         }
@@ -42,6 +52,22 @@
         "2": { "name": "entity.name.section.stage.spit" },
         "3": { "name": "punctuation.separator.colon.spit" }
       }
+    },
+    "discover-line": {
+      "comment": "Discover observed entity bindings from matching directories.",
+      "begin": "^(\\s*)(discover)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(:)\\s*(\\[)([^\\]]*)(\\])\\s+(from)\\s+(dirs)\\s+",
+      "beginCaptures": {
+        "2": { "name": "keyword.control.discovery.spit" },
+        "3": { "name": "entity.name.collection.spit" },
+        "4": { "name": "punctuation.separator.colon.spit" },
+        "5": { "name": "punctuation.definition.dimensions.begin.spit" },
+        "6": { "patterns": [{ "include": "#dimension-list-inner" }] },
+        "7": { "name": "punctuation.definition.dimensions.end.spit" },
+        "8": { "name": "keyword.control.discovery.spit" },
+        "9": { "name": "keyword.other.discovery.spit" }
+      },
+      "end": "$",
+      "patterns": [{ "include": "#word-comment" }, { "include": "#brace-escape" }, { "include": "#path-placeholder" }]
     },
     "strings": {
       "patterns": [
@@ -59,6 +85,14 @@
           "patterns": [{ "name": "constant.character.escape.spit", "match": "\\\\." }]
         }
       ]
+    },
+    "recipe-header": {
+      "comment": "A .spitin names the pipeline it serves: `pipeline analysis.spit`.",
+      "match": "^(\\s*)(pipeline)\\s+([^\\s=:#][^#]*?)\\s*(?=#|$)",
+      "captures": {
+        "2": { "name": "keyword.control.import.spit" },
+        "3": { "name": "string.unquoted.file.spit" }
+      }
     },
     "use-line": {
       "begin": "^(\\s*)(use)\\s+",
@@ -100,9 +134,9 @@
       ]
     },
     "constraint-rule": {
-      "match": "^(\\s*)(require)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+(count)(>=|=)(\\d+)(?:\\s+(per)\\s+(\\[[^\\]]*\\]))?",
+      "match": "^(\\s*)(require|skip)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+(count)(>=|=)(\\d+)(?:\\s+(per)\\s+(\\[[^\\]]*\\]))?",
       "captures": {
-        "2": { "name": "keyword.control.require.spit" },
+        "2": { "name": "keyword.control.constraint.spit" },
         "3": { "name": "variable.other.product.spit" },
         "4": { "name": "keyword.other.count.spit" },
         "5": { "name": "keyword.operator.comparison.spit" },
@@ -151,12 +185,15 @@
       }
     },
     "inventory-entry": {
-      "match": "^(\\s*)([A-Za-z_][A-Za-z0-9_]*)(\\[)([^\\]]*)(\\])",
+      "comment": "A record, with its file after a colon when it gives one.",
+      "match": "^(\\s*)([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)(\\[)([^\\]]*)(\\])(?:\\s*(:)\\s*([^#]*?))?\\s*(?=#|$)",
       "captures": {
         "2": { "name": "variable.other.product.spit" },
         "3": { "name": "punctuation.definition.dimensions.begin.spit" },
         "4": { "patterns": [{ "include": "#dimension-assignment-list" }] },
-        "5": { "name": "punctuation.definition.dimensions.end.spit" }
+        "5": { "name": "punctuation.definition.dimensions.end.spit" },
+        "6": { "name": "punctuation.separator.colon.spit" },
+        "7": { "name": "string.unquoted.file.spit" }
       }
     },
     "context-entry": {
@@ -258,7 +295,8 @@
     },
     "expression": {
       "patterns": [
-        { "name": "keyword.control.spit", "match": "\\b(require|per|verify|use|from|as|source|operation|command|path)\\b" },
+        { "name": "keyword.control.spit", "match": "\\b(require|skip|per|verify|use|from|as|source|discover|operation|command|path)\\b" },
+        { "name": "keyword.other.discovery.spit", "match": "\\bdirs\\b" },
         { "name": "storage.modifier.cardinality.spit", "match": "\\b(many|one)\\b" },
         { "name": "keyword.other.selector.spit", "match": "\\b(vary|where|same|each|drop|min)\\b" },
         { "include": "#strings" },

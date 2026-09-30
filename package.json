@@ -2,8 +2,8 @@
   "name": "spit-language",
   "displayName": "SPIT",
   "icon": "icon.png",
-  "description": "Live diagnostics for SPIT pipeline files",
-  "version": "0.1.0",
+  "description": "Live diagnostics for SPIT pipelines and input recipes",
+  "version": "0.2.0",
   "publisher": "spit-local",
   "private": true,
   "license": "MIT",
@@ -24,7 +24,7 @@
       {
         "id": "spit",
         "aliases": ["SPIT"],
-        "extensions": [".spit"],
+        "extensions": [".spit", ".spitin", ".spitout"],
         "configuration": "./language-configuration.json"
       }
     ],
@@ -43,12 +43,6 @@
           "scope": "machine-overridable",
           "default": "",
           "description": "Path to the SPIT executable. Set in user settings only, so that a workspace cannot choose a program to run. Leave empty to use a sibling SPIT build or the executable on PATH."
-        },
-        "spit.sourcesFile": {
-          "type": "string",
-          "scope": "resource",
-          "default": "",
-          "description": "Inventory file for this pipeline. Relative paths are resolved from the pipeline file. Leave empty to use a sibling file with the same name and a .sources extension, when present."
         }
       }
     }
