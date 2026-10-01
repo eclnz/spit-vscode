@@ -140,7 +140,7 @@
             "4": { "name": "punctuation.separator.colon.spit" }
           },
           "end": "$",
-          "patterns": [{ "include": "#word-comment" }, { "include": "#brace-escape" }, { "include": "#path-placeholder" }]
+          "patterns": [{ "include": "#word-comment" }, { "include": "#brace-escape" }, { "include": "#path-group" }, { "include": "#path-placeholder" }]
         },
         {
           "comment": "`ext:`, the extension a default path is completed with.",
@@ -160,7 +160,7 @@
             "4": { "name": "punctuation.separator.colon.spit" }
           },
           "end": "$",
-          "patterns": [{ "include": "#word-comment" }, { "include": "#brace-escape" }, { "include": "#path-placeholder" }]
+          "patterns": [{ "include": "#word-comment" }, { "include": "#brace-escape" }, { "include": "#path-group" }, { "include": "#path-placeholder" }]
         }
       ]
     },
@@ -335,11 +335,25 @@
       "name": "constant.character.escape.brace.spit",
       "match": "\\{\\{|\\}\\}"
     },
+    "path-group": {
+      "patterns": [
+        {
+          "comment": "`[[` and `]]` are literal brackets.",
+          "name": "constant.character.escape.bracket.spit",
+          "match": "\\[\\[|\\]\\]"
+        },
+        {
+          "comment": "`[...]`: part of a path a product keeps only when each placeholder in it has a value.",
+          "match": "\\[|\\]",
+          "name": "punctuation.definition.optional.spit"
+        }
+      ]
+    },
     "path-placeholder": {
       "patterns": [
         {
           "comment": "SPIT's own placeholders, which take `@` to tell them from dimensions.",
-          "match": "(\\{)(@(?:product|entities|stage))(\\})",
+          "match": "(\\{)(@(?:product|entities|labels|stage))(\\})",
           "captures": {
             "1": { "name": "punctuation.definition.template-expression.begin.spit" },
             "2": { "name": "variable.language.placeholder.spit" },
