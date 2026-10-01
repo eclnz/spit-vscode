@@ -470,11 +470,15 @@ process.exit(result.status);
     await hover();
     await hover();
     assert.equal(recorded().length, 1, 'hover reuses the completed document check');
+    const changedTime = new Date(Date.now() + 2000);
+    fs.utimesSync(wrapper, changedTime, changedTime);
+    await hover();
+    assert.equal(recorded().length, 2, 'rebuilding the executable invalidates cached hover data');
     document.text += 'broken syntax\n';
     document.version++;
     onChange({ document });
     await hover();
-    assert.equal(recorded().length, 2, 'one new analysis for the edited version');
+    assert.equal(recorded().length, 3, 'one new analysis for the edited version');
     assert.ok(results.get(document.uri.toString()).some(item => item.severity === 0));
   } finally {
     extension.deactivate();

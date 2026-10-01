@@ -466,13 +466,21 @@ function schedule(context, document, delay = 250) {
 function lint(context, document) {
   const key = document.uri.toString();
   const version = document.version;
+  const executable = executablePath(context, document);
+  let executableModified;
+  try {
+    executableModified = fs.statSync(executable).mtimeMs;
+  } catch {
+    // An executable found through PATH has no local path to watch here.
+  }
   const existing = analyses.get(key);
-  if (existing?.version === version) return existing.promise;
+  if (existing?.version === version && existing.executable === executable &&
+      existing.executableModified === executableModified) return existing.promise;
+  if (existing) stop(document.uri);
   clearTimeout(timers.get(key));
   timers.delete(key);
-  const executable = executablePath(context, document);
   let finish;
-  const entry = { version, promise: new Promise(resolve => { finish = resolve; }) };
+  const entry = { version, executable, executableModified, promise: new Promise(resolve => { finish = resolve; }) };
   analyses.set(key, entry);
 
   const args = ['check', document.uri.fsPath, '--json', '--stdin'];
