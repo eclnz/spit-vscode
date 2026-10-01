@@ -171,12 +171,12 @@ test('labels one path per line, naming each product of a step with several', () 
   assert.deepEqual([...labels], [[3, '→ out/a.txt'], [5, 'w → out/w.npz  q → out/q.json']]);
 });
 
-test('leaves a .spitout unchecked, since check reads no data', () => {
+test('checks a .spitout\'s records on their own', { skip: !fs.existsSync(binary) }, async () => {
   const results = new Map();
   const document = fakeDocument(path.join(__dirname, 'inputs.spitout'), 'sources:\n    raw[id=1]\n');
   const extension = load(mockVscode(document, results, () => {}));
   extension.activate({ extensionPath: __dirname, subscriptions: [] });
-  assert.equal(results.size, 0);
+  await until(() => results.get(document.uri.toString())?.length === 0);
   extension.deactivate();
 });
 
@@ -190,7 +190,8 @@ function fakeDocument(fsPath, text) {
     getText() { return this.text; },
     get lineCount() { return this.text.split('\n').length; },
     lineAt(index) {
-      return { range: new Range(index, 0, index, this.text.split('\n')[index].length) };
+      const text = this.text.split('\n')[index];
+      return { text, range: new Range(index, 0, index, text.length) };
     }
   };
 }
@@ -223,7 +224,17 @@ function mockVscode(document, results, onChange, hints = {}) {
         };
       },
       registerDocumentSemanticTokensProvider() { return disposable; },
-      registerInlayHintsProvider(_selector, provider) { hints.provider = provider; return disposable; }
+      registerInlayHintsProvider(_selector, provider) { hints.provider = provider; return disposable; },
+      registerHoverProvider(_selector, provider) { hints.hover = provider; return disposable; }
+    },
+    Hover: class {
+      constructor(contents, range) { Object.assign(this, { contents, range }); }
+    },
+    MarkdownString: class {
+      constructor() { this.value = ''; }
+      appendCodeblock(code, language) { this.value += `\`\`\`${language}\n${code}\n\`\`\``; return this; }
+      appendMarkdown(text) { this.value += text; return this; }
+      appendText(text) { this.value += text; return this; }
     },
     workspace: {
       textDocuments: [document],
@@ -285,7 +296,8 @@ test('highlights a .spitout\'s products, dimensions and values by role', () => {
     languages: {
       createDiagnosticCollection() { return { set() {}, delete() {}, dispose() {} }; },
       registerDocumentSemanticTokensProvider(_selector, provider) { return { dispose() {}, provider }; },
-      registerInlayHintsProvider() { return { dispose() {} }; }
+      registerInlayHintsProvider() { return { dispose() {} }; },
+      registerHoverProvider() { return { dispose() {} }; }
     },
     EventEmitter: class { constructor() { this.event = () => ({ dispose() {} }); } fire() {} dispose() {} },
     workspace: {
@@ -314,6 +326,7 @@ test('highlights a .spitout\'s products, dimensions and values by role', () => {
     registered = subscriptions.find(item => item.provider)?.provider;
   } finally {
     Module._load = originalLoad;
+    delete require.cache[require.resolve('./extension')];
   }
   assert.ok(registered, 'semantic tokens provider was registered');
 
@@ -379,4 +392,53 @@ test('a workspace cannot choose the executable, and untrusted folders are not ch
   assert.deepEqual(Object.keys(manifest.contributes.configuration.properties), ['spit.executablePath']);
   assert.equal(manifest.contributes.configuration.properties['spit.executablePath'].scope, 'machine-overridable');
   assert.equal(manifest.capabilities.untrustedWorkspaces.supported, false);
+});
+
+test('hovering shows SPIT\'s explanation of a word or a name, and nothing in a comment', { skip: !fs.existsSync(binary) }, async () => {
+  const hints = {};
+  const text = 'source raw [id, run]\noperation mean(items: many) -> .txt\ncommand mean: cat {items} > {output}  # vary\ntotal = mean(raw @ vary(run))\n';
+  const document = fakeDocument(path.join(__dirname, 'hover.spit'), text);
+  const extension = load(mockVscode(document, new Map(), () => {}, hints));
+  extension.activate({ extensionPath: __dirname, subscriptions: [] });
+  const at = async (line, word, from = 0) => {
+    const character = document.lineAt(line).text.indexOf(word, from) + 1;
+    return hints.hover.provideHover(document, { line, character });
+  };
+
+  const vary = await at(3, 'vary');
+  assert.deepEqual(span(vary), [3, 19, 23]);
+  assert.match(vary.contents.value, /^```spit\naverage = mean\(processed @ vary\(run\)\)\n```\n\nCollects a `many` input/);
+  assert.match(vary.contents.value, /\[Language reference\]\(https:\/\/github\.com\/eclnz\/spit\/blob\/main\/docs\/language-reference\.md#operations-and-commands\)$/);
+
+  const total = await at(3, 'total');
+  assert.match(total.contents.value, /^```spit\ntotal: Unknown \[id\]\n```/);
+  assert.equal(await at(2, 'vary'), null, 'a comment explains nothing');
+  assert.equal(await at(3, 'run', 20), null, 'a dimension has no hover');
+  extension.deactivate();
+});
+
+test('a recipe and a .spitout explain SPIT\'s words, and a .spitout\'s records are checked', { skip: !fs.existsSync(binary) }, async () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-'));
+  fs.writeFileSync(path.join(folder, 'analysis.spit'), 'source raw [id]\noperation copy(input)\nresult = copy(raw)\n');
+  const hints = {};
+  const recipe = fakeDocument(path.join(folder, 'cohort.spitin'), 'pipeline analysis.spit\nrequire raw count>=1 per [id]\n');
+  let extension = load(mockVscode(recipe, new Map(), () => {}, hints));
+  try {
+    extension.activate({ extensionPath: __dirname, subscriptions: [] });
+    const per = await hints.hover.provideHover(recipe, { line: 1, character: 22 });
+    assert.match(per.contents.value, /groups by/);
+    extension.deactivate();
+
+    const results = new Map();
+    const inputs = fakeDocument(path.join(folder, 'inputs.spitout'), 'sources:\n    raw[id=1\n');
+    extension = load(mockVscode(inputs, results, () => {}, hints));
+    extension.activate({ extensionPath: __dirname, subscriptions: [] });
+    await until(() => results.get(inputs.uri.toString())?.length === 1);
+    assert.deepEqual(span(results.get(inputs.uri.toString())[0]), [1, 8, 12]);
+    const header = await hints.hover.provideHover(inputs, { line: 0, character: 2 });
+    assert.match(header.contents.value, /settled source identities/);
+  } finally {
+    extension.deactivate();
+    fs.rmSync(folder, { recursive: true, force: true });
+  }
 });
