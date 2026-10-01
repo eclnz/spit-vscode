@@ -131,6 +131,15 @@
           "captures": { "2": { "name": "keyword.control.spit" } }
         },
         {
+          "comment": "`ext:`, the extension a default path is completed with.",
+          "match": "^(\\s*)(ext)\\s*(:)(?![^#]*=)\\s*((?:\\.[A-Za-z0-9_-]+)+)?",
+          "captures": {
+            "2": { "name": "keyword.control.spit" },
+            "3": { "name": "punctuation.separator.colon.spit" },
+            "4": { "name": "constant.other.extension.spit" }
+          }
+        },
+        {
           "comment": "`path:` or `path product:`, then a template.",
           "begin": "^(\\s*)(path)(?:\\s+([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*))?\\s*(:)",
           "beginCaptures": {
@@ -202,7 +211,21 @@
       "end": "\\)\\s*(->)\\s*([^@#]*[^@#\\s])|\\)",
       "endCaptures": {
         "1": { "name": "keyword.operator.arrow.spit" },
-        "2": { "name": "support.type.spit" }
+        "2": {
+          "name": "meta.operation.output.spit",
+          "patterns": [
+            {
+              "comment": "The extension the tool gives an output's file: `-> Transform .mat`.",
+              "name": "constant.other.extension.spit",
+              "match": "(?<![A-Za-z0-9_])(?:\\.[A-Za-z0-9_-]+)+"
+            },
+            { "include": "#type-reference" },
+            { "name": "variable.parameter.port.spit", "match": "\\b[a-z_][A-Za-z0-9_]*\\b" },
+            { "name": "punctuation.separator.comma.spit", "match": "," },
+            { "name": "punctuation.separator.colon.spit", "match": ":" },
+            { "name": "punctuation.section.parens.spit", "match": "[()]" }
+          ]
+        }
       },
       "patterns": [
         { "name": "storage.modifier.cardinality.spit", "match": "\\bmany\\b" },

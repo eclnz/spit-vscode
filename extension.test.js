@@ -109,6 +109,45 @@ test('places a recipe check\'s pipeline error on the pipeline file', { skip: !fs
   }
 });
 
+test('shows where each output is written at the end of its step', { skip: !fs.existsSync(binary) }, async () => {
+  const hints = {};
+  let changed = 0;
+  const document = fakeDocument(path.join(__dirname, 'paths.spit'), [
+    'path: out/{product}/{entities}',
+    'ext: .img',
+    'source raw : Image [id]',
+    'path raw: in/{id}.raw',
+    'operation copy(input: Image) -> Image',
+    'operation align(input: Image) -> (matrix: Matrix .mat, log: Log .txt)',
+    'copied = copy(raw)',
+    'matrix, log = align(copied)',
+    ''
+  ].join('\n'));
+  const extension = load(mockVscode(document, new Map(), () => {}, hints));
+  extension.activate({ extensionPath: __dirname, subscriptions: [] });
+  const shown = () => hints.provider.provideInlayHints(document, new Range(0, 0, document.lineCount, 0));
+  hints.provider.onDidChangeInlayHints(() => { changed++; });
+  await until(() => shown().length === 2);
+  assert.ok(changed > 0);
+  const [copied, aligned] = shown();
+  // At the end of each step's line, the source's own rule needing no hint.
+  assert.deepEqual([copied.position.line, copied.position.character], [6, 18]);
+  assert.equal(copied.label, '→ out/copied/{entities}.img');
+  assert.equal(aligned.position.line, 7);
+  assert.equal(aligned.label, 'matrix → out/matrix/{entities}.mat  log → out/log/{entities}.txt');
+  extension.deactivate();
+});
+
+test('labels one path per line, naming each product of a step with several', () => {
+  const { pathHintLabels } = load({ SemanticTokensLegend: class {} });
+  const labels = pathHintLabels([
+    { product: 'a', line: 3, path: 'out/a.txt' },
+    { product: 'w', line: 5, path: 'out/w.npz' },
+    { product: 'q', line: 5, path: 'out/q.json' }
+  ]);
+  assert.deepEqual([...labels], [[3, '→ out/a.txt'], [5, 'w → out/w.npz  q → out/q.json']]);
+});
+
 test('leaves a .spitout unchecked, since check reads no data', () => {
   const results = new Map();
   const document = fakeDocument(path.join(__dirname, 'inputs.spitout'), 'sources:\n    raw[id=1]\n');
@@ -133,9 +172,17 @@ function fakeDocument(fsPath, text) {
   };
 }
 
-function mockVscode(document, results, onChange) {
+function mockVscode(document, results, onChange, hints = {}) {
   const disposable = { dispose() {} };
   return {
+    EventEmitter: class {
+      constructor() { this.listeners = []; this.event = listener => { this.listeners.push(listener); return disposable; }; }
+      fire() { for (const listener of this.listeners) listener(); }
+      dispose() {}
+    },
+    InlayHint: class {
+      constructor(position, label) { Object.assign(this, { position, label }); }
+    },
     Uri: { file(fsPath) { return { fsPath, toString() { return `file://${this.fsPath}`; } }; } },
     Range,
     Diagnostic: class {
@@ -152,7 +199,8 @@ function mockVscode(document, results, onChange) {
           dispose() {}
         };
       },
-      registerDocumentSemanticTokensProvider() { return disposable; }
+      registerDocumentSemanticTokensProvider() { return disposable; },
+      registerInlayHintsProvider(_selector, provider) { hints.provider = provider; return disposable; }
     },
     workspace: {
       textDocuments: [document],
@@ -213,8 +261,10 @@ test('highlights a .spitout\'s products, dimensions and values by role', () => {
     },
     languages: {
       createDiagnosticCollection() { return { set() {}, delete() {}, dispose() {} }; },
-      registerDocumentSemanticTokensProvider(_selector, provider) { return { dispose() {}, provider }; }
+      registerDocumentSemanticTokensProvider(_selector, provider) { return { dispose() {}, provider }; },
+      registerInlayHintsProvider() { return { dispose() {} }; }
     },
+    EventEmitter: class { constructor() { this.event = () => ({ dispose() {} }); } fire() {} dispose() {} },
     workspace: {
       textDocuments: [],
       getConfiguration() { return { get() { return ''; } }; },

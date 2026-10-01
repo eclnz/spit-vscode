@@ -158,6 +158,29 @@ test('an operation signature marks many and min', { skip }, async () => {
   assert.doesNotMatch(scopes('operation f(x: one Image) -> Image', 'one'), /cardinality/);
 });
 
+test('an operation output may name the extension its file has', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'operation align(moving: Image<M,S>) -> ToolTransform<S,T> .mat';
+  assert.match(scopes(line, 'ToolTransform'), /support\.type\.spit/);
+  assert.match(scopes(line, '.mat'), /constant\.other\.extension\.spit/);
+  const several = 'operation fit(runs: many Data) -> (weights: Weights .npz, quality: Metrics .tar.gz) @ min(2)';
+  assert.match(scopes(several, 'weights', several.indexOf('->')), /variable\.parameter\.port\.spit/);
+  assert.match(scopes(several, 'Weights'), /support\.type\.spit/);
+  assert.match(scopes(several, '.npz'), /constant\.other\.extension\.spit/);
+  assert.match(scopes(several, '.tar.gz'), /constant\.other\.extension\.spit/);
+  assert.match(scopes(several, 'min'), /keyword\.other\.selector\.spit/);
+});
+
+test('ext: sets the extension a default path is completed with', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = '    ext: .nii.gz  # images in this stage';
+  assert.match(scopes(line, 'ext'), /keyword\.control\.spit/);
+  assert.match(scopes(line, '.nii.gz'), /constant\.other\.extension\.spit/);
+  assert.match(scopes(line, '# images'), /comment\.line/);
+  // A step's output named `ext` stays a step.
+  assert.doesNotMatch(scopes('ext: Image = copy(raw)', 'ext'), /keyword\.control/);
+});
+
 test('each is a selector keyword', { skip }, async () => {
   const scopes = await tokenizer();
   const line = 'forecast = predict(reading, model @ each(scenario), parameters)';

@@ -10,6 +10,10 @@ const timers = new Map();
 const relatedFiles = new Map();
 let diagnostics;
 let relatedDiagnostics;
+// Where SPIT writes each product whose path no line spells out in full, from
+// the last clean check of each pipeline: a label per line, by document.
+const shownPaths = new Map();
+let pathHintsChanged;
 
 // Semantic highlighting of a .spitout's records: each source product, and
 // each dimension and value in its brackets. Pipelines and recipes are
@@ -223,6 +227,47 @@ function publishIssues(document, items) {
   for (const { uri } of external.values()) refreshRelated(uri);
 }
 
+// One label per line from `spit check`'s `paths`: `→ path`, or, for a step
+// with several outputs, each product with its path.
+function pathHintLabels(paths) {
+  const byLine = new Map();
+  for (const { product, line, path: shown } of paths) {
+    if (!byLine.has(line)) byLine.set(line, []);
+    byLine.get(line).push({ product, shown });
+  }
+  const labels = new Map();
+  for (const [line, items] of byLine) {
+    labels.set(line, items.length === 1
+      ? `→ ${items[0].shown}`
+      : items.map(item => `${item.product} → ${item.shown}`).join('  '));
+  }
+  return labels;
+}
+
+// Each path at the end of its step's line; a failed check shows none, since
+// its lines may have moved.
+function providePathHints(document, range) {
+  const labels = shownPaths.get(document.uri.toString());
+  if (!labels) return [];
+  const hints = [];
+  for (const [line, label] of labels) {
+    const index = line - 1;
+    if (index < range.start.line || index > range.end.line || index >= document.lineCount) continue;
+    const hint = new vscode.InlayHint(document.lineAt(index).range.end, label);
+    hint.paddingLeft = true;
+    hint.tooltip = 'Where SPIT writes this output: its path rule, with its extension';
+    hints.push(hint);
+  }
+  return hints;
+}
+
+function showPaths(document, paths) {
+  const key = document.uri.toString();
+  if (paths) shownPaths.set(key, pathHintLabels(paths));
+  else shownPaths.delete(key);
+  pathHintsChanged.fire();
+}
+
 // `spit check` compiles a pipeline, or checks a recipe against the pipeline
 // its `pipeline` line names; a .spitout has nothing to check on its own.
 function checkable(document) {
@@ -265,11 +310,13 @@ function lint(context, document) {
     pending.delete(key);
     if (document.isClosed || document.version !== version) return;
     if (timedOut) {
+      showPaths(document, null);
       clearRelated(key);
       diagnostics.set(document.uri, [issue(document, null, `SPIT check did not finish within ${CHECK_TIMEOUT_MS / 1000} seconds and was stopped`)]);
       return;
     }
     if (code !== 0) {
+      showPaths(document, null);
       clearRelated(key);
       diagnostics.set(document.uri, [issue(document, null, `SPIT check failed: ${errors.trim() || `exit ${code}`}`)]);
       return;
@@ -277,7 +324,10 @@ function lint(context, document) {
     try {
       const result = JSON.parse(output);
       publishIssues(document, result.diagnostics);
+      // Only a pipeline that checks clean has `paths`.
+      showPaths(document, result.paths);
     } catch (error) {
+      showPaths(document, null);
       clearRelated(key);
       diagnostics.set(document.uri, [issue(document, null, `SPIT returned invalid diagnostics: ${error.message}`)]);
     }
@@ -296,10 +346,16 @@ function activate(context) {
     { provideDocumentSemanticTokens: provideSpitSemanticTokens },
     spitSemanticLegend
   ));
+  pathHintsChanged = new vscode.EventEmitter();
+  context.subscriptions.push(pathHintsChanged, vscode.languages.registerInlayHintsProvider(
+    { language: 'spit' },
+    { onDidChangeInlayHints: pathHintsChanged.event, provideInlayHints: providePathHints }
+  ));
   context.subscriptions.push(vscode.workspace.onDidOpenTextDocument(document => schedule(context, document, 0)));
   context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => schedule(context, event.document)));
   context.subscriptions.push(vscode.workspace.onDidCloseTextDocument(document => {
     stop(document.uri);
+    shownPaths.delete(document.uri.toString());
     diagnostics.delete(document.uri);
     clearRelated(document.uri.toString());
   }));
@@ -325,5 +381,6 @@ function deactivate() {
   for (const key of relatedFiles.keys()) clearRelated(key);
 }
 
-// stripComment is exported for the tests that check it against SPIT's own.
-module.exports = { activate, deactivate, stripComment };
+// stripComment is exported for the tests that check it against SPIT's own,
+// and pathHintLabels for the tests of the labels it makes.
+module.exports = { activate, deactivate, stripComment, pathHintLabels };
