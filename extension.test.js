@@ -190,7 +190,8 @@ function fakeDocument(fsPath, text) {
     getText() { return this.text; },
     get lineCount() { return this.text.split('\n').length; },
     lineAt(index) {
-      return { range: new Range(index, 0, index, this.text.split('\n')[index].length) };
+      const text = this.text.split('\n')[index];
+      return { text, range: new Range(index, 0, index, text.length) };
     }
   };
 }
@@ -223,7 +224,14 @@ function mockVscode(document, results, onChange, hints = {}) {
         };
       },
       registerDocumentSemanticTokensProvider() { return disposable; },
-      registerInlayHintsProvider(_selector, provider) { hints.provider = provider; return disposable; }
+      registerInlayHintsProvider(_selector, provider) { hints.provider = provider; return disposable; },
+      registerHoverProvider(_selector, provider) { hints.hover = provider; return disposable; }
+    },
+    Hover: class {
+      constructor(contents, range) { Object.assign(this, { contents, range }); }
+    },
+    MarkdownString: class {
+      constructor(value) { this.value = value; }
     },
     workspace: {
       textDocuments: [document],
@@ -285,7 +293,8 @@ test('highlights a .spitout\'s products, dimensions and values by role', () => {
     languages: {
       createDiagnosticCollection() { return { set() {}, delete() {}, dispose() {} }; },
       registerDocumentSemanticTokensProvider(_selector, provider) { return { dispose() {}, provider }; },
-      registerInlayHintsProvider() { return { dispose() {} }; }
+      registerInlayHintsProvider() { return { dispose() {} }; },
+      registerHoverProvider() { return { dispose() {} }; }
     },
     EventEmitter: class { constructor() { this.event = () => ({ dispose() {} }); } fire() {} dispose() {} },
     workspace: {
@@ -314,6 +323,7 @@ test('highlights a .spitout\'s products, dimensions and values by role', () => {
     registered = subscriptions.find(item => item.provider)?.provider;
   } finally {
     Module._load = originalLoad;
+    delete require.cache[require.resolve('./extension')];
   }
   assert.ok(registered, 'semantic tokens provider was registered');
 
@@ -379,4 +389,95 @@ test('a workspace cannot choose the executable, and untrusted folders are not ch
   assert.deepEqual(Object.keys(manifest.contributes.configuration.properties), ['spit.executablePath']);
   assert.equal(manifest.contributes.configuration.properties['spit.executablePath'].scope, 'machine-overridable');
   assert.equal(manifest.capabilities.untrustedWorkspaces.supported, false);
+});
+
+test('hovering a built-in shows its documentation, and a name the file defines shows none', () => {
+  const hints = {};
+  const document = fakeDocument(path.join(__dirname, 'inputs.spitout'), 'average = mean(processed @ vary(run))\n');
+  const extension = load(mockVscode(document, new Map(), () => {}, hints));
+  extension.activate({ extensionPath: __dirname, subscriptions: [] });
+  const line = document.lineAt(0).text;
+  const hover = hints.hover.provideHover(document, { line: 0, character: line.indexOf('vary') + 2 });
+  assert.deepEqual(span(hover), [0, line.indexOf('vary'), line.indexOf('vary') + 4]);
+  assert.match(hover.contents.value, /^```spit\naverage = mean\(processed @ vary\(run\)\)\n```/);
+  assert.match(hover.contents.value, /Collects a `many` input/);
+  assert.match(hover.contents.value, /\[Language reference\]\(https:\/\/github\.com\/eclnz\/spit\/blob\/main\/docs\/language-reference\.md#operations-and-commands\)$/);
+  assert.equal(hints.hover.provideHover(document, { line: 0, character: line.indexOf('processed') }), null);
+  extension.deactivate();
+});
+
+test('finds the built-in under the pointer by where it is written', () => {
+  const { builtinAt } = require('./hover');
+  const { stripComment } = load({ SemanticTokensLegend: class {} });
+  // Each line, text whose last character the pointer is on, and the entry
+  // expected there, or null.
+  const cases = [
+    ['source image : Image [subject, visit]', 'source', 'source'],
+    ['    stage clean:', 'stage', 'stage'],
+    ['stage = merge(sorted @ vary(part))', 'stage', null],
+    ['path: results/{@product}/{@entities}.txt', 'path', 'path'],
+    ['path image: input/{subject}.txt', 'path', 'path'],
+    ['path image: input/{subject}.txt', 'subject', null],
+    ['path: {@stage}/{@product}/{@entities}.txt', '@stage', '@stage'],
+    ['path: {@stage}/{@product}/{@entities}.txt', '@entities', '@entities'],
+    ['path: sub-{sub}/{@labels}_{@product}', '@labels', '@labels'],
+    ['path: out/{{@product}}', '@product', null],
+    ['ext: .nii.gz', 'ext', 'ext'],
+    ['ext: Image = convert(dicom)', 'ext', null],
+    ['operation mean(images: many Image) -> Image @ min(2)', 'many', 'many'],
+    ['operation mean(images: many Image) -> Image @ min(2)', 'min', 'min'],
+    ['operation strip(t1: Image) -> (brain: Image .nii.gz, mask: Image "_mask.nii.gz" beside brain)', 'beside', 'beside'],
+    ['command process: tool --in {image} --out {output}', 'output', 'output'],
+    ['command process: tool --in {image} --out {output}', 'image', null],
+    ['command convert: dcm2niix -o {image.dir} -f {image.stem} {dicom}', '.dir', '.dir'],
+    ['command convert: dcm2niix -o {image.dir} -f {image.stem} {dicom}', '.stem', '.stem'],
+    ['command convert: dcm2niix -o {image.dir} -f {image.stem} {dicom}', '{ima', null],
+    ['command copy: cp {input} {output}  # {output} again', '# {output', null],
+    ['verify register: check_same_grid {moving} {reference}', 'verify', 'verify'],
+    ['calibrated = calibrate(reading, calibration @ where(revision=2))', 'where', 'where'],
+    ['anomaly = compare(calibrated, reference @ same(station))', 'same', 'same'],
+    ['forecast = predict(reading, model @ each(scenario))', 'each', 'each'],
+    ['each = predict(reading)', 'each', null],
+    ['use shard, sort_lines from text.spit as text', 'from', 'use from'],
+    ['use shard, sort_lines from text.spit as text', ' as', 'use as'],
+    ['dimensions [model, config, seed]', 'dimensions', 'dimensions'],
+    ['sidecars photo [site]: site-{site}/photo', 'sidecars', 'sidecars'],
+    ['pipeline analysis.spit', 'pipeline', 'pipeline'],
+    ['root ../data', 'root', 'root'],
+    ['discover sessions: [sub, ses] from dirs data/sub-{sub}/ses-{ses}', 'discover', 'discover'],
+    ['discover sessions: [sub, ses] from dirs data/sub-{sub}/ses-{ses}', 'dirs', 'discover from'],
+    ['discover sessions: [sub, ses] from dirs data/sub-{sub}/ses-{ses}', 'sessions', null],
+    ['require image count>=2 per [subject, visit]', 'count', 'count'],
+    ['require image count>=2 per [subject, visit]', 'per', 'per'],
+    ['require image count>=2 per [subject, visit]', 'image', null],
+    ['drop [sub] where sessions count<2', 'drop', 'drop'],
+    ['drop [sub] where sessions count<2', 'where', 'drop where'],
+    ['drop [sub, ses] where bold missing run=1,2', 'missing', 'missing'],
+    ['drop [sub, ses] where bold has run=3', 'has', 'has'],
+    ['exclude bold[sub=02,run=3]    # corrupted', 'exclude', 'exclude'],
+    ['exclude bold[sub=02,run=3]    # corrupted', 'corrupted', null],
+    ['exclude from qc/excluded.csv', 'from', 'exclude from'],
+    ['contexts sessions:', 'contexts', 'contexts:'],
+    ['contexts sessions:', 'sessions', null],
+    ['sources:', 'sources', 'sources:'],
+    ['source_paths:', 'source_paths', 'source_paths:'],
+    ['removed:', 'removed', 'removed:']
+  ];
+  for (const [line, text, expected] of cases) {
+    const at = line.indexOf(text) + text.length - 1;
+    const found = builtinAt(line, at, stripComment);
+    assert.equal(found?.key ?? null, expected, `${line} at \`${text}\``);
+  }
+});
+
+test('every built-in links to a section of the language reference', { skip: !fs.existsSync(path.join(spitRepository, 'docs')) }, () => {
+  const { BUILTINS } = require('./hover');
+  const reference = fs.readFileSync(path.join(spitRepository, 'docs', 'language-reference.md'), 'utf8');
+  // GitHub's anchors: lowercase, punctuation but `-` and `_` dropped, spaces as `-`.
+  const anchors = new Set(reference.split('\n')
+    .filter(line => /^#{2,} /.test(line))
+    .map(line => line.replace(/^#+ /, '').toLowerCase().replace(/[^\p{L}\p{N} _-]/gu, '').replace(/ /g, '-')));
+  for (const [key, entry] of Object.entries(BUILTINS)) {
+    assert.ok(anchors.has(entry.anchor), `${key}: no section #${entry.anchor}`);
+  }
 });

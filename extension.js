@@ -2,6 +2,7 @@ const vscode = require('vscode');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
+const { builtinAt, builtinMarkdown } = require('./hover');
 
 const CHECK_TIMEOUT_MS = 15000;
 
@@ -142,6 +143,15 @@ function provideSpitSemanticTokens(document) {
     // Fall back to whatever tokens were already built.
   }
   return builder.build();
+}
+
+// SPIT's documentation for the built-in under the pointer: a keyword,
+// selector, rule word, placeholder or `.spitout` header.
+function provideBuiltinHover(document, position) {
+  const found = builtinAt(document.lineAt(position.line).text, position.character, stripComment);
+  if (!found) return null;
+  const markdown = new vscode.MarkdownString(builtinMarkdown(found.key));
+  return new vscode.Hover(markdown, new vscode.Range(position.line, found.start, position.line, found.end));
 }
 
 function executablePath(context, document) {
@@ -345,6 +355,10 @@ function activate(context) {
     { language: 'spit' },
     { provideDocumentSemanticTokens: provideSpitSemanticTokens },
     spitSemanticLegend
+  ));
+  context.subscriptions.push(vscode.languages.registerHoverProvider(
+    { language: 'spit' },
+    { provideHover: provideBuiltinHover }
   ));
   pathHintsChanged = new vscode.EventEmitter();
   context.subscriptions.push(pathHintsChanged, vscode.languages.registerInlayHintsProvider(
