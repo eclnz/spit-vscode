@@ -84,6 +84,31 @@ test('checks a recipe against the pipeline it names', { skip: !fs.existsSync(bin
   }
 });
 
+test('places a recipe check\'s pipeline error on the pipeline file', { skip: !fs.existsSync(binary) }, async () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-pipeline-'));
+  const pipeline = path.join(folder, 'analysis.spit');
+  fs.writeFileSync(pipeline, 'source raw [id]\noperation copy(one)\nresult = copy(rwa)\n');
+  const results = new Map();
+  let onChange;
+  const document = fakeDocument(path.join(folder, 'data.spitin'), 'pipeline analysis.spit\n');
+  const extension = load(mockVscode(document, results, callback => { onChange = callback; }));
+  try {
+    extension.activate({ extensionPath: __dirname, subscriptions: [] });
+    await until(() => results.get(`file://${pipeline}`)?.length === 1);
+    assert.deepEqual(span(results.get(`file://${pipeline}`)[0]), [2, 14, 17]);
+    assert.match(results.get(`file://${pipeline}`)[0].message, /unknown product `rwa`/);
+    assert.deepEqual(results.get(document.uri.toString()), []);
+
+    fs.writeFileSync(pipeline, 'source raw [id]\noperation copy(one)\nresult = copy(raw)\n');
+    document.version++;
+    onChange({ document });
+    await until(() => results.get(document.uri.toString())?.length === 0 && !results.has(`file://${pipeline}`));
+  } finally {
+    extension.deactivate();
+    fs.rmSync(folder, { recursive: true, force: true });
+  }
+});
+
 test('leaves a .spitout unchecked, since check reads no data', () => {
   const results = new Map();
   const document = fakeDocument(path.join(__dirname, 'inputs.spitout'), 'sources:\n    raw[id=1]\n');
@@ -111,6 +136,7 @@ function fakeDocument(fsPath, text) {
 function mockVscode(document, results, onChange) {
   const disposable = { dispose() {} };
   return {
+    Uri: { file(fsPath) { return { fsPath, toString() { return `file://${this.fsPath}`; } }; } },
     Range,
     Diagnostic: class {
       constructor(range, message, severity) { Object.assign(this, { range, message, severity }); }

@@ -10,6 +10,8 @@
     { "include": "#recipe-header" },
     { "include": "#use-line" },
     { "include": "#flow-declaration" },
+    { "include": "#drop-rule" },
+    { "include": "#exclude-rule" },
     { "include": "#constraint-rule" },
     { "include": "#invocation" },
     { "include": "#operation-signature" },
@@ -134,7 +136,7 @@
       ]
     },
     "constraint-rule": {
-      "match": "^(\\s*)(require|skip)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+(count)(>=|=)(\\d+)(?:\\s+(per)\\s+(\\[[^\\]]*\\]))?",
+      "match": "^(\\s*)(require)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+(count)(!=|>=|<=|=|>|<)(\\d+)(?:\\s+(per)\\s+(\\[[^\\]]*\\]))?",
       "captures": {
         "2": { "name": "keyword.control.constraint.spit" },
         "3": { "name": "variable.other.product.spit" },
@@ -145,6 +147,42 @@
         "8": { "name": "meta.dimension-list.spit" }
       },
       "patterns": [{ "include": "#dimension-list-inner" }]
+    },
+    "drop-rule": {
+      "match": "^(\\s*)(drop)\\s+(\\[[^\\]]*\\])\\s+(where)\\s+([A-Za-z_][A-Za-z0-9_]*)(?:\\s+(count)(!=|>=|<=|=|>|<)(\\d+)|\\s+(missing|has)\\s+([A-Za-z_][A-Za-z0-9_]*)(=))",
+      "captures": {
+        "2": { "name": "keyword.control.constraint.spit" },
+        "3": { "name": "meta.dimension-list.spit" },
+        "4": { "name": "keyword.control.constraint.spit" },
+        "5": { "name": "variable.other.product.spit" },
+        "6": { "name": "keyword.other.count.spit" },
+        "7": { "name": "keyword.operator.comparison.spit" },
+        "8": { "name": "constant.numeric.spit" },
+        "9": { "name": "keyword.control.constraint.spit" },
+        "10": { "name": "variable.parameter.dimension.spit" },
+        "11": { "name": "keyword.operator.comparison.spit" }
+      },
+      "patterns": [{ "include": "#dimension-list-inner" }]
+    },
+    "exclude-rule": {
+      "patterns": [
+        {
+          "match": "^(\\s*)(exclude)\\s+(from)\\s+([^#]+)",
+          "captures": {
+            "2": { "name": "keyword.control.constraint.spit" },
+            "3": { "name": "keyword.control.constraint.spit" },
+            "4": { "name": "string.unquoted.file.spit" }
+          }
+        },
+        {
+          "match": "^(\\s*)(exclude)\\s+(?:([A-Za-z_][A-Za-z0-9_]*)?)(\\[[^\\]]*\\])?",
+          "captures": {
+            "2": { "name": "keyword.control.constraint.spit" },
+            "3": { "name": "variable.other.product.spit" },
+            "4": { "name": "meta.dimension-list.spit" }
+          }
+        }
+      ]
     },
     "operation-signature": {
       "begin": "^(\\s*)(?:(operation)\\s+)?([A-Za-z_][A-Za-z0-9_]*)(\\()",
@@ -295,7 +333,7 @@
     },
     "expression": {
       "patterns": [
-        { "name": "keyword.control.spit", "match": "\\b(require|skip|per|verify|use|from|as|source|discover|operation|command|path)\\b" },
+        { "name": "keyword.control.spit", "match": "\\b(require|exclude|per|verify|use|from|as|source|discover|operation|command|path)\\b" },
         { "name": "keyword.other.discovery.spit", "match": "\\bdirs\\b" },
         { "name": "storage.modifier.cardinality.spit", "match": "\\b(many|one)\\b" },
         { "name": "keyword.other.selector.spit", "match": "\\b(vary|where|same|each|drop|min)\\b" },

@@ -7,7 +7,9 @@ const CHECK_TIMEOUT_MS = 15000;
 
 const pending = new Map();
 const timers = new Map();
+const relatedFiles = new Map();
 let diagnostics;
+let relatedDiagnostics;
 
 // Semantic highlighting: colors names by what they *are* in this document
 // (a declared product, a declared operation, a dimension, ...) rather than
@@ -263,7 +265,34 @@ function handlePipelineLine(content, push) {
 }
 
 function handleConstraintLine(content, push) {
-  const leading = /^(?:require|skip)\s+/.exec(content);
+  const drop = /^drop\s+\[([^\]]*)\]\s+where\s+([A-Za-z_][A-Za-z0-9_]*)\s+(.*)$/.exec(content);
+  if (drop) {
+    pushIdentifiers(drop[1], content.indexOf('[') + 1, 'parameter', push);
+    const target = content.indexOf(drop[2], content.indexOf('where') + 5);
+    push(target, drop[2].length, 'variable');
+    const condition = drop[3];
+    if (/^(?:missing|has)\s+/.test(condition)) {
+      const values = condition.replace(/^(?:missing|has)\s+/, '');
+      const base = content.indexOf(values, target + drop[2].length);
+      for (const pair of splitTopLevel(values, ' ')) {
+        const eq = pair.text.indexOf('=');
+        if (eq === -1) continue;
+        push(base + pair.start, eq, 'parameter');
+        let offset = eq + 1;
+        for (const value of pair.text.slice(offset).split(',')) {
+          if (value) push(base + pair.start + offset, value.length, 'enumMember');
+          offset += value.length + 1;
+        }
+      }
+    }
+    return;
+  }
+  const exclude = /^exclude\s+([A-Za-z_][A-Za-z0-9_]*)(?:\[|$)/.exec(content);
+  if (exclude && exclude[1] !== 'from') {
+    push(content.indexOf(exclude[1]), exclude[1].length, 'variable');
+    return;
+  }
+  const leading = /^require\s+/.exec(content);
   if (!leading) return;
   const subjectStart = leading[0].length;
   const perIndex = content.indexOf(' per ');
@@ -279,7 +308,7 @@ function handleConstraintLine(content, push) {
       first = false;
       continue;
     }
-    if (/^count(=|>=)\d+$/.test(match[0])) continue;
+    if (/^count(?:!=|>=|<=|=|>|<)\d+$/.test(match[0])) continue;
     const eqIndex = match[0].indexOf('=');
     if (eqIndex === -1) continue;
     push(tokenBase, eqIndex, 'parameter');
@@ -445,6 +474,53 @@ function stop(uri) {
   pending.delete(key);
 }
 
+function clearRelated(key) {
+  const previous = relatedFiles.get(key) || [];
+  relatedFiles.delete(key);
+  for (const { uri } of previous) refreshRelated(uri);
+}
+
+function refreshRelated(uri) {
+  const items = [];
+  for (const files of relatedFiles.values()) {
+    for (const file of files) {
+      if (file.uri.toString() === uri.toString()) items.push(...file.items);
+    }
+  }
+  if (items.length) relatedDiagnostics.set(uri, items);
+  else relatedDiagnostics.delete(uri);
+}
+
+function publishIssues(document, items) {
+  const key = document.uri.toString();
+  clearRelated(key);
+  const local = [];
+  const external = new Map();
+  for (const item of items) {
+    const file = item.file && (path.isAbsolute(item.file)
+      ? item.file
+      : path.resolve(path.dirname(document.uri.fsPath), item.file));
+    if (!file || path.resolve(file) === path.resolve(document.uri.fsPath)) {
+      local.push(issue(document, item.line, item.message, item.severity, item.column, item.end_column));
+      continue;
+    }
+    const uri = vscode.Uri.file(file);
+    let text = '';
+    try { text = fs.readFileSync(file, 'utf8'); } catch {}
+    const lines = text.split(/\r?\n/);
+    const target = {
+      lineCount: lines.length,
+      lineAt(index) { return { range: new vscode.Range(index, 0, index, lines[index].length) }; }
+    };
+    const found = external.get(uri.toString()) || { uri, items: [] };
+    found.items.push(issue(target, item.line, item.message, item.severity, item.column, item.end_column));
+    external.set(uri.toString(), found);
+  }
+  diagnostics.set(document.uri, local);
+  relatedFiles.set(key, [...external.values()]);
+  for (const { uri } of external.values()) refreshRelated(uri);
+}
+
 // `spit check` compiles a pipeline, or checks a recipe against the pipeline
 // its `pipeline` line names; a .spitout has nothing to check on its own.
 function checkable(document) {
@@ -487,19 +563,20 @@ function lint(context, document) {
     pending.delete(key);
     if (document.isClosed || document.version !== version) return;
     if (timedOut) {
+      clearRelated(key);
       diagnostics.set(document.uri, [issue(document, null, `SPIT check did not finish within ${CHECK_TIMEOUT_MS / 1000} seconds and was stopped`)]);
       return;
     }
     if (code !== 0) {
+      clearRelated(key);
       diagnostics.set(document.uri, [issue(document, null, `SPIT check failed: ${errors.trim() || `exit ${code}`}`)]);
       return;
     }
     try {
       const result = JSON.parse(output);
-      diagnostics.set(document.uri, result.diagnostics.map(item =>
-        issue(document, item.line, item.message, item.severity, item.column, item.end_column)
-      ));
+      publishIssues(document, result.diagnostics);
     } catch (error) {
+      clearRelated(key);
       diagnostics.set(document.uri, [issue(document, null, `SPIT returned invalid diagnostics: ${error.message}`)]);
     }
   });
@@ -510,6 +587,8 @@ function lint(context, document) {
 function activate(context) {
   diagnostics = vscode.languages.createDiagnosticCollection('SPIT');
   context.subscriptions.push(diagnostics);
+  relatedDiagnostics = vscode.languages.createDiagnosticCollection('SPIT recipe pipelines');
+  context.subscriptions.push(relatedDiagnostics);
   context.subscriptions.push(vscode.languages.registerDocumentSemanticTokensProvider(
     { language: 'spit' },
     { provideDocumentSemanticTokens: provideSpitSemanticTokens },
@@ -520,6 +599,7 @@ function activate(context) {
   context.subscriptions.push(vscode.workspace.onDidCloseTextDocument(document => {
     stop(document.uri);
     diagnostics.delete(document.uri);
+    clearRelated(document.uri.toString());
   }));
   context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
     if (event.affectsConfiguration('spit')) {
@@ -540,6 +620,7 @@ function activate(context) {
 
 function deactivate() {
   for (const key of pending.keys()) stop(vscode.Uri.parse(key));
+  for (const key of relatedFiles.keys()) clearRelated(key);
 }
 
 // stripComment is exported for the tests that check it against SPIT's own.

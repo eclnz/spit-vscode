@@ -69,13 +69,35 @@ test('named discovery contexts have a section header', { skip }, async () => {
   assert.match(scopes(line, 'sessions'), /entity\.name\.section\.discovery\.spit/);
 });
 
-test('skip rule highlights its count and group', { skip }, async () => {
+test('require and drop rules highlight comparisons and groups', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = 'skip sessions count>=2 per [sub]';
-  assert.match(scopes(line, 'skip'), /keyword\.control/);
+  const line = 'require sessions count!=2 per [sub]';
+  assert.match(scopes(line, 'require'), /keyword\.control/);
   assert.match(scopes(line, 'sessions'), /variable\.other\.product/);
   assert.match(scopes(line, 'count'), /keyword\.other\.count/);
   assert.match(scopes(line, 'sub'), /meta\.dimension-list/);
+  for (const comparison of ['=', '!=', '>=', '<=', '>', '<']) {
+    const rule = `drop [sub] where sessions count${comparison}2`;
+    assert.match(scopes(rule, 'drop'), /keyword\.control\.constraint/);
+    assert.match(scopes(rule, 'where'), /keyword\.control\.constraint/);
+    assert.match(scopes(rule, 'sessions'), /variable\.other\.product/);
+    assert.match(scopes(rule, 'count'), /keyword\.other\.count/);
+    assert.match(scopes(rule, comparison, rule.indexOf('count')), /keyword\.operator\.comparison/);
+  }
+  for (const condition of ['missing', 'has']) {
+    const rule = `drop [sub] where bold ${condition} run=2`;
+    assert.match(scopes(rule, condition), /keyword\.control\.constraint/);
+  }
+});
+
+test('exclude rules highlight a product or an external file', { skip }, async () => {
+  const scopes = await tokenizer();
+  const named = 'exclude bold[sub=02,ses=01,run=3]';
+  assert.match(scopes(named, 'exclude'), /keyword\.control\.constraint/);
+  assert.match(scopes(named, 'bold'), /variable\.other\.product/);
+  assert.match(scopes('exclude from qc/excluded.csv', 'from'), /keyword\.control\.constraint/);
+  assert.match(scopes('exclude from qc/excluded.csv', 'qc/excluded.csv'), /string\.unquoted\.file/);
+  assert.doesNotMatch(scopes('skip sessions count>=2 per [sub]', 'skip'), /keyword\.control/);
 });
 
 test('a default path rule, a comment, and escaped braces', { skip }, async () => {
