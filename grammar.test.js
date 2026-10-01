@@ -51,6 +51,19 @@ test('path templates mark the built-in placeholders apart from dimensions', { sk
   assert.match(scopes(line, '{', line.indexOf('{sub')), /punctuation\.definition\.template-expression\.begin/);
 });
 
+test('path templates mark optional groups, literal brackets and labels', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'path: derivatives/sub-{sub}[/ses-{ses}][[x]]/{@labels}_{@product}';
+  assert.match(scopes(line, '[', line.indexOf('[/')), /punctuation\.definition\.optional\.spit/);
+  assert.match(scopes(line, ']', line.indexOf('}]') + 1), /punctuation\.definition\.optional\.spit/);
+  assert.match(scopes(line, '[[', line.indexOf('[[')), /constant\.character\.escape\.bracket\.spit/);
+  assert.match(scopes(line, ']]', line.indexOf(']]')), /constant\.character\.escape\.bracket\.spit/);
+  assert.match(scopes(line, 'ses', line.indexOf('{ses')), /variable\.parameter\.placeholder\.dimension\.spit/);
+  assert.match(scopes(line, '@labels'), /variable\.language\.placeholder\.spit/);
+  const stem = 'sidecars photo [site]: site-{site}[_{shot}]';
+  assert.match(scopes(stem, '[', stem.indexOf('[_')), /punctuation\.definition\.optional\.spit/);
+});
+
 test('directory discovery marks its name, dimensions, and path captures', { skip }, async () => {
   const scopes = await tokenizer();
   const line = 'discover sessions: [sub, ses] from dirs data/sub-{sub}/ses-{ses}';

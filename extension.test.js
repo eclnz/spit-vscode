@@ -109,6 +109,29 @@ test('places a recipe check\'s pipeline error on the pipeline file', { skip: !fs
   }
 });
 
+test('shows each output path with its groups resolved and labels written out', { skip: !fs.existsSync(binary) }, async () => {
+  const hints = {};
+  const document = fakeDocument(path.join(__dirname, 'labels.spit'), [
+    'path: out/sub-{sub}[/ses-{ses}]/{@labels}_{@product}',
+    'ext: .img',
+    'source scan : Image [sub, ses]',
+    'path scan: in/{sub}/{ses}.raw',
+    'operation copy(input: Image) -> Image',
+    'operation merge(inputs: many Image) -> Image',
+    'copied = copy(scan)',
+    'merged = merge(copied @ vary(ses))',
+    ''
+  ].join('\n'));
+  const extension = load(mockVscode(document, new Map(), () => {}, hints));
+  extension.activate({ extensionPath: __dirname, subscriptions: [] });
+  const shown = () => hints.provider.provideInlayHints(document, new Range(0, 0, document.lineCount, 0));
+  await until(() => shown().length === 2);
+  const [copied, merged] = shown();
+  assert.equal(copied.label, '→ out/sub-{sub}/ses-{ses}/sub-{sub}_ses-{ses}_copied.img');
+  assert.equal(merged.label, '→ out/sub-{sub}/sub-{sub}_merged.img');
+  extension.deactivate();
+});
+
 test('shows where each output is written at the end of its step', { skip: !fs.existsSync(binary) }, async () => {
   const hints = {};
   let changed = 0;
