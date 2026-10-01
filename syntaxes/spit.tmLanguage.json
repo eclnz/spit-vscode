@@ -89,8 +89,8 @@
       ]
     },
     "recipe-header": {
-      "comment": "A .spitin names the pipeline it serves: `pipeline analysis.spit`.",
-      "match": "^(\\s*)(pipeline)\\s+([^\\s=:#][^#]*?)\\s*(?=#|$)",
+      "comment": "A .spitin names the pipeline it serves, `pipeline analysis.spit`, and may name its dataset root, `root data`, which a .spitout also records.",
+      "match": "^(\\s*)(pipeline|root)\\s+([^\\s=:#][^#]*?)\\s*(?=#|$)",
       "captures": {
         "2": { "name": "keyword.control.import.spit" },
         "3": { "name": "string.unquoted.file.spit" }
