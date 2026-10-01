@@ -8,6 +8,19 @@ Each file is checked on its own with `spit check <file> --json --stdin`, which r
 
 It checks unsaved text after a short pause and reports syntax errors throughout the file. Once the syntax is valid, it reports every semantic, command, and path error, each on its related line, and shows warnings for likely mistakes such as unused definitions. Each problem underlines the text it is about, such as a misspelled input or one `{placeholder}`; with an older SPIT build that reports no columns, the whole line is marked.
 
+## Operation and product hovers
+
+Hover over an operation or product in a `.spit` pipeline to see what the compiler knows about it. Both flow and grouped-section syntax are supported, including qualified references to imported definitions.
+
+- Operations show their input and output ports, types, collection cardinality, aggregation contracts, and command and verification templates. At a call, the hover also shows the bound products, specialised input and output types, dimensions, and local generic type bindings.
+- Products show their inferred type and dimensions, declared type, producing step, consuming steps, stage, and effective path template. The path explanation names an explicit rule, inherited stage default, pipeline default, or built-in output default. Sources without a pipeline path rule say that a recipe or inventory must supply it.
+
+For example, `cleaned = clean(raw)` with `raw: Frame<Native>` and `clean(Frame<S>) -> CleanFrame<S>` shows `S = Native` on the call and `cleaned: CleanFrame<Native>` on the product.
+
+Hovers use unsaved text and share the cached compiler check with diagnostics. Saving an imported pipeline refreshes dependent hovers. Independently valid declarations remain available while another line is broken; failed steps do not claim inferred types. Path templates describe artifact families; concrete dataset paths and filesystem checks are not part of these hovers. Recipes and inventories retain their existing diagnostics/highlighting without pipeline hovers.
+
+Rebuild the sibling SPIT compiler with `cargo build`: hovers require its `check --json --stdin --hovers` support.
+
 ## Try it locally
 
 1. Build the [SPIT compiler](https://github.com/eclnz/spit) with `cargo build`.
