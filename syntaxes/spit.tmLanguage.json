@@ -361,6 +361,18 @@
       "patterns": [
         { "include": "#brace-escape" },
         {
+          "comment": "`{image.dir}` and `{image.stem}`: an output's folder, and its file name without its extension.",
+          "match": "(\\{)(?:(output)|([A-Za-z_][A-Za-z0-9_]*))(\\.)(dir|stem)(\\})",
+          "captures": {
+            "1": { "name": "punctuation.definition.template-expression.begin.spit" },
+            "2": { "name": "variable.language.placeholder.spit" },
+            "3": { "name": "variable.parameter.placeholder.spit" },
+            "4": { "name": "punctuation.accessor.spit" },
+            "5": { "name": "variable.other.property.spit" },
+            "6": { "name": "punctuation.definition.template-expression.end.spit" }
+          }
+        },
+        {
           "comment": "`{output}`, the one placeholder an operation has without naming a port.",
           "match": "(\\{)(output)(\\})",
           "captures": {

@@ -127,6 +127,16 @@ test('stage headers are keywords with a section name', { skip }, async () => {
   assert.doesNotMatch(scopes('stage = copy(raw)', 'stage'), /keyword\.control\.stage/);
 });
 
+test('command templates mark an output\'s folder and name', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'command convert: dcm2niix -o {image.dir} -f {image.stem} {dicom} --log {output.dir}';
+  assert.match(scopes(line, 'image', line.indexOf('{image.dir')), /variable\.parameter\.placeholder\.spit/);
+  assert.match(scopes(line, 'dir', line.indexOf('{image.dir')), /variable\.other\.property\.spit/);
+  assert.match(scopes(line, 'stem'), /variable\.other\.property\.spit/);
+  assert.match(scopes(line, 'output', line.indexOf('{output.dir')), /variable\.language\.placeholder\.spit/);
+  assert.match(scopes(line, 'dicom'), /variable\.parameter\.placeholder\.spit/);
+});
+
 test('command templates mark {output} apart from the ports they name', { skip }, async () => {
   const scopes = await tokenizer();
   const line = 'command estimate_fods: dwi2fod msmt_csd {dwi} {wm} {input} {output}';
