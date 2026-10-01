@@ -2,7 +2,6 @@ const vscode = require('vscode');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
-const { builtinAt, builtinMarkdown } = require('./hover');
 
 const CHECK_TIMEOUT_MS = 15000;
 
@@ -15,6 +14,10 @@ let relatedDiagnostics;
 // the last clean check of each pipeline: a label per line, by document.
 const shownPaths = new Map();
 let pathHintsChanged;
+// What each document's latest check says to show on hover, by document: the
+// version checked, and a promise of its items by line, or null when the
+// check failed or was replaced.
+const analyses = new Map();
 
 // Semantic highlighting of a .spitout's records: each source product, and
 // each dimension and value in its brackets. Pipelines and recipes are
@@ -145,15 +148,6 @@ function provideSpitSemanticTokens(document) {
   return builder.build();
 }
 
-// SPIT's documentation for the built-in under the pointer: a keyword,
-// selector, rule word, placeholder or `.spitout` header.
-function provideBuiltinHover(document, position) {
-  const found = builtinAt(document.lineAt(position.line).text, position.character, stripComment);
-  if (!found) return null;
-  const markdown = new vscode.MarkdownString(builtinMarkdown(found.key));
-  return new vscode.Hover(markdown, new vscode.Range(position.line, found.start, position.line, found.end));
-}
-
 function executablePath(context, document) {
   const configured = vscode.workspace.getConfiguration('spit', document.uri).get('executablePath').trim();
   if (configured) {
@@ -278,10 +272,55 @@ function showPaths(document, paths) {
   pathHintsChanged.fire();
 }
 
-// `spit check` compiles a pipeline, or checks a recipe against the pipeline
-// its `pipeline` line names; a .spitout has nothing to check on its own.
+// `spit check` compiles a pipeline, checks a recipe against the pipeline
+// its `pipeline` line names, or checks a .spitout's records.
 function checkable(document) {
-  return document.languageId === 'spit' && document.uri.scheme === 'file' && /\.spit(?:in)?$/i.test(document.uri.fsPath);
+  return document.languageId === 'spit' && document.uri.scheme === 'file' && /\.spit(?:in|out)?$/i.test(document.uri.fsPath);
+}
+
+// What `spit check --hovers` says about each line: a pipeline's products
+// and operations, from `hovers`, and SPIT's own words, from `words`, each
+// pointing to its entry in `word_docs`. Columns become 0-based offsets.
+function hoverItems(result) {
+  const byLine = new Map();
+  const add = (line, column, endColumn, item) => {
+    if (!byLine.has(line)) byLine.set(line, []);
+    byLine.get(line).push({ start: column - 1, end: endColumn - 1, ...item });
+  };
+  for (const hover of result.hovers || []) {
+    add(hover.line, hover.column, hover.end_column, { code: hover.signature, details: hover.details });
+  }
+  const docs = result.word_docs || {};
+  for (const word of result.words || []) {
+    const doc = docs[word.word];
+    if (doc) add(word.line, word.column, word.end_column, { code: doc.example, summary: doc.summary, reference: doc.reference });
+  }
+  return byLine;
+}
+
+// The item under the pointer from the check of this version of the
+// document, checking it now if the check is still to come.
+async function provideHover(context, document, position, token) {
+  if (!checkable(document)) return null;
+  const version = document.version;
+  const analysis = analyses.get(document.uri.toString());
+  let items;
+  if (analysis?.version === version) {
+    items = await analysis.promise;
+  } else {
+    stop(document.uri);
+    items = await lint(context, document);
+  }
+  if (!items || token?.isCancellationRequested || document.isClosed || document.version !== version) return null;
+  const item = items.get(position.line + 1)?.find(item => item.start <= position.character && position.character < item.end);
+  if (!item) return null;
+  // SPIT's details are plain text; a word's summary marks code with backticks.
+  const contents = new vscode.MarkdownString();
+  contents.appendCodeblock(item.code, 'spit');
+  if (item.summary) contents.appendMarkdown(`\n\n${item.summary}`);
+  for (const detail of item.details || []) contents.appendMarkdown('\n\n').appendText(detail);
+  if (item.reference) contents.appendMarkdown(`\n\n[Language reference](${item.reference})`);
+  return new vscode.Hover(contents, new vscode.Range(position.line, item.start, position.line, item.end));
 }
 
 function schedule(context, document, delay = 250) {
@@ -297,7 +336,10 @@ function schedule(context, document, delay = 250) {
 function lint(context, document) {
   const key = document.uri.toString();
   const version = document.version;
-  const args = ['check', document.uri.fsPath, '--json', '--stdin'];
+  const args = ['check', document.uri.fsPath, '--json', '--stdin', '--hovers'];
+  let settle;
+  const analysis = { version, promise: new Promise(resolve => { settle = resolve; }) };
+  analyses.set(key, analysis);
 
   const child = spawn(executablePath(context, document), args, {
     cwd: path.dirname(document.uri.fsPath),
@@ -316,34 +358,49 @@ function lint(context, document) {
   child.on('error', error => { errors += error.message; });
   child.on('close', code => {
     clearTimeout(timeout);
-    if (pending.get(key) !== child) return;
-    pending.delete(key);
-    if (document.isClosed || document.version !== version) return;
-    if (timedOut) {
-      showPaths(document, null);
-      clearRelated(key);
-      diagnostics.set(document.uri, [issue(document, null, `SPIT check did not finish within ${CHECK_TIMEOUT_MS / 1000} seconds and was stopped`)]);
-      return;
-    }
-    if (code !== 0) {
-      showPaths(document, null);
-      clearRelated(key);
-      diagnostics.set(document.uri, [issue(document, null, `SPIT check failed: ${errors.trim() || `exit ${code}`}`)]);
-      return;
-    }
+    // A failed or replaced check has nothing to show on hover; a failed one
+    // stays the analysis of its version, so hovering does not check again.
+    let items = null;
     try {
-      const result = JSON.parse(output);
-      publishIssues(document, result.diagnostics);
-      // Only a pipeline that checks clean has `paths`.
-      showPaths(document, result.paths);
-    } catch (error) {
-      showPaths(document, null);
-      clearRelated(key);
-      diagnostics.set(document.uri, [issue(document, null, `SPIT returned invalid diagnostics: ${error.message}`)]);
+      if (pending.get(key) !== child) return;
+      pending.delete(key);
+      if (document.isClosed || document.version !== version) return;
+      items = finishCheck(document, key, code, timedOut, output, errors);
+    } finally {
+      settle(items);
     }
   });
   child.stdin.on('error', () => {});
   child.stdin.end(document.getText());
+  return analysis.promise;
+}
+
+// Show what a finished check found, and return its hover items, or null.
+function finishCheck(document, key, code, timedOut, output, errors) {
+  if (timedOut) {
+    showPaths(document, null);
+    clearRelated(key);
+    diagnostics.set(document.uri, [issue(document, null, `SPIT check did not finish within ${CHECK_TIMEOUT_MS / 1000} seconds and was stopped`)]);
+    return null;
+  }
+  if (code !== 0) {
+    showPaths(document, null);
+    clearRelated(key);
+    diagnostics.set(document.uri, [issue(document, null, `SPIT check failed: ${errors.trim() || `exit ${code}`}`)]);
+    return null;
+  }
+  try {
+    const result = JSON.parse(output);
+    publishIssues(document, result.diagnostics);
+    // Only a pipeline that checks clean has `paths`.
+    showPaths(document, result.paths);
+    return hoverItems(result);
+  } catch (error) {
+    showPaths(document, null);
+    clearRelated(key);
+    diagnostics.set(document.uri, [issue(document, null, `SPIT returned invalid diagnostics: ${error.message}`)]);
+    return null;
+  }
 }
 
 function activate(context) {
@@ -358,7 +415,7 @@ function activate(context) {
   ));
   context.subscriptions.push(vscode.languages.registerHoverProvider(
     { language: 'spit' },
-    { provideHover: provideBuiltinHover }
+    { provideHover: (document, position, token) => provideHover(context, document, position, token) }
   ));
   pathHintsChanged = new vscode.EventEmitter();
   context.subscriptions.push(pathHintsChanged, vscode.languages.registerInlayHintsProvider(
@@ -370,6 +427,7 @@ function activate(context) {
   context.subscriptions.push(vscode.workspace.onDidCloseTextDocument(document => {
     stop(document.uri);
     shownPaths.delete(document.uri.toString());
+    analyses.delete(document.uri.toString());
     diagnostics.delete(document.uri);
     clearRelated(document.uri.toString());
   }));
