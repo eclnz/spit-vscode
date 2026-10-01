@@ -131,6 +131,18 @@
           "captures": { "2": { "name": "keyword.control.spit" } }
         },
         {
+          "comment": "`sidecars name [dimensions]:`, then the path stem its sources share.",
+          "begin": "^(sidecars)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(\\[[^\\]]*\\])?\\s*(:)",
+          "beginCaptures": {
+            "1": { "name": "keyword.control.spit" },
+            "2": { "name": "entity.name.section.sidecars.spit" },
+            "3": { "name": "meta.dimension-list.spit", "patterns": [{ "include": "#dimension-list-inner" }] },
+            "4": { "name": "punctuation.separator.colon.spit" }
+          },
+          "end": "$",
+          "patterns": [{ "include": "#word-comment" }, { "include": "#brace-escape" }, { "include": "#path-placeholder" }]
+        },
+        {
           "comment": "`ext:`, the extension a default path is completed with.",
           "match": "^(\\s*)(ext)\\s*(:)(?![^#]*=)\\s*((?:\\.[A-Za-z0-9_-]+)+)?",
           "captures": {
@@ -360,6 +372,11 @@
     },
     "expression": {
       "patterns": [
+        {
+          "comment": "The extension ending a sidecars source: `source gps : Track .gpx`.",
+          "name": "constant.other.extension.spit",
+          "match": "(?<=\\s)(?:\\.[A-Za-z0-9_-]+)+(?=\\s*(?:#|$))"
+        },
         { "name": "keyword.control.spit", "match": "\\b(require|exclude|per|verify|use|from|as|source|dimensions|discover|operation|command|path)\\b" },
         { "name": "keyword.other.discovery.spit", "match": "\\bdirs\\b" },
         { "name": "storage.modifier.cardinality.spit", "match": "\\bmany\\b" },

@@ -181,6 +181,22 @@ test('ext: sets the extension a default path is completed with', { skip }, async
   assert.doesNotMatch(scopes('ext: Image = copy(raw)', 'ext'), /keyword\.control/);
 });
 
+test('a sidecars block names its group, dimensions, stem and extensions', { skip }, async () => {
+  const scopes = await tokenizer();
+  const header = 'sidecars photo [site, shot]: site-{site}/shot-{shot}_photo  # with its pose';
+  assert.match(scopes(header, 'sidecars'), /keyword\.control\.spit/);
+  assert.match(scopes(header, 'photo'), /entity\.name\.section\.sidecars\.spit/);
+  assert.match(scopes(header, 'site', header.indexOf('[')), /variable\.parameter/);
+  assert.match(scopes(header, 'shot', header.indexOf('{shot}')), /variable\.parameter\.placeholder\.dimension\.spit/);
+  assert.match(scopes(header, '# with'), /comment\.line/);
+  const member = '    source photo_gps : GpsTrack .gpx  # the pose';
+  assert.match(scopes(member, 'source'), /keyword\.control\.spit/);
+  assert.match(scopes(member, 'GpsTrack'), /support\.type\.spit/);
+  assert.match(scopes(member, '.gpx'), /constant\.other\.extension\.spit/);
+  // A product called `sidecars` stays a step.
+  assert.doesNotMatch(scopes('sidecars = copy(raw)', 'sidecars'), /keyword\.control/);
+});
+
 test('each is a selector keyword', { skip }, async () => {
   const scopes = await tokenizer();
   const line = 'forecast = predict(reading, model @ each(scenario), parameters)';
