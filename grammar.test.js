@@ -171,6 +171,16 @@ test('an operation output may name the extension its file has', { skip }, async 
   assert.match(scopes(several, 'min'), /keyword\.other\.selector\.spit/);
 });
 
+test('an output written beside another names its suffix and sibling', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'operation strip(t1: Image) -> (brain: Image .nii.gz, mask: Image "_mask.nii.gz" beside brain, log .txt beside brain)';
+  assert.match(scopes(line, '"_mask.nii.gz"'), /string\.quoted\.double\.spit/);
+  assert.doesNotMatch(scopes(line, '.nii.gz"'), /constant\.other\.extension/);
+  assert.match(scopes(line, 'beside'), /keyword\.other\.beside\.spit/);
+  assert.match(scopes(line, 'brain', line.indexOf('beside')), /variable\.parameter\.port\.spit/);
+  assert.match(scopes(line, '.txt'), /constant\.other\.extension\.spit/);
+});
+
 test('ext: sets the extension a default path is completed with', { skip }, async () => {
   const scopes = await tokenizer();
   const line = '    ext: .nii.gz  # images in this stage';

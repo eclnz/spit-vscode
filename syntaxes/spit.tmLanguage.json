@@ -226,6 +226,8 @@
         "2": {
           "name": "meta.operation.output.spit",
           "patterns": [
+            { "name": "string.quoted.double.spit", "match": "\"[^\"]*\"" },
+            { "name": "keyword.other.beside.spit", "match": "\\bbeside\\b" },
             {
               "comment": "The extension the tool gives an output's file: `-> Transform .mat`.",
               "name": "constant.other.extension.spit",
