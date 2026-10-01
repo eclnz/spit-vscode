@@ -19,14 +19,14 @@ For example, `cleaned = clean(raw)` with `raw: Frame<Native>` and `clean(Frame<S
 
 Hovers use unsaved text and share the cached compiler check with diagnostics. Saving an imported pipeline refreshes dependent hovers. Independently valid declarations remain available while another line is broken; failed steps do not claim inferred types. Path templates describe artifact families; concrete dataset paths and filesystem checks are not part of these hovers. Recipes and inventories retain their existing diagnostics/highlighting without pipeline hovers.
 
-Rebuild the sibling SPIT compiler with `cargo build`: hovers require its `check --json --stdin --hovers` support.
+Rebuild the sibling SPIT compiler with `cargo build`: hovers require its `check --json --stdin --hovers` support. The hovers appear in a VS Code Extension Development Host running this version of the extension.
 
 ## Try it locally
 
 1. Build the [SPIT compiler](https://github.com/eclnz/spit) with `cargo build`.
 2. Open this repository in VS Code.
-3. Choose **Run > Run Without Debugging** (Control-F5 on macOS) to launch an Extension Development Host.
-4. In the new window, open a `.spit` file and edit it. Errors appear in the editor and Problems panel.
+3. Choose **Run > Run Without Debugging** (Control-F5 on macOS) to launch an Extension Development Host. It opens `../spit/examples/types/typed.spit` automatically.
+4. Hover over `clean` or `cleaned` on the `cleaned = clean(raw)` line. The operation hover should show `S = Native`; the product hover should show `CleanFrame<Native>`. Edit the file to see diagnostics in the editor and Problems panel.
 
 The extension uses a build at `../spit/target/debug/spit` if present, then tries `spit` on PATH. Set `spit.executablePath` in your user settings to use a build elsewhere; workspace settings cannot change it. It is the only setting. The extension stays off in folders VS Code does not trust. The SPIT executable needs `check <file> --json --stdin`, including for a `.spitin`.
 
