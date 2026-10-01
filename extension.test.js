@@ -113,7 +113,7 @@ test('shows where each output is written at the end of its step', { skip: !fs.ex
   const hints = {};
   let changed = 0;
   const document = fakeDocument(path.join(__dirname, 'paths.spit'), [
-    'path: out/{product}/{entities}',
+    'path: out/{@product}/{@entities}',
     'ext: .img',
     'source raw : Image [id]',
     'path raw: in/{id}.raw',
@@ -132,9 +132,9 @@ test('shows where each output is written at the end of its step', { skip: !fs.ex
   const [copied, aligned] = shown();
   // At the end of each step's line, the source's own rule needing no hint.
   assert.deepEqual([copied.position.line, copied.position.character], [6, 18]);
-  assert.equal(copied.label, '→ out/copied/{entities}.img');
+  assert.equal(copied.label, '→ out/copied/{@entities}.img');
   assert.equal(aligned.position.line, 7);
-  assert.equal(aligned.label, 'matrix → out/matrix/{entities}.mat  log → out/log/{entities}.txt');
+  assert.equal(aligned.label, 'matrix → out/matrix/{@entities}.mat  log → out/log/{@entities}.txt');
   extension.deactivate();
 });
 

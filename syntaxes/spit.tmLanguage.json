@@ -338,8 +338,8 @@
     "path-placeholder": {
       "patterns": [
         {
-          "comment": "Placeholders every path template reserves; no product may declare a dimension with these names.",
-          "match": "(\\{)(product|entities|stage)(\\})",
+          "comment": "SPIT's own placeholders, which take `@` to tell them from dimensions.",
+          "match": "(\\{)(@(?:product|entities|stage))(\\})",
           "captures": {
             "1": { "name": "punctuation.definition.template-expression.begin.spit" },
             "2": { "name": "variable.language.placeholder.spit" },

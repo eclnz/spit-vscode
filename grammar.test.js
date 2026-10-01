@@ -37,15 +37,17 @@ async function tokenizer() {
 
 const skip = !textmate && 'run npm install to test the grammar';
 
-test('path templates mark the reserved placeholders apart from dimensions', { skip }, async () => {
+test('path templates mark the built-in placeholders apart from dimensions', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = 'path t1_to_dwi_flirt: derivatives/{stage}/{product}/{entities}_{sub}.mat';
+  const line = 'path t1_to_dwi_flirt: derivatives/{@stage}/{@product}/{@entities}_{sub}_{stage}.mat';
   assert.match(scopes(line, 'path'), /keyword\.control\.spit/);
   assert.match(scopes(line, 't1_to_dwi_flirt'), /variable\.other\.product\.spit/);
-  for (const name of ['stage', 'product', 'entities']) {
+  for (const name of ['@stage', '@product', '@entities']) {
     assert.match(scopes(line, name, line.indexOf('{')), /variable\.language\.placeholder\.spit/, name);
   }
   assert.match(scopes(line, 'sub', line.indexOf('{sub')), /variable\.parameter\.placeholder\.dimension\.spit/);
+  // Without `@`, `stage` is a dimension.
+  assert.match(scopes(line, 'stage', line.indexOf('{stage')), /variable\.parameter\.placeholder\.dimension\.spit/);
   assert.match(scopes(line, '{', line.indexOf('{sub')), /punctuation\.definition\.template-expression\.begin/);
 });
 
@@ -109,7 +111,7 @@ test('a default path rule, a comment, and escaped braces', { skip }, async () =>
   assert.match(scopes(line, 'run'), /variable\.parameter\.placeholder\.dimension\.spit/);
   assert.match(scopes(line, '# per stage'), /comment\.line/);
   // As in SPIT, a `#` inside a word is not a comment.
-  assert.doesNotMatch(scopes('path: out/#tag/{entities}', '#tag'), /comment/);
+  assert.doesNotMatch(scopes('path: out/#tag/{@entities}', '#tag'), /comment/);
 });
 
 test('a product called `path` is still a step', { skip }, async () => {
