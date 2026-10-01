@@ -298,6 +298,47 @@ function hoverItems(result) {
   return byLine;
 }
 
+// Compiler details are plain text. Keep prose escaped, and only turn the
+// known code-bearing fields into code blocks.
+function appendHoverDetail(contents, detail) {
+  const labelledCode = /^(Used by|Command|Verify|Type bindings|Stage): (.+)$/.exec(detail);
+  if (labelledCode) {
+    const [, label, value] = labelledCode;
+    contents.appendText(`${label}:`).appendMarkdown('\n\n');
+    contents.appendCodeblock(label === 'Used by' ? value.split('; ').join('\n') : value,
+      label === 'Command' || label === 'Verify' ? 'sh' : 'spit');
+    return;
+  }
+  if (detail.startsWith('Path template: ')) {
+    const rest = detail.slice('Path template: '.length);
+    const descriptionStart = rest.lastIndexOf(' (');
+    if (descriptionStart !== -1 && rest.endsWith(').')) {
+      contents.appendText('Path template:').appendMarkdown('\n\n');
+      contents.appendCodeblock(rest.slice(0, descriptionStart), 'spit');
+      contents.appendMarkdown('\n\n').appendText(rest.slice(descriptionStart + 1));
+      return;
+    }
+  }
+  const producer = /^Derived product\. Produced by (.+)\.$/.exec(detail);
+  if (producer) {
+    contents.appendText('Derived product. Produced by:').appendMarkdown('\n\n');
+    contents.appendCodeblock(producer[1], 'spit');
+    return;
+  }
+  const declared = /^Declared type: (.+?)\. (.+)$/.exec(detail);
+  if (declared) {
+    contents.appendText('Declared type:').appendMarkdown('\n\n');
+    contents.appendCodeblock(declared[1], 'spit');
+    contents.appendMarkdown('\n\n').appendText(declared[2]);
+    return;
+  }
+  if (/^[^\n]+ [←→] [^\n]+$/.test(detail)) {
+    contents.appendCodeblock(detail, 'spit');
+    return;
+  }
+  contents.appendText(detail);
+}
+
 // The item under the pointer from the check of this version of the
 // document, checking it now if the check is still to come.
 async function provideHover(context, document, position, token) {
@@ -316,7 +357,10 @@ async function provideHover(context, document, position, token) {
   contents.supportHtml = false;
   contents.appendCodeblock(item.code, 'spit');
   if (item.summary) contents.appendMarkdown(`\n\n${item.summary}`);
-  for (const detail of item.details || []) contents.appendMarkdown('\n\n').appendText(detail);
+  for (const detail of item.details || []) {
+    contents.appendMarkdown('\n\n');
+    appendHoverDetail(contents, detail);
+  }
   if (item.reference) contents.appendMarkdown(`\n\n[Language reference](${item.reference})`);
   return new vscode.Hover(contents, new vscode.Range(position.line, item.start, position.line, item.end));
 }

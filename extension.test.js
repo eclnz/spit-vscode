@@ -416,6 +416,8 @@ test('hovers explain specialised operations and inferred products from unsaved t
     assert.match(operation.contents.value, /operation copy\(input: Frame<\$S>\)/);
     assert.match(operation.contents.value, /S = Native/);
     assert.match(operation.contents.value, /out: Frame<Native> \[id\]/);
+    assert.ok(operation.contents.parts.some(part => part.code === 'S = Native'));
+    assert.ok(operation.contents.parts.some(part => part.code === 'output → out: Frame<Native> [id]'));
     assert.deepEqual(span(operation), [3, 6, 10]);
     const product = await hover(1);
     assert.match(product.contents.value, /out: Frame<Native> \[id\]/);
@@ -445,6 +447,30 @@ test('hovers explain specialised operations and inferred products from unsaved t
     onChange({ document });
     assert.equal(await stale, undefined, 'discard a check interrupted by a new document version');
     assert.match((await hover(1)).contents.value, /out: Frame<Current>/);
+  } finally {
+    extension.deactivate();
+  }
+});
+
+test('product hover separates user-defined snippets from prose', { skip: !fs.existsSync(binary) }, async () => {
+  const pipeline = path.join(__dirname, '..', 'spit', 'examples', 'commands', 'field_survey', 'field_survey.spit');
+  const text = fs.readFileSync(pipeline, 'utf8');
+  const document = fakeDocument(pipeline, text);
+  const extension = load(mockVscode(document, new Map(), () => {}));
+  const context = { extensionPath: __dirname, subscriptions: [] };
+  extension.activate(context);
+  try {
+    const lines = text.split('\n');
+    const line = lines.findIndex(value => value.trimStart().startsWith('source flat_field '));
+    const provider = context.subscriptions.find(item => item.hoverProvider).hoverProvider;
+    const hover = await provider.provideHover(document, { line, character: lines[line].indexOf('flat_field') });
+    const code = hover.contents.parts.filter(part => part.code).map(part => part.code);
+    assert.ok(code.includes('flat_field: Image<Flat,Captured> [site, visit]'));
+    assert.ok(code.includes('flat_img = import_flat(…)'));
+    assert.ok(code.includes('site-{site}/visit-{visit}/calibration/site-{site}_visit-{visit}_flat.raw'));
+    assert.ok(hover.contents.parts.some(part => part.text === 'Source product: a family of input artifacts.'));
+    assert.ok(hover.contents.parts.some(part => part.text === '(explicit product rule).'));
+    assert.ok(hover.contents.parts.filter(part => part.markdown).every(part => part.markdown === '\n\n'));
   } finally {
     extension.deactivate();
   }
