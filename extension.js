@@ -14,6 +14,7 @@ let relatedDiagnostics;
 // the last clean check of each pipeline: a label per line, by document.
 const shownPaths = new Map();
 let pathHintsChanged;
+const analyses = new Map();
 
 // Semantic highlighting of a .spitout's records: each source product, and
 // each dimension and value in its brackets. Pipelines and recipes are
@@ -178,6 +179,7 @@ function stop(uri) {
   timers.delete(key);
   pending.get(key)?.kill();
   pending.delete(key);
+  analyses.delete(key);
 }
 
 function clearRelated(key) {
@@ -275,7 +277,7 @@ function checkable(document) {
 }
 
 function schedule(context, document, delay = 250) {
-  if (!checkable(document)) return;
+  if (!checkable(document) || vscode.workspace.isTrusted === false) return;
   const key = document.uri.toString();
   stop(document.uri);
   timers.set(key, setTimeout(() => {
@@ -287,9 +289,26 @@ function schedule(context, document, delay = 250) {
 function lint(context, document) {
   const key = document.uri.toString();
   const version = document.version;
-  const args = ['check', document.uri.fsPath, '--json', '--stdin'];
+  const executable = executablePath(context, document);
+  let executableModified;
+  try {
+    executableModified = fs.statSync(executable).mtimeMs;
+  } catch {
+    // An executable found through PATH has no local path to watch here.
+  }
+  const existing = analyses.get(key);
+  if (existing?.version === version && existing.executable === executable &&
+      existing.executableModified === executableModified) return existing.promise;
+  if (existing) stop(document.uri);
+  clearTimeout(timers.get(key));
+  timers.delete(key);
+  let finish;
+  const entry = { version, executable, executableModified, promise: new Promise(resolve => { finish = resolve; }) };
+  analyses.set(key, entry);
 
-  const child = spawn(executablePath(context, document), args, {
+  const args = ['check', document.uri.fsPath, '--json', '--stdin'];
+  if (/\.spit$/i.test(document.uri.fsPath)) args.push('--hovers');
+  const child = spawn(executable, args, {
     cwd: path.dirname(document.uri.fsPath),
     stdio: ['pipe', 'pipe', 'pipe']
   });
@@ -306,19 +325,30 @@ function lint(context, document) {
   child.on('error', error => { errors += error.message; });
   child.on('close', code => {
     clearTimeout(timeout);
-    if (pending.get(key) !== child) return;
+    if (pending.get(key) !== child || analyses.get(key) !== entry) {
+      finish();
+      return;
+    }
     pending.delete(key);
-    if (document.isClosed || document.version !== version) return;
+    if (document.isClosed || document.version !== version || vscode.workspace.isTrusted === false) {
+      analyses.delete(key);
+      finish();
+      return;
+    }
     if (timedOut) {
       showPaths(document, null);
       clearRelated(key);
       diagnostics.set(document.uri, [issue(document, null, `SPIT check did not finish within ${CHECK_TIMEOUT_MS / 1000} seconds and was stopped`)]);
+      analyses.delete(key);
+      finish();
       return;
     }
     if (code !== 0) {
       showPaths(document, null);
       clearRelated(key);
       diagnostics.set(document.uri, [issue(document, null, `SPIT check failed: ${errors.trim() || `exit ${code}`}`)]);
+      analyses.delete(key);
+      finish();
       return;
     }
     try {
@@ -326,14 +356,37 @@ function lint(context, document) {
       publishIssues(document, result.diagnostics);
       // Only a pipeline that checks clean has `paths`.
       showPaths(document, result.paths);
+      finish(Array.isArray(result.hovers) ? result.hovers : []);
     } catch (error) {
       showPaths(document, null);
       clearRelated(key);
       diagnostics.set(document.uri, [issue(document, null, `SPIT returned invalid diagnostics: ${error.message}`)]);
+      analyses.delete(key);
+      finish();
     }
   });
   child.stdin.on('error', () => {});
   child.stdin.end(document.getText());
+  return entry.promise;
+}
+
+async function provideHover(context, document, position, token) {
+  if (!checkable(document) || !/\.spit$/i.test(document.uri.fsPath) || vscode.workspace.isTrusted === false || token?.isCancellationRequested) return;
+  const key = document.uri.toString();
+  const version = document.version;
+  const request = lint(context, document);
+  const entry = analyses.get(key);
+  const hovers = await request;
+  if (!hovers || analyses.get(key) !== entry || document.isClosed || document.version !== version || token?.isCancellationRequested || vscode.workspace.isTrusted === false) return;
+  const hover = hovers.find(item => item.line === position.line + 1 &&
+    item.column <= position.character + 1 && position.character + 1 < item.end_column);
+  if (!hover) return;
+  const contents = new vscode.MarkdownString();
+  contents.isTrusted = false;
+  contents.supportHtml = false;
+  contents.appendCodeblock(hover.signature, 'spit');
+  for (const detail of hover.details) contents.appendText(detail).appendMarkdown('\n\n');
+  return new vscode.Hover(contents, new vscode.Range(hover.line - 1, hover.column - 1, hover.line - 1, hover.end_column - 1));
 }
 
 function activate(context) {
@@ -341,6 +394,10 @@ function activate(context) {
   context.subscriptions.push(diagnostics);
   relatedDiagnostics = vscode.languages.createDiagnosticCollection('SPIT recipe pipelines');
   context.subscriptions.push(relatedDiagnostics);
+  context.subscriptions.push(vscode.languages.registerHoverProvider(
+    { language: 'spit', scheme: 'file', pattern: '**/*.spit' },
+    { provideHover: (document, position, token) => provideHover(context, document, position, token) }
+  ));
   context.subscriptions.push(vscode.languages.registerDocumentSemanticTokensProvider(
     { language: 'spit' },
     { provideDocumentSemanticTokens: provideSpitSemanticTokens },
@@ -367,9 +424,9 @@ function activate(context) {
   // Re-check when a pipeline changes on disk: another pipeline may import it,
   // and a recipe is checked against it.
   const watcher = vscode.workspace.createFileSystemWatcher('**/*.spit');
-  const refresh = changed => {
+  const refresh = () => {
     for (const document of vscode.workspace.textDocuments) {
-      if (document.uri.toString() !== changed.toString()) schedule(context, document, 0);
+      schedule(context, document, 0);
     }
   };
   context.subscriptions.push(watcher, watcher.onDidChange(refresh), watcher.onDidCreate(refresh), watcher.onDidDelete(refresh));
@@ -377,7 +434,7 @@ function activate(context) {
 }
 
 function deactivate() {
-  for (const key of pending.keys()) stop(vscode.Uri.parse(key));
+  for (const key of new Set([...pending.keys(), ...timers.keys(), ...analyses.keys()])) stop(vscode.Uri.parse(key));
   for (const key of relatedFiles.keys()) clearRelated(key);
 }
 

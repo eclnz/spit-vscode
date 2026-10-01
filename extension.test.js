@@ -183,8 +183,18 @@ function mockVscode(document, results, onChange, hints = {}) {
     InlayHint: class {
       constructor(position, label) { Object.assign(this, { position, label }); }
     },
-    Uri: { file(fsPath) { return { fsPath, toString() { return `file://${this.fsPath}`; } }; } },
+    Uri: {
+      file(fsPath) { return { fsPath, toString() { return `file://${this.fsPath}`; } }; },
+      parse: value => ({ toString: () => value })
+    },
     Range,
+    Hover: class { constructor(contents, range) { Object.assign(this, { contents, range }); } },
+    MarkdownString: class {
+      constructor() { this.value = ''; this.parts = []; }
+      appendCodeblock(value, language) { this.parts.push({ code: value, language }); this.value += value + '\n'; return this; }
+      appendText(value) { this.parts.push({ text: value }); this.value += value; return this; }
+      appendMarkdown(value) { this.parts.push({ markdown: value }); this.value += value; return this; }
+    },
     Diagnostic: class {
       constructor(range, message, severity) { Object.assign(this, { range, message, severity }); }
     },
@@ -192,6 +202,7 @@ function mockVscode(document, results, onChange, hints = {}) {
     SemanticTokensLegend: class {},
     SemanticTokensBuilder: class {},
     languages: {
+      registerHoverProvider(_selector, provider) { return { ...disposable, hoverProvider: provider }; },
       createDiagnosticCollection() {
         return {
           set(uri, items) { results.set(uri.toString(), items); },
@@ -250,6 +261,7 @@ function load(vscode) {
 
 test('highlights a .spitout\'s products, dimensions and values by role', () => {
   const vscode = {
+    Uri: { parse: value => ({ toString: () => value }) },
     Range,
     SemanticTokensLegend: class {
       constructor(tokenTypes, tokenModifiers) { Object.assign(this, { tokenTypes, tokenModifiers }); }
@@ -260,6 +272,7 @@ test('highlights a .spitout\'s products, dimensions and values by role', () => {
       build() { return this.entries; }
     },
     languages: {
+      registerHoverProvider() { return { dispose() {} }; },
       createDiagnosticCollection() { return { set() {}, delete() {}, dispose() {} }; },
       registerDocumentSemanticTokensProvider(_selector, provider) { return { dispose() {}, provider }; },
       registerInlayHintsProvider() { return { dispose() {} }; }
@@ -293,6 +306,7 @@ test('highlights a .spitout\'s products, dimensions and values by role', () => {
     Module._load = originalLoad;
   }
   assert.ok(registered, 'semantic tokens provider was registered');
+  delete require.cache[require.resolve('./extension')];
 
   const types = ['variable', 'parameter', 'enumMember'];
   const records = [
@@ -356,4 +370,159 @@ test('a workspace cannot choose the executable, and untrusted folders are not ch
   assert.deepEqual(Object.keys(manifest.contributes.configuration.properties), ['spit.executablePath']);
   assert.equal(manifest.contributes.configuration.properties['spit.executablePath'].scope, 'machine-overridable');
   assert.equal(manifest.capabilities.untrustedWorkspaces.supported, false);
+});
+
+test('hovers explain specialised operations and inferred products from unsaved text', { skip: !fs.existsSync(binary) }, async () => {
+  const document = fakeDocument(path.join(__dirname, 'hover.spit'), [
+    'source raw: Frame<Native> [id]',
+    'operation copy(input: Frame<S>) -> Frame<S>',
+    'path: result/{@product}/{@entities}.txt',
+    'out = copy(raw)',
+    ''
+  ].join('\n'));
+  const results = new Map();
+  let onChange;
+  const vscode = mockVscode(document, results, callback => { onChange = callback; });
+  const extension = load(vscode);
+  const context = { extensionPath: __dirname, subscriptions: [] };
+  extension.activate(context);
+  const provider = context.subscriptions.find(item => item.hoverProvider).hoverProvider;
+  const hover = character => provider.provideHover(document, { line: 3, character });
+  try {
+    const operation = await hover(7);
+    assert.match(operation.contents.value, /operation copy\(input: Frame<\$S>\)/);
+    assert.match(operation.contents.value, /S = Native/);
+    assert.match(operation.contents.value, /out: Frame<Native> \[id\]/);
+    assert.deepEqual(span(operation), [3, 6, 10]);
+    const product = await hover(1);
+    assert.match(product.contents.value, /out: Frame<Native> \[id\]/);
+    assert.match(product.contents.value, /pipeline default/);
+    assert.equal(product.contents.isTrusted, false);
+    assert.equal(product.contents.supportHtml, false);
+    assert.ok(product.contents.parts.filter(part => part.markdown).every(part => part.markdown === '\n\n'), 'symbol information is rendered as escaped text');
+    assert.equal(await hover(10), undefined, 'the opening parenthesis is outside the name');
+    const cancelled = await provider.provideHover(document, { line: 3, character: 7 }, { isCancellationRequested: true });
+    assert.equal(cancelled, undefined);
+
+    document.text = document.text.replace('Frame<Native>', 'Frame<Target>');
+    document.version++;
+    onChange({ document });
+    assert.match((await hover(1)).contents.value, /out: Frame<Target>/, 'unsaved edits invalidate previous types');
+    document.text += 'broken syntax\n';
+    document.version++;
+    onChange({ document });
+    assert.match((await hover(1)).contents.value, /out: Frame<Target>/, 'independent declarations survive a broken line');
+    assert.ok(results.get(document.uri.toString()).some(item => item.severity === 0));
+    document.text = document.text.replace('Frame<Target>', 'Frame<Other>');
+    document.version++;
+    onChange({ document });
+    const stale = hover(1);
+    document.text = document.text.replace('Frame<Other>', 'Frame<Current>');
+    document.version++;
+    onChange({ document });
+    assert.equal(await stale, undefined, 'discard a check interrupted by a new document version');
+    assert.match((await hover(1)).contents.value, /out: Frame<Current>/);
+  } finally {
+    extension.deactivate();
+  }
+});
+
+test('saving an imported pipeline invalidates cached hover types', { skip: !fs.existsSync(binary) }, async () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-hover-import-'));
+  const imported = path.join(folder, 'lib.spit');
+  fs.writeFileSync(imported, 'source raw : Frame<Native> [id]\noperation copy(input: Frame<S>) -> Frame<S>\n');
+  const document = fakeDocument(path.join(folder, 'main.spit'), 'use lib.spit as lib\nout = lib::copy(lib::raw)\n');
+  const vscode = mockVscode(document, new Map(), () => {});
+  let refresh;
+  const disposable = { dispose() {} };
+  vscode.workspace.createFileSystemWatcher = () => ({
+    ...disposable,
+    onDidChange(callback) { refresh = callback; return disposable; },
+    onDidCreate() { return disposable; },
+    onDidDelete() { return disposable; }
+  });
+  const extension = load(vscode);
+  const context = { extensionPath: __dirname, subscriptions: [] };
+  extension.activate(context);
+  const provider = context.subscriptions.find(item => item.hoverProvider).hoverProvider;
+  const hover = () => provider.provideHover(document, { line: 1, character: 1 });
+  try {
+    assert.match((await hover()).contents.value, /Frame<Native>/);
+    fs.writeFileSync(imported, 'source raw : Frame<Target> [id]\noperation copy(input: Frame<S>) -> Frame<S>\n');
+    refresh({ toString: () => `file://${imported}` });
+    assert.match((await hover()).contents.value, /Frame<Target>/);
+  } finally {
+    extension.deactivate();
+    fs.rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test('untrusted folders, recipes and inventories do not provide pipeline hovers', () => {
+  const document = fakeDocument(path.join(__dirname, 'untrusted.spit'), 'source raw [id]\n');
+  const results = new Map();
+  const vscode = mockVscode(document, results, () => {});
+  vscode.workspace.isTrusted = false;
+  const extension = load(vscode);
+  const context = { extensionPath: __dirname, subscriptions: [] };
+  extension.activate(context);
+  const provider = context.subscriptions.find(item => item.hoverProvider).hoverProvider;
+  return (async () => {
+    try {
+      assert.equal(await provider.provideHover(document, { line: 0, character: 8 }), undefined);
+      assert.equal(results.size, 0);
+      vscode.workspace.isTrusted = true;
+      document.uri.fsPath = path.join(__dirname, 'recipe.spitin');
+      assert.equal(await provider.provideHover(document, { line: 0, character: 8 }), undefined);
+      document.uri.fsPath = path.join(__dirname, 'inputs.spitout');
+      assert.equal(await provider.provideHover(document, { line: 0, character: 8 }), undefined);
+    } finally { extension.deactivate(); }
+  })();
+});
+
+test('hovers reuse one compiler analysis per document version', { skip: !fs.existsSync(binary) }, async () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-hover-cache-'));
+  const wrapper = path.join(folder, 'counted-spit');
+  const calls = path.join(folder, 'calls.jsonl');
+  fs.writeFileSync(wrapper, `#!/usr/bin/env node
+const fs = require('node:fs');
+const { spawnSync } = require('node:child_process');
+fs.appendFileSync(${JSON.stringify(calls)}, JSON.stringify(process.argv.slice(2)) + '\\n');
+const result = spawnSync(${JSON.stringify(binary)}, process.argv.slice(2), { input: fs.readFileSync(0) });
+process.stdout.write(result.stdout);
+process.stderr.write(result.stderr);
+process.exit(result.status);
+`, { mode: 0o755 });
+  const document = fakeDocument(path.join(folder, 'cached.spit'), 'source raw [id]\noperation copy(input)\nout = copy(raw)\n');
+  const results = new Map();
+  let onChange;
+  const vscode = mockVscode(document, results, callback => { onChange = callback; });
+  vscode.workspace.getConfiguration = () => ({ get: () => wrapper });
+  const extension = load(vscode);
+  const context = { extensionPath: __dirname, subscriptions: [] };
+  extension.activate(context);
+  const provider = context.subscriptions.find(item => item.hoverProvider).hoverProvider;
+  const hover = () => provider.provideHover(document, { line: 2, character: 1 });
+  const recorded = () => fs.readFileSync(calls, 'utf8').trim().split('\n').map(line => JSON.parse(line));
+  try {
+    assert.match((await hover()).contents.value, /out: Unknown \[id\]/);
+    assert.deepEqual(results.get(document.uri.toString()), []);
+    assert.equal(recorded().length, 1);
+    assert.ok(recorded()[0].includes('--hovers'));
+    await hover();
+    await hover();
+    assert.equal(recorded().length, 1, 'hover reuses the completed document check');
+    const changedTime = new Date(Date.now() + 2000);
+    fs.utimesSync(wrapper, changedTime, changedTime);
+    await hover();
+    assert.equal(recorded().length, 2, 'rebuilding the executable invalidates cached hover data');
+    document.text += 'broken syntax\n';
+    document.version++;
+    onChange({ document });
+    await hover();
+    assert.equal(recorded().length, 3, 'one new analysis for the edited version');
+    assert.ok(results.get(document.uri.toString()).some(item => item.severity === 0));
+  } finally {
+    extension.deactivate();
+    fs.rmSync(folder, { recursive: true, force: true });
+  }
 });
