@@ -171,12 +171,12 @@ test('labels one path per line, naming each product of a step with several', () 
   assert.deepEqual([...labels], [[3, '→ out/a.txt'], [5, 'w → out/w.npz  q → out/q.json']]);
 });
 
-test('leaves a .spitout unchecked, since check reads no data', () => {
+test('checks a .spitout\'s records on their own', { skip: !fs.existsSync(binary) }, async () => {
   const results = new Map();
   const document = fakeDocument(path.join(__dirname, 'inputs.spitout'), 'sources:\n    raw[id=1]\n');
   const extension = load(mockVscode(document, results, () => {}));
   extension.activate({ extensionPath: __dirname, subscriptions: [] });
-  assert.equal(results.size, 0);
+  await until(() => results.get(document.uri.toString())?.length === 0);
   extension.deactivate();
 });
 
@@ -190,7 +190,8 @@ function fakeDocument(fsPath, text) {
     getText() { return this.text; },
     get lineCount() { return this.text.split('\n').length; },
     lineAt(index) {
-      return { range: new Range(index, 0, index, this.text.split('\n')[index].length) };
+      const text = this.text.split('\n')[index];
+      return { text, range: new Range(index, 0, index, text.length) };
     }
   };
 }
@@ -214,7 +215,7 @@ function mockVscode(document, results, onChange, hints = {}) {
     Hover: class { constructor(contents, range) { Object.assign(this, { contents, range }); } },
     MarkdownString: class {
       constructor() { this.value = ''; this.parts = []; }
-      appendCodeblock(value, language) { this.parts.push({ code: value, language }); this.value += value + '\n'; return this; }
+      appendCodeblock(value, language) { this.parts.push({ code: value, language }); this.value += `\`\`\`${language}\n${value}\n\`\`\``; return this; }
       appendText(value) { this.parts.push({ text: value }); this.value += value; return this; }
       appendMarkdown(value) { this.parts.push({ markdown: value }); this.value += value; return this; }
     },
@@ -225,7 +226,7 @@ function mockVscode(document, results, onChange, hints = {}) {
     SemanticTokensLegend: class {},
     SemanticTokensBuilder: class {},
     languages: {
-      registerHoverProvider(_selector, provider) { return { ...disposable, hoverProvider: provider }; },
+      registerHoverProvider(_selector, provider) { hints.hover = provider; return { ...disposable, hoverProvider: provider }; },
       createDiagnosticCollection() {
         return {
           set(uri, items) { results.set(uri.toString(), items); },
@@ -327,10 +328,9 @@ test('highlights a .spitout\'s products, dimensions and values by role', () => {
     registered = subscriptions.find(item => item.provider)?.provider;
   } finally {
     Module._load = originalLoad;
+    delete require.cache[require.resolve('./extension')];
   }
   assert.ok(registered, 'semantic tokens provider was registered');
-  delete require.cache[require.resolve('./extension')];
-
   const types = ['variable', 'parameter', 'enumMember'];
   const records = [
     'source_paths:',
@@ -423,7 +423,7 @@ test('hovers explain specialised operations and inferred products from unsaved t
     assert.equal(product.contents.isTrusted, false);
     assert.equal(product.contents.supportHtml, false);
     assert.ok(product.contents.parts.filter(part => part.markdown).every(part => part.markdown === '\n\n'), 'symbol information is rendered as escaped text');
-    assert.equal(await hover(10), undefined, 'the opening parenthesis is outside the name');
+    assert.equal(await hover(10), null, 'the opening parenthesis is outside the name');
     const cancelled = await provider.provideHover(document, { line: 3, character: 7 }, { isCancellationRequested: true });
     assert.equal(cancelled, undefined);
 
@@ -480,7 +480,7 @@ test('saving an imported pipeline invalidates cached hover types', { skip: !fs.e
   }
 });
 
-test('untrusted folders, recipes and inventories do not provide pipeline hovers', () => {
+test('untrusted or non-file documents do not provide hovers', () => {
   const document = fakeDocument(path.join(__dirname, 'untrusted.spit'), 'source raw [id]\n');
   const results = new Map();
   const vscode = mockVscode(document, results, () => {});
@@ -494,9 +494,10 @@ test('untrusted folders, recipes and inventories do not provide pipeline hovers'
       assert.equal(await provider.provideHover(document, { line: 0, character: 8 }), undefined);
       assert.equal(results.size, 0);
       vscode.workspace.isTrusted = true;
-      document.uri.fsPath = path.join(__dirname, 'recipe.spitin');
+      document.uri.scheme = 'untitled';
       assert.equal(await provider.provideHover(document, { line: 0, character: 8 }), undefined);
-      document.uri.fsPath = path.join(__dirname, 'inputs.spitout');
+      document.uri.scheme = 'file';
+      document.languageId = 'plaintext';
       assert.equal(await provider.provideHover(document, { line: 0, character: 8 }), undefined);
     } finally { extension.deactivate(); }
   })();
@@ -544,6 +545,55 @@ process.exit(result.status);
     await hover();
     assert.equal(recorded().length, 3, 'one new analysis for the edited version');
     assert.ok(results.get(document.uri.toString()).some(item => item.severity === 0));
+  } finally {
+    extension.deactivate();
+    fs.rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test('hovering shows SPIT\'s explanation of a word or a name, and nothing in a comment', { skip: !fs.existsSync(binary) }, async () => {
+  const hints = {};
+  const text = 'source raw [id, run]\noperation mean(items: many) -> .txt\ncommand mean: cat {items} > {output}  # vary\ntotal = mean(raw @ vary(run))\n';
+  const document = fakeDocument(path.join(__dirname, 'hover.spit'), text);
+  const extension = load(mockVscode(document, new Map(), () => {}, hints));
+  extension.activate({ extensionPath: __dirname, subscriptions: [] });
+  const at = async (line, word, from = 0) => {
+    const character = document.lineAt(line).text.indexOf(word, from) + 1;
+    return hints.hover.provideHover(document, { line, character });
+  };
+
+  const vary = await at(3, 'vary');
+  assert.deepEqual(span(vary), [3, 19, 23]);
+  assert.match(vary.contents.value, /^```spit\naverage = mean\(processed @ vary\(run\)\)\n```\n\nCollects a `many` input/);
+  assert.match(vary.contents.value, /\[Language reference\]\(https:\/\/github\.com\/eclnz\/spit\/blob\/main\/docs\/language-reference\.md#operations-and-commands\)$/);
+
+  const total = await at(3, 'total');
+  assert.match(total.contents.value, /^```spit\ntotal: Unknown \[id\]\n```/);
+  assert.equal(await at(2, 'vary'), null, 'a comment explains nothing');
+  assert.equal(await at(3, 'run', 20), null, 'a dimension has no hover');
+  extension.deactivate();
+});
+
+test('a recipe and a .spitout explain SPIT\'s words, and a .spitout\'s records are checked', { skip: !fs.existsSync(binary) }, async () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-'));
+  fs.writeFileSync(path.join(folder, 'analysis.spit'), 'source raw [id]\noperation copy(input)\nresult = copy(raw)\n');
+  const hints = {};
+  const recipe = fakeDocument(path.join(folder, 'cohort.spitin'), 'pipeline analysis.spit\nrequire raw count>=1 per [id]\n');
+  let extension = load(mockVscode(recipe, new Map(), () => {}, hints));
+  try {
+    extension.activate({ extensionPath: __dirname, subscriptions: [] });
+    const per = await hints.hover.provideHover(recipe, { line: 1, character: 22 });
+    assert.match(per.contents.value, /groups by/);
+    extension.deactivate();
+
+    const results = new Map();
+    const inputs = fakeDocument(path.join(folder, 'inputs.spitout'), 'sources:\n    raw[id=1\n');
+    extension = load(mockVscode(inputs, results, () => {}, hints));
+    extension.activate({ extensionPath: __dirname, subscriptions: [] });
+    await until(() => results.get(inputs.uri.toString())?.length === 1);
+    assert.deepEqual(span(results.get(inputs.uri.toString())[0]), [1, 8, 12]);
+    const header = await hints.hover.provideHover(inputs, { line: 0, character: 2 });
+    assert.match(header.contents.value, /settled source identities/);
   } finally {
     extension.deactivate();
     fs.rmSync(folder, { recursive: true, force: true });
