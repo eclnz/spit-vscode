@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out extension
+        uses: actions/checkout@v7
+        with:
+          path: spit-vscode
+          persist-credentials: false
+
+      - name: Check out SPIT compiler
+        uses: actions/checkout@v7
+        with:
+          repository: eclnz/spit
+          ref: usability
+          path: spit
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: spit-vscode/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build SPIT compiler
+        working-directory: spit
+        run: cargo build --locked
+
+      - name: Install extension dependencies
+        working-directory: spit-vscode
+        run: npm ci
+
+      - name: Run extension tests
+        working-directory: spit-vscode
+        run: |
+          test -x ../spit/target/debug/spit
+          npm test
