@@ -10,12 +10,12 @@ const binary = process.env.SPIT_TEST_EXECUTABLE || path.resolve(__dirname, '..',
 test('checks unsaved edits and clears fixed errors', { skip: !fs.existsSync(binary) }, async () => {
   let onChange;
   const results = new Map();
-  const document = fakeDocument(path.join(__dirname, 'unsaved.spit'), 'source raw [id]\noperation copy(one)\nresult = copy(raw)\nlater = copy(raw)\n');
+  const document = fakeDocument(path.join(__dirname, 'unsaved.spit'), 'source raw [id]\noperation copy(input)\nresult = copy(raw)\nlater = copy(raw)\n');
   const extension = load(mockVscode(document, results, callback => { onChange = callback; }));
 
   extension.activate({ extensionPath: __dirname, subscriptions: [] });
   await until(() => results.get(document.uri.toString())?.length === 0);
-  document.text = 'source raw [id]\noperation copy(one)\nresult copy(raw)\nlater = copy(raw\n';
+  document.text = 'source raw [id]\noperation copy(input)\nresult copy(raw)\nlater = copy(raw\n';
   document.version++;
   onChange({ document });
   await until(() => results.get(document.uri.toString())?.length === 2);
@@ -34,12 +34,12 @@ test('checks unsaved edits and clears fixed errors', { skip: !fs.existsSync(bina
   await until(() => results.get(document.uri.toString())?.length === 1);
   assert.equal(results.get(document.uri.toString())[0].range.start.line, 3);
 
-  document.text = 'source raw [id]\noperation copy(one)\nresult = copy(raw)\nlater = copy(raw)\n';
+  document.text = 'source raw [id]\noperation copy(input)\nresult = copy(raw)\nlater = copy(raw)\n';
   document.version++;
   onChange({ document });
   await until(() => results.get(document.uri.toString())?.length === 0);
 
-  document.text = 'source raw [id]\nsource spare [id]\noperation copy(one)\nresult = copy(raw)\n';
+  document.text = 'source raw [id]\nsource spare [id]\noperation copy(input)\nresult = copy(raw)\n';
   document.version++;
   onChange({ document });
   await until(() => results.get(document.uri.toString())?.length === 1);
@@ -62,7 +62,7 @@ test('checks unsaved edits and clears fixed errors', { skip: !fs.existsSync(bina
 
 test('checks a recipe against the pipeline it names', { skip: !fs.existsSync(binary) }, async () => {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-'));
-  fs.writeFileSync(path.join(folder, 'analysis.spit'), 'source raw [id]\noperation copy(one)\nresult = copy(raw)\n');
+  fs.writeFileSync(path.join(folder, 'analysis.spit'), 'source raw [id]\noperation copy(input)\nresult = copy(raw)\n');
   let onChange;
   const results = new Map();
   const document = fakeDocument(path.join(folder, 'cohort.spitin'), 'pipeline analysis.spit\nrequire raw count>=1 per [id]\n');
@@ -87,7 +87,7 @@ test('checks a recipe against the pipeline it names', { skip: !fs.existsSync(bin
 test('places a recipe check\'s pipeline error on the pipeline file', { skip: !fs.existsSync(binary) }, async () => {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-pipeline-'));
   const pipeline = path.join(folder, 'analysis.spit');
-  fs.writeFileSync(pipeline, 'source raw [id]\noperation copy(one)\nresult = copy(rwa)\n');
+  fs.writeFileSync(pipeline, 'source raw [id]\noperation copy(input)\nresult = copy(rwa)\n');
   const results = new Map();
   let onChange;
   const document = fakeDocument(path.join(folder, 'data.spitin'), 'pipeline analysis.spit\n');
@@ -99,7 +99,7 @@ test('places a recipe check\'s pipeline error on the pipeline file', { skip: !fs
     assert.match(results.get(`file://${pipeline}`)[0].message, /unknown product `rwa`/);
     assert.deepEqual(results.get(document.uri.toString()), []);
 
-    fs.writeFileSync(pipeline, 'source raw [id]\noperation copy(one)\nresult = copy(raw)\n');
+    fs.writeFileSync(pipeline, 'source raw [id]\noperation copy(input)\nresult = copy(raw)\n');
     document.version++;
     onChange({ document });
     await until(() => results.get(document.uri.toString())?.length === 0 && !results.has(`file://${pipeline}`));
@@ -200,7 +200,7 @@ function load(vscode) {
   }
 }
 
-test('highlights declared products, operations, and dimensions by role', () => {
+test('highlights a .spitout\'s products, dimensions and values by role', () => {
   const vscode = {
     Range,
     SemanticTokensLegend: class {
@@ -244,75 +244,38 @@ test('highlights declared products, operations, and dimensions by role', () => {
   }
   assert.ok(registered, 'semantic tokens provider was registered');
 
-  const text = [
-    'products:',
-    '    reading : Reading<Raw> [site, device]',
-    '    gain    [site, device]',
-    '',
-    'operations:',
-    '    normalize(Reading<Raw>, one Gain) -> Reading<Normalized>',
-    '',
-    'pipeline:',
-    '    normalized = normalize(reading @ vary(device), gain @ each(site))',
-    '',
-    'constraints:',
-    '    require reading count>=1 per [site, device]',
-    '',
-    'sources:',
-    '    reading[site=A,device=D1]',
+  const types = ['variable', 'parameter', 'enumMember'];
+  const records = [
+    'source_paths:',
+    '    image: data/{sub}/image.nii.gz',
     '',
     'contexts sessions:',
     '    [site=A,device=D1]',
-    'discover sessions: [site, device] from dirs data/site-{site}/device-{device}',
-    ''
-  ].join('\n');
-  const lines = text.split('\n');
-  const document = {
-    getText() { return text; },
-    lineCount: lines.length,
-    lineAt(index) { return { text: lines[index] }; }
-  };
-
-  const tokens = registered.provideDocumentSemanticTokens(document);
-  const at = (line, needle) => tokens.find(t => t.line === line && lines[line].slice(t.char, t.char + t.length) === needle);
-  const typeIndex = name => vscode_types().indexOf(name);
-  function vscode_types() { return ['variable', 'function', 'type', 'parameter', 'enumMember']; }
-
-  const readingDecl = at(1, 'reading');
-  assert.ok(readingDecl, 'declares the `reading` product');
-  assert.equal(readingDecl.tokenType, typeIndex('variable'));
-  assert.equal(readingDecl.tokenModifiers, 1, 'declaration modifier set');
-
-  assert.equal(at(1, 'Reading').tokenType, typeIndex('type'));
-  assert.equal(at(1, 'site').tokenType, typeIndex('parameter'));
-
-  const normalizeDecl = at(5, 'normalize');
-  assert.equal(normalizeDecl.tokenType, typeIndex('function'));
-  assert.equal(normalizeDecl.tokenModifiers, 1);
-
-  const normalizeCall = at(8, 'normalize');
-  assert.equal(normalizeCall.tokenType, typeIndex('function'));
-  assert.equal(normalizeCall.tokenModifiers, 0, 'a call site is not a declaration');
-
-  assert.equal(at(8, 'device').tokenType, typeIndex('parameter'));
-  assert.equal(at(8, 'site').tokenType, typeIndex('parameter'), 'an `each` dimension is a parameter');
-  assert.equal(at(11, 'reading').tokenType, typeIndex('variable'));
-  assert.equal(at(14, 'D1').tokenType, typeIndex('enumMember'));
-  assert.equal(at(17, 'site').tokenType, typeIndex('parameter'));
-  assert.equal(at(18, 'sessions').tokenModifiers, 1);
-  assert.equal(at(18, 'site').tokenType, typeIndex('parameter'));
-
-  // A .spitout holds records alone, and is colored the same way.
-  const records = ['contexts:', '    [site=A]', 'sources:', '    reading[site=A,device=D1]: data/A/D1.csv'];
-  const recordTokens = registered.provideDocumentSemanticTokens({
+    'sources:',
+    '    reading[site=A,device=D1]',
+    '    testset'
+  ];
+  const tokens = registered.provideDocumentSemanticTokens({
     getText() { return records.join('\n'); },
     lineCount: records.length,
     lineAt(index) { return { text: records[index] }; }
   });
-  const record = (line, needle) => recordTokens.find(t => t.line === line && records[line].slice(t.char, t.char + t.length) === needle);
-  assert.equal(record(1, 'site').tokenType, typeIndex('parameter'));
-  assert.equal(record(3, 'reading').tokenType, typeIndex('variable'));
-  assert.equal(record(3, 'D1').tokenType, typeIndex('enumMember'));
+  const at = (line, needle) => tokens.find(t => t.line === line && records[line].slice(t.char, t.char + t.length) === needle);
+  assert.equal(at(4, 'site').tokenType, types.indexOf('parameter'));
+  assert.equal(at(4, 'D1').tokenType, types.indexOf('enumMember'));
+  assert.equal(at(6, 'reading').tokenType, types.indexOf('variable'));
+  assert.equal(at(6, 'device').tokenType, types.indexOf('parameter'));
+  assert.equal(at(6, 'D1').tokenType, types.indexOf('enumMember'));
+  assert.ok(!tokens.some(t => t.line === 1), 'a path rule is left to the grammar');
+
+  // A pipeline is colored by the grammar alone.
+  const pipeline = ['source reading [site]', 'operation f(reading) -> Out', 'out = f(reading)'];
+  const none = registered.provideDocumentSemanticTokens({
+    getText() { return pipeline.join('\n'); },
+    lineCount: pipeline.length,
+    lineAt(index) { return { text: pipeline[index] }; }
+  });
+  assert.equal(none.length, 0);
   extension.deactivate();
 });
 

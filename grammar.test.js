@@ -127,14 +127,35 @@ test('stage headers are keywords with a section name', { skip }, async () => {
   assert.doesNotMatch(scopes('stage = copy(raw)', 'stage'), /keyword\.control\.stage/);
 });
 
-test('command templates mark the placeholders every operation has', { skip }, async () => {
+test('command templates mark {output} apart from the ports they name', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = 'command estimate_fods: dwi2fod msmt_csd {dwi} {wm} {input} {output} {inputs} {input2}';
-  for (const name of ['{input}', '{output}', '{inputs}', '{input2}']) {
-    assert.match(scopes(line, name.slice(1, -1), line.indexOf(name)), /variable\.language\.placeholder\.spit/, name);
+  const line = 'command estimate_fods: dwi2fod msmt_csd {dwi} {wm} {input} {output}';
+  assert.match(scopes(line, 'output', line.indexOf('{output')), /variable\.language\.placeholder\.spit/);
+  // A port is named, so `{input}` is a port like any other.
+  for (const name of ['dwi', 'input']) {
+    assert.match(scopes(line, name, line.indexOf(`{${name}`)), /variable\.parameter\.placeholder\.spit/, name);
+    assert.doesNotMatch(scopes(line, name, line.indexOf(`{${name}`)), /variable\.language/, name);
   }
-  assert.match(scopes(line, 'dwi', line.indexOf('{dwi')), /variable\.parameter\.placeholder\.spit/);
-  assert.doesNotMatch(scopes(line, 'dwi', line.indexOf('{dwi')), /variable\.language/);
+});
+
+test('a dimensions line marks the pipeline order', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'dimensions [model, config, seed]';
+  assert.match(scopes(line, 'dimensions'), /keyword\.control\.spit/);
+  assert.match(scopes(line, 'config'), /variable\.parameter\.dimension\.spit/);
+  // A product called `dimensions` is assigned, not declared.
+  assert.doesNotMatch(scopes('dimensions = copy(raw)', 'dimensions'), /keyword\.control/);
+});
+
+test('an operation signature marks many and min', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'operation fit(waves: many Table, policy: Policy) -> Coef @ min(2)';
+  assert.match(scopes(line, 'operation'), /keyword\.control\.spit/);
+  assert.match(scopes(line, 'fit'), /entity\.name\.function\.spit/);
+  assert.match(scopes(line, 'many'), /storage\.modifier\.cardinality\.spit/);
+  assert.match(scopes(line, 'min'), /keyword\.other\.selector\.spit/);
+  // `drop` and `one` are no longer operation keywords.
+  assert.doesNotMatch(scopes('operation f(x: one Image) -> Image', 'one'), /cardinality/);
 });
 
 test('each is a selector keyword', { skip }, async () => {
@@ -146,7 +167,7 @@ test('each is a selector keyword', { skip }, async () => {
 test('placeholders show in double quotes, and single-quoted text is literal', { skip }, async () => {
   const scopes = await tokenizer();
   const line = `command label: tool "--in={input}" '{print $1}' {output}`;
-  assert.match(scopes(line, 'input'), /variable\.language\.placeholder\.spit/);
+  assert.match(scopes(line, 'input'), /variable\.parameter\.placeholder\.spit/);
   assert.doesNotMatch(scopes(line, 'print'), /placeholder/);
   assert.match(scopes(line, 'print'), /string\.quoted\.single\.spit/);
 });
@@ -157,17 +178,19 @@ test('a recipe names its pipeline', { skip }, async () => {
   assert.match(scopes(line, 'pipeline'), /keyword\.control\.import\.spit/);
   assert.match(scopes(line, 'analysis.spit'), /string\.unquoted\.file\.spit/);
   assert.match(scopes(line, '# the'), /comment\.line/);
-  // The sectioned header and a product called `pipeline` stay as they were.
-  assert.match(scopes('pipeline:', 'pipeline'), /keyword\.other\.section\.spit/);
+  // A product called `pipeline` stays a product, and the removed section
+  // header is not a header.
+  assert.doesNotMatch(scopes('pipeline:', 'pipeline'), /keyword\.other\.section\.spit/);
   assert.doesNotMatch(scopes('pipeline = copy(raw)', 'pipeline'), /keyword\.control\.import/);
 });
 
-test('a record may end with its file', { skip }, async () => {
+test('records mark the product and its dimensions', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = '    image[sub=01,ses=01]: data/sub-01/ses-01/image.nii.gz';
+  const line = '    image[sub=01,ses=01]';
   assert.match(scopes(line, 'image'), /variable\.other\.product\.spit/);
   assert.match(scopes(line, 'sub'), /variable\.parameter/);
-  assert.match(scopes(line, ':', line.indexOf(']')), /punctuation\.separator\.colon\.spit/);
-  assert.match(scopes(line, 'data/'), /string\.unquoted\.file\.spit/);
-  assert.doesNotMatch(scopes('    image[sub=01]', 'image'), /string/);
+  assert.match(scopes('    testset', 'testset'), /variable\.other\.product\.spit/);
+  for (const header of ['sources:', 'source_paths:', 'contexts:', 'removed:']) {
+    assert.match(scopes(header, header.slice(0, -1)), /keyword\.other\.section\.spit/, header);
+  }
 });

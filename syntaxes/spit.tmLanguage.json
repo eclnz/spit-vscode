@@ -42,7 +42,7 @@
         },
         {
           "name": "entity.name.section.spit keyword.other.section.spit",
-          "match": "^\\s*(products|operations|pipeline|constraints|commands|sources|contexts)\\s*:\\s*$"
+          "match": "^\\s*(sources|source_paths|contexts|removed)\\s*:\\s*$"
         }
       ]
     },
@@ -119,6 +119,14 @@
           }
         },
         {
+          "comment": "`dimensions [...]`: the order every product's dimensions follow.",
+          "match": "^(\\s*)(dimensions)\\s+(\\[[^\\]]*\\])",
+          "captures": {
+            "2": { "name": "keyword.control.spit" },
+            "3": { "name": "meta.dimension-list.spit", "patterns": [{ "include": "#dimension-list-inner" }] }
+          }
+        },
+        {
           "match": "^(\\s*)(command)\\s+",
           "captures": { "2": { "name": "keyword.control.spit" } }
         },
@@ -185,32 +193,30 @@
       ]
     },
     "operation-signature": {
-      "begin": "^(\\s*)(?:(operation)\\s+)?([A-Za-z_][A-Za-z0-9_]*)(\\()",
+      "begin": "^(\\s*)(operation)\\s+([A-Za-z_][A-Za-z0-9_]*)(\\()",
       "beginCaptures": {
         "2": { "name": "keyword.control.spit" },
         "3": { "name": "entity.name.function.spit" },
         "4": { "name": "punctuation.definition.parameters.begin.spit" }
       },
-      "end": "\\)\\s*(->)\\s*(.+)$|\\)",
+      "end": "\\)\\s*(->)\\s*([^@#]*[^@#\\s])|\\)",
       "endCaptures": {
         "1": { "name": "keyword.operator.arrow.spit" },
         "2": { "name": "support.type.spit" }
       },
       "patterns": [
-        { "name": "storage.modifier.cardinality.spit", "match": "\\b(many|one)\\b" },
-        { "name": "keyword.other.selector.spit", "match": "\\b(drop|min)\\b" },
+        { "name": "storage.modifier.cardinality.spit", "match": "\\bmany\\b" },
+        { "name": "keyword.other.selector.spit", "match": "\\bmin\\b" },
         { "name": "keyword.operator.at.spit", "match": "@" },
         { "name": "punctuation.separator.comma.spit", "match": "," },
         { "include": "#type-reference" }
       ]
     },
     "product-declaration": {
-      "match": "^(\\s*)([A-Za-z_][A-Za-z0-9_]*)\\s*(:)?\\s*((?:[A-Za-z_][A-Za-z0-9_]*(?:<[^>]*>)?)?)\\s*(\\[[^\\]]*\\])?\\s*$",
+      "comment": "A record of a source with no dimensions, such as `testset`, alone on its line.",
+      "match": "^(\\s*)([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s*$",
       "captures": {
-        "2": { "name": "variable.other.product.spit" },
-        "3": { "name": "punctuation.separator.colon.spit" },
-        "4": { "patterns": [{ "include": "#type-reference" }] },
-        "5": { "patterns": [{ "include": "#dimension-list-inner" }] }
+        "2": { "name": "variable.other.product.spit" }
       }
     },
     "invocation": {
@@ -223,15 +229,13 @@
       }
     },
     "inventory-entry": {
-      "comment": "A record, with its file after a colon when it gives one.",
-      "match": "^(\\s*)([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)(\\[)([^\\]]*)(\\])(?:\\s*(:)\\s*([^#]*?))?\\s*(?=#|$)",
+      "comment": "A record; its source's path rule gives its file.",
+      "match": "^(\\s*)([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)(\\[)([^\\]]*)(\\])\\s*(?=#|$)",
       "captures": {
         "2": { "name": "variable.other.product.spit" },
         "3": { "name": "punctuation.definition.dimensions.begin.spit" },
         "4": { "patterns": [{ "include": "#dimension-assignment-list" }] },
-        "5": { "name": "punctuation.definition.dimensions.end.spit" },
-        "6": { "name": "punctuation.separator.colon.spit" },
-        "7": { "name": "string.unquoted.file.spit" }
+        "5": { "name": "punctuation.definition.dimensions.end.spit" }
       }
     },
     "context-entry": {
@@ -320,8 +324,8 @@
       "patterns": [
         { "include": "#brace-escape" },
         {
-          "comment": "Placeholders an operation has without naming its ports.",
-          "match": "(\\{)(output|inputs|input[0-9]*)(\\})",
+          "comment": "`{output}`, the one placeholder an operation has without naming a port.",
+          "match": "(\\{)(output)(\\})",
           "captures": {
             "1": { "name": "punctuation.definition.template-expression.begin.spit" },
             "2": { "name": "variable.language.placeholder.spit" },
@@ -333,10 +337,10 @@
     },
     "expression": {
       "patterns": [
-        { "name": "keyword.control.spit", "match": "\\b(require|exclude|per|verify|use|from|as|source|discover|operation|command|path)\\b" },
+        { "name": "keyword.control.spit", "match": "\\b(require|exclude|per|verify|use|from|as|source|dimensions|discover|operation|command|path)\\b" },
         { "name": "keyword.other.discovery.spit", "match": "\\bdirs\\b" },
-        { "name": "storage.modifier.cardinality.spit", "match": "\\b(many|one)\\b" },
-        { "name": "keyword.other.selector.spit", "match": "\\b(vary|where|same|each|drop|min)\\b" },
+        { "name": "storage.modifier.cardinality.spit", "match": "\\bmany\\b" },
+        { "name": "keyword.other.selector.spit", "match": "\\b(vary|where|same|each|min)\\b" },
         { "include": "#strings" },
         { "name": "keyword.operator.at.spit", "match": "@" },
         { "name": "keyword.operator.arrow.spit", "match": "->" },

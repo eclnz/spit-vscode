@@ -11,16 +11,11 @@ const relatedFiles = new Map();
 let diagnostics;
 let relatedDiagnostics;
 
-// Semantic highlighting: colors names by what they *are* in this document
-// (a declared product, a declared operation, a dimension, ...) rather than
-// by shape alone, which a TextMate grammar cannot know. Sectioned documents
-// only (products:/operations:/pipeline:/constraints:/commands:, and the
-// sources:/contexts: records of a .spitout or .spitin); the older
-// flow style (`source name`, `operation name(...)`, `output = op(...)`) is
-// still colored by the TextMate grammar's regex rules.
-const SEMANTIC_TOKEN_TYPES = ['variable', 'function', 'type', 'parameter', 'enumMember'];
-const SEMANTIC_TOKEN_MODIFIERS = ['declaration'];
-const DECLARATION = 1;
+// Semantic highlighting of a .spitout's records: each source product, and
+// each dimension and value in its brackets. Pipelines and recipes are
+// colored by the TextMate grammar alone.
+const SEMANTIC_TOKEN_TYPES = ['variable', 'parameter', 'enumMember'];
+const SEMANTIC_TOKEN_MODIFIERS = [];
 const spitSemanticLegend = new vscode.SemanticTokensLegend(SEMANTIC_TOKEN_TYPES, SEMANTIC_TOKEN_MODIFIERS);
 
 // As in SPIT itself: an unquoted `#` starts a comment only at the start of a word.
@@ -55,13 +50,8 @@ function stripComment(line) {
   return line;
 }
 
-function isSectionedDocument(lines) {
-  return lines.some(line => {
-    const trimmed = stripComment(line).trim();
-    return trimmed === 'products:' || trimmed === 'operations:' || trimmed === 'pipeline:' ||
-      trimmed === 'constraints:' || trimmed === 'commands:' || trimmed === 'sources:' ||
-      /^contexts(?:\s+[A-Za-z_][A-Za-z0-9_]*)?:$/.test(trimmed);
-  });
+function isRecordsDocument(lines) {
+  return lines.some(line => /^(?:sources|contexts(?:\s+[A-Za-z_][A-Za-z0-9_]*)?):$/.test(stripComment(line).trim()));
 }
 
 // Splits `text` on top-level occurrences of `separator`, ignoring any inside
@@ -83,265 +73,9 @@ function splitTopLevel(text, separator) {
   return parts;
 }
 
-function findMatchingParen(text, openIndex) {
-  let depth = 0;
-  for (let index = openIndex; index < text.length; index++) {
-    if (text[index] === '(') depth++;
-    else if (text[index] === ')') {
-      depth--;
-      if (depth === 0) return index;
-    }
-  }
-  return -1;
-}
-
 function trimmedRange(text) {
   const start = text.length - text.trimStart().length;
   return { value: text.trim(), start };
-}
-
-function pushIdentifiers(text, base, type, push) {
-  const pattern = /[A-Za-z_][A-Za-z0-9_]*/g;
-  let match;
-  while ((match = pattern.exec(text))) push(base + match.index, match[0].length, type);
-}
-
-// Type names are always capitalized in SPIT (including single-letter
-// generics like `S`), so a plain regex reliably picks them out of a
-// signature or product declaration without a real type-expression parser.
-function pushTypeTokens(text, base, push) {
-  const pattern = /\b[A-Z][A-Za-z0-9_]*\b/g;
-  let match;
-  while ((match = pattern.exec(text))) push(base + match.index, match[0].length, 'type');
-}
-
-function handleProductLine(content, push) {
-  const nameMatch = /^[A-Za-z_][A-Za-z0-9_]*/.exec(content);
-  if (!nameMatch) return;
-  push(0, nameMatch[0].length, 'variable', DECLARATION);
-  let offset = nameMatch[0].length;
-  let rest = content.slice(offset);
-  let whitespace = /^\s*/.exec(rest)[0].length;
-  offset += whitespace;
-  rest = rest.slice(whitespace);
-  if (rest.startsWith(':')) {
-    offset += 1;
-    rest = rest.slice(1);
-    whitespace = /^\s*/.exec(rest)[0].length;
-    offset += whitespace;
-    rest = rest.slice(whitespace);
-    const bracketIndex = rest.indexOf('[');
-    const typeText = bracketIndex === -1 ? rest : rest.slice(0, bracketIndex);
-    pushTypeTokens(typeText, offset, push);
-    offset += typeText.length;
-    rest = rest.slice(typeText.length);
-  }
-  const bracketStart = rest.indexOf('[');
-  const bracketEnd = bracketStart === -1 ? -1 : rest.indexOf(']', bracketStart);
-  if (bracketStart !== -1 && bracketEnd !== -1) {
-    pushIdentifiers(rest.slice(bracketStart + 1, bracketEnd), offset + bracketStart + 1, 'parameter', push);
-  }
-}
-
-function handleOperationLine(content, push) {
-  let offset = 0;
-  let rest = content;
-  const leading = /^operation\s+/.exec(rest);
-  if (leading) {
-    offset += leading[0].length;
-    rest = rest.slice(leading[0].length);
-  }
-  const nameMatch = /^[A-Za-z_][A-Za-z0-9_]*/.exec(rest);
-  if (!nameMatch) return;
-  push(offset, nameMatch[0].length, 'function', DECLARATION);
-  offset += nameMatch[0].length;
-  rest = rest.slice(nameMatch[0].length);
-  const parenIndex = rest.indexOf('(');
-  if (parenIndex === -1) return;
-  const closeIndex = findMatchingParen(rest, parenIndex);
-  if (closeIndex === -1) return;
-  const argsBase = offset + parenIndex + 1;
-  const argsText = rest.slice(parenIndex + 1, closeIndex);
-  for (const item of splitTopLevel(argsText, ',')) {
-    let itemRest = item.text;
-    let itemOffset = item.start;
-    const portMatch = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:(?!:)/.exec(itemRest);
-    if (portMatch && portMatch[1] !== 'many' && portMatch[1] !== 'one') {
-      const nameOffset = /^\s*/.exec(itemRest)[0].length;
-      push(argsBase + itemOffset + nameOffset, portMatch[1].length, 'parameter');
-      itemOffset += portMatch[0].length;
-      itemRest = itemRest.slice(portMatch[0].length);
-    }
-    const cardinalityMatch = /^\s*(many|one)\s+/.exec(itemRest);
-    if (cardinalityMatch) {
-      itemOffset += cardinalityMatch[0].length;
-      itemRest = itemRest.slice(cardinalityMatch[0].length);
-    }
-    pushTypeTokens(itemRest, argsBase + itemOffset, push);
-  }
-  offset += closeIndex + 1;
-  rest = rest.slice(closeIndex + 1);
-  const clauses = splitTopLevel(rest, '@');
-  const outputText = clauses[0].text;
-  const arrowMatch = /->\s*/.exec(outputText);
-  if (arrowMatch) {
-    const afterArrow = outputText.slice(arrowMatch.index + arrowMatch[0].length);
-    const afterArrowOffset = offset + arrowMatch.index + arrowMatch[0].length;
-    const namedPorts = /^\s*\(/.exec(afterArrow);
-    if (namedPorts) {
-      const openIndex = afterArrow.indexOf('(');
-      const closeIndex2 = findMatchingParen(afterArrow, openIndex);
-      if (closeIndex2 !== -1) {
-        const portsBase = afterArrowOffset + openIndex + 1;
-        const portsText = afterArrow.slice(openIndex + 1, closeIndex2);
-        for (const item of splitTopLevel(portsText, ',')) {
-          let itemRest = item.text;
-          let itemOffset = item.start;
-          const portMatch = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:/.exec(itemRest);
-          if (portMatch) {
-            const nameOffset = /^\s*/.exec(itemRest)[0].length;
-            push(portsBase + itemOffset + nameOffset, portMatch[1].length, 'parameter');
-            itemOffset += portMatch[0].length;
-            itemRest = itemRest.slice(portMatch[0].length);
-          }
-          pushTypeTokens(itemRest, portsBase + itemOffset, push);
-        }
-      }
-    } else {
-      pushTypeTokens(afterArrow, afterArrowOffset, push);
-    }
-  }
-  for (let index = 1; index < clauses.length; index++) {
-    const clauseBase = offset + clauses[index].start;
-    const clauseMatch = /^\s*(drop)\s*\(([^)]*)\)/.exec(clauses[index].text);
-    if (!clauseMatch) continue;
-    const dimension = trimmedRange(clauseMatch[2]);
-    const openIndex = clauseMatch[0].indexOf('(');
-    push(clauseBase + openIndex + 1 + dimension.start, dimension.value.length, 'parameter');
-  }
-}
-
-function handlePipelineLine(content, push) {
-  const equalsIndex = content.indexOf('=');
-  if (equalsIndex === -1) return;
-  for (const item of splitTopLevel(content.slice(0, equalsIndex), ',')) {
-    const nameMatch = /[A-Za-z_][A-Za-z0-9_]*/.exec(item.text);
-    if (nameMatch) push(item.start + nameMatch.index, nameMatch[0].length, 'variable');
-  }
-  const callOffset = equalsIndex + 1;
-  const call = content.slice(callOffset);
-  const opMatch = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(/.exec(call);
-  if (!opMatch) return;
-  const nameOffset = /^\s*/.exec(call)[0].length;
-  push(callOffset + nameOffset, opMatch[1].length, 'function');
-  const parenIndex = call.indexOf('(', nameOffset);
-  const closeIndex = findMatchingParen(call, parenIndex);
-  if (closeIndex === -1) return;
-  const argsBase = callOffset + parenIndex + 1;
-  const argsText = call.slice(parenIndex + 1, closeIndex);
-  for (const item of splitTopLevel(argsText, ',')) {
-    const selectorSplit = splitTopLevel(item.text, '@');
-    const productMatch = /[A-Za-z_][A-Za-z0-9_]*/.exec(selectorSplit[0].text);
-    if (productMatch) push(argsBase + item.start + productMatch.index, productMatch[0].length, 'variable');
-    for (let index = 1; index < selectorSplit.length; index++) {
-      const clauseBase = argsBase + item.start + selectorSplit[index].start;
-      const clauseMatch = /^\s*(vary|where|same|each)\s*\(([^)]*)\)/.exec(selectorSplit[index].text);
-      if (!clauseMatch) continue;
-      const innerBase = clauseBase + clauseMatch[0].indexOf('(') + 1;
-      if (clauseMatch[1] === 'where') {
-        for (const pair of splitTopLevel(clauseMatch[2], ',')) {
-          const eqIndex = pair.text.indexOf('=');
-          if (eqIndex === -1) continue;
-          const dimension = trimmedRange(pair.text.slice(0, eqIndex));
-          push(innerBase + pair.start + dimension.start, dimension.value.length, 'parameter');
-          const value = trimmedRange(pair.text.slice(eqIndex + 1));
-          push(innerBase + pair.start + eqIndex + 1 + value.start, value.value.length, 'enumMember');
-        }
-      } else {
-        pushIdentifiers(clauseMatch[2], innerBase, 'parameter', push);
-      }
-    }
-  }
-}
-
-function handleConstraintLine(content, push) {
-  const drop = /^drop\s+\[([^\]]*)\]\s+where\s+([A-Za-z_][A-Za-z0-9_]*)\s+(.*)$/.exec(content);
-  if (drop) {
-    pushIdentifiers(drop[1], content.indexOf('[') + 1, 'parameter', push);
-    const target = content.indexOf(drop[2], content.indexOf('where') + 5);
-    push(target, drop[2].length, 'variable');
-    const condition = drop[3];
-    if (/^(?:missing|has)\s+/.test(condition)) {
-      const values = condition.replace(/^(?:missing|has)\s+/, '');
-      const base = content.indexOf(values, target + drop[2].length);
-      for (const pair of splitTopLevel(values, ' ')) {
-        const eq = pair.text.indexOf('=');
-        if (eq === -1) continue;
-        push(base + pair.start, eq, 'parameter');
-        let offset = eq + 1;
-        for (const value of pair.text.slice(offset).split(',')) {
-          if (value) push(base + pair.start + offset, value.length, 'enumMember');
-          offset += value.length + 1;
-        }
-      }
-    }
-    return;
-  }
-  const exclude = /^exclude\s+([A-Za-z_][A-Za-z0-9_]*)(?:\[|$)/.exec(content);
-  if (exclude && exclude[1] !== 'from') {
-    push(content.indexOf(exclude[1]), exclude[1].length, 'variable');
-    return;
-  }
-  const leading = /^require\s+/.exec(content);
-  if (!leading) return;
-  const subjectStart = leading[0].length;
-  const perIndex = content.indexOf(' per ');
-  if (perIndex === -1) return;
-  const subject = content.slice(subjectStart, perIndex);
-  const tokenPattern = /\S+/g;
-  let match;
-  let first = true;
-  while ((match = tokenPattern.exec(subject))) {
-    const tokenBase = subjectStart + match.index;
-    if (first) {
-      push(tokenBase, match[0].length, 'variable');
-      first = false;
-      continue;
-    }
-    if (/^count(?:!=|>=|<=|=|>|<)\d+$/.test(match[0])) continue;
-    const eqIndex = match[0].indexOf('=');
-    if (eqIndex === -1) continue;
-    push(tokenBase, eqIndex, 'parameter');
-    let valueOffset = eqIndex + 1;
-    for (const value of match[0].slice(eqIndex + 1).split(',')) {
-      if (value.length) push(tokenBase + valueOffset, value.length, 'enumMember');
-      valueOffset += value.length + 1;
-    }
-  }
-  const after = content.slice(perIndex + 5);
-  const afterBase = perIndex + 5;
-  const bracketStart = after.indexOf('[');
-  const bracketEnd = bracketStart === -1 ? -1 : after.indexOf(']', bracketStart);
-  if (bracketStart !== -1 && bracketEnd !== -1) {
-    pushIdentifiers(after.slice(bracketStart + 1, bracketEnd), afterBase + bracketStart + 1, 'parameter', push);
-  }
-}
-
-function handleCommandLine(content, push) {
-  let rest = content;
-  let offset = 0;
-  const verify = /^verify\s+/.exec(rest);
-  if (verify) {
-    offset += verify[0].length;
-    rest = rest.slice(verify[0].length);
-  }
-  const colonIndex = rest.indexOf(':');
-  const equalsIndex = rest.indexOf('=');
-  const candidates = [colonIndex, equalsIndex].filter(index => index !== -1);
-  if (candidates.length === 0) return;
-  const delimiter = Math.min(...candidates);
-  const name = trimmedRange(rest.slice(0, delimiter));
-  if (name.value) push(offset + name.start, name.value.length, 'function');
 }
 
 function handleInventoryLine(content, push, hasName) {
@@ -369,28 +103,13 @@ function handleInventoryLine(content, push, hasName) {
   }
 }
 
-function handleDiscoverLine(content, push) {
-  const declaration = /^discover\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*\[([^\]]*)\]\s+from\s+dirs\s+/.exec(content);
-  if (!declaration) return;
-  const nameStart = content.indexOf(declaration[1], 'discover'.length);
-  push(nameStart, declaration[1].length, 'variable', DECLARATION);
-  const bracketStart = content.indexOf('[', nameStart + declaration[1].length);
-  pushIdentifiers(declaration[2], bracketStart + 1, 'parameter', push);
-  const pattern = content.slice(declaration[0].length);
-  const placeholder = /\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
-  let match;
-  while ((match = placeholder.exec(pattern))) {
-    push(declaration[0].length + match.index + 1, match[1].length, 'parameter');
-  }
-}
-
 function provideSpitSemanticTokens(document) {
   const builder = new vscode.SemanticTokensBuilder(spitSemanticLegend);
   try {
     const lineCount = document.lineCount;
     const rawLines = [];
     for (let index = 0; index < lineCount; index++) rawLines.push(document.lineAt(index).text);
-    if (isSectionedDocument(rawLines)) {
+    if (isRecordsDocument(rawLines)) {
       let section = null;
       for (let index = 0; index < lineCount; index++) {
         try {
@@ -398,35 +117,18 @@ function provideSpitSemanticTokens(document) {
           const indent = /^\s*/.exec(code)[0].length;
           const content = code.slice(indent).trimEnd();
           if (content === '') continue;
-          const header = /^(products|operations|pipeline|constraints|commands|sources|contexts):$/.exec(content);
+          const header = /^(sources|source_paths|contexts|removed)(?:\s+[A-Za-z_][A-Za-z0-9_]*)?:$/.exec(content);
           if (header) {
             section = header[1];
             continue;
           }
-          if (/^contexts\s+[A-Za-z_][A-Za-z0-9_]*:$/.test(content)) {
-            section = 'contexts';
-            continue;
-          }
-          const push = (start, length, type, modifiers = 0) => {
+          const push = (start, length, type) => {
             if (length > 0 && start >= 0) {
-              builder.push(index, indent + start, length, SEMANTIC_TOKEN_TYPES.indexOf(type), modifiers);
+              builder.push(index, indent + start, length, SEMANTIC_TOKEN_TYPES.indexOf(type), 0);
             }
           };
-          if (content.startsWith('discover ')) {
-            handleDiscoverLine(content, push);
-            section = null;
-            continue;
-          }
-          switch (section) {
-            case 'products': handleProductLine(content, push); break;
-            case 'operations': handleOperationLine(content, push); break;
-            case 'pipeline': handlePipelineLine(content, push); break;
-            case 'constraints': handleConstraintLine(content, push); break;
-            case 'commands': handleCommandLine(content, push); break;
-            case 'sources': handleInventoryLine(content, push, true); break;
-            case 'contexts': handleInventoryLine(content, push, false); break;
-            default: break;
-          }
+          if (section === 'sources') handleInventoryLine(content, push, true);
+          else if (section === 'contexts') handleInventoryLine(content, push, false);
         } catch {
           // Best-effort highlighting: skip a line SPIT's own grammar would reject anyway.
         }
