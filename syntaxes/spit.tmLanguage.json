@@ -131,16 +131,14 @@
           "captures": { "2": { "name": "keyword.control.spit" } }
         },
         {
-          "comment": "`sidecars name [dimensions]:`, then the path stem its sources share.",
-          "begin": "^(sidecars)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(\\[[^\\]]*\\])?\\s*(:)",
-          "beginCaptures": {
+          "comment": "`sidecars name [dimensions]:`; an indented `path:` line beneath it gives the stem its sources share.",
+          "match": "^(sidecars)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(\\[[^\\]]*\\])?\\s*(:)",
+          "captures": {
             "1": { "name": "keyword.control.spit" },
             "2": { "name": "entity.name.section.sidecars.spit" },
             "3": { "name": "meta.dimension-list.spit", "patterns": [{ "include": "#dimension-list-inner" }] },
             "4": { "name": "punctuation.separator.colon.spit" }
-          },
-          "end": "$",
-          "patterns": [{ "include": "#word-comment" }, { "include": "#brace-escape" }, { "include": "#path-group" }, { "include": "#path-placeholder" }]
+          }
         },
         {
           "comment": "`ext:`, the extension a default path is completed with.",

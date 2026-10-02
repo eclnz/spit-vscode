@@ -60,7 +60,7 @@ test('path templates mark optional groups, literal brackets and labels', { skip 
   assert.match(scopes(line, ']]', line.indexOf(']]')), /constant\.character\.escape\.bracket\.spit/);
   assert.match(scopes(line, 'ses', line.indexOf('{ses')), /variable\.parameter\.placeholder\.dimension\.spit/);
   assert.match(scopes(line, '@labels'), /variable\.language\.placeholder\.spit/);
-  const stem = 'sidecars photo [site]: site-{site}[_{shot}]';
+  const stem = '    path: site-{site}[_{shot}]';
   assert.match(scopes(stem, '[', stem.indexOf('[_')), /punctuation\.definition\.optional\.spit/);
 });
 
@@ -232,12 +232,18 @@ test('ext: sets the extension a default path is completed with', { skip }, async
 
 test('a sidecars block names its group, dimensions, stem and extensions', { skip }, async () => {
   const scopes = await tokenizer();
-  const header = 'sidecars photo [site, shot]: site-{site}/shot-{shot}_photo  # with its pose';
+  const header = 'sidecars photo [site, shot]:  # with its pose';
   assert.match(scopes(header, 'sidecars'), /keyword\.control\.spit/);
   assert.match(scopes(header, 'photo'), /entity\.name\.section\.sidecars\.spit/);
   assert.match(scopes(header, 'site', header.indexOf('[')), /variable\.parameter/);
-  assert.match(scopes(header, 'shot', header.indexOf('{shot}')), /variable\.parameter\.placeholder\.dimension\.spit/);
+  assert.match(scopes(header, ':'), /punctuation\.separator\.colon\.spit/);
   assert.match(scopes(header, '# with'), /comment\.line/);
+  // The stem is an indented `path:` line, or a recipe's `path photo:`.
+  const stem = '    path: site-{site}/shot-{shot}_photo';
+  assert.match(scopes(stem, 'path'), /keyword\.control\.spit/);
+  assert.match(scopes(stem, 'shot', stem.indexOf('{shot}')), /variable\.parameter\.placeholder\.dimension\.spit/);
+  const recipe = 'path photo: site-{site}/shot-{shot}_photo';
+  assert.match(scopes(recipe, 'photo'), /variable\.other\.product\.spit/);
   const member = '    source photo_gps : GpsTrack .gpx  # the pose';
   assert.match(scopes(member, 'source'), /keyword\.control\.spit/);
   assert.match(scopes(member, 'GpsTrack'), /support\.type\.spit/);
