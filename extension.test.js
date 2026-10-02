@@ -579,7 +579,7 @@ process.exit(result.status);
 
 test('hovering shows SPIT\'s explanation of a word or a name, and nothing in a comment', { skip: !fs.existsSync(binary) }, async () => {
   const hints = {};
-  const text = 'source raw [id, run]\noperation mean(items: many) -> .txt\ncommand mean: cat {items} > {output}  # vary\ntotal = mean(raw @ vary(run))\n';
+  const text = 'source raw [id, run]\noperation mean(items: many) -> .txt\ncommand mean: cat {items} > {@output}  # vary\ntotal = mean(raw @ vary(run))\n';
   const document = fakeDocument(path.join(__dirname, 'hover.spit'), text);
   const extension = load(mockVscode(document, new Map(), () => {}, hints));
   extension.activate({ extensionPath: __dirname, subscriptions: [] });
