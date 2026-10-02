@@ -144,22 +144,36 @@ test('stage headers are keywords with a section name', { skip }, async () => {
 
 test('command templates mark an output\'s folder and name', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = 'command convert: dcm2niix -o {image.dir} -f {image.stem} {dicom} --log {output.dir}';
+  const line = 'command convert: dcm2niix -o {image.dir} -f {image.stem} {dicom} --log {@output.dir} --name {@output.stem}';
   assert.match(scopes(line, 'image', line.indexOf('{image.dir')), /variable\.parameter\.placeholder\.spit/);
   assert.match(scopes(line, 'dir', line.indexOf('{image.dir')), /variable\.other\.property\.spit/);
   assert.match(scopes(line, 'stem'), /variable\.other\.property\.spit/);
-  assert.match(scopes(line, 'output', line.indexOf('{output.dir')), /variable\.language\.placeholder\.spit/);
+  for (const part of ['dir', 'stem']) {
+    const at = line.indexOf(`{@output.${part}`);
+    // The `@` is part of the built-in name, not the `@` of a selector.
+    assert.match(scopes(line, '@', at), /variable\.language\.placeholder\.spit/, part);
+    assert.doesNotMatch(scopes(line, '@', at), /keyword\.operator\.at/, part);
+    assert.match(scopes(line, 'output', at), /variable\.language\.placeholder\.spit/, part);
+    assert.match(scopes(line, part, at), /variable\.other\.property\.spit/, part);
+  }
   assert.match(scopes(line, 'dicom'), /variable\.parameter\.placeholder\.spit/);
 });
 
-test('command templates mark {output} apart from the ports they name', { skip }, async () => {
+test('command templates mark {@output} apart from the ports they name', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = 'command estimate_fods: dwi2fod msmt_csd {dwi} {wm} {input} {output}';
-  assert.match(scopes(line, 'output', line.indexOf('{output')), /variable\.language\.placeholder\.spit/);
+  const line = 'command estimate_fods: dwi2fod msmt_csd {dwi} {wm} {input} {@output}';
+  const at = line.indexOf('{@output');
+  assert.match(scopes(line, '@', at), /variable\.language\.placeholder\.spit/);
+  assert.doesNotMatch(scopes(line, '@', at), /keyword\.operator\.at/);
+  assert.match(scopes(line, 'output', at), /variable\.language\.placeholder\.spit/);
   // A port is named, so `{input}` is a port like any other.
   for (const name of ['dwi', 'input']) {
     assert.match(scopes(line, name, line.indexOf(`{${name}`)), /variable\.parameter\.placeholder\.spit/, name);
     assert.doesNotMatch(scopes(line, name, line.indexOf(`{${name}`)), /variable\.language/, name);
+  }
+  // SPIT rejects the old `{output}`, so it is not colored as a built-in.
+  for (const old of ['command copy: cp {input} {output}', 'command copy: cp {input} {output.dir}']) {
+    assert.doesNotMatch(scopes(old, 'output'), /variable\.language/, old);
   }
 });
 
@@ -245,7 +259,7 @@ test('each is a selector keyword', { skip }, async () => {
 
 test('placeholders show in double quotes, and single-quoted text is literal', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = `command label: tool "--in={input}" '{print $1}' {output}`;
+  const line = `command label: tool "--in={input}" '{print $1}' {@output}`;
   assert.match(scopes(line, 'input'), /variable\.parameter\.placeholder\.spit/);
   assert.doesNotMatch(scopes(line, 'print'), /placeholder/);
   assert.match(scopes(line, 'print'), /string\.quoted\.single\.spit/);
