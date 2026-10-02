@@ -17,11 +17,27 @@ jobs:
           path: spit-vscode
           persist-credentials: false
 
+      # SPIT's work merges into usability. A change made in both repositories
+      # has one branch name in each, so a branch that SPIT also has builds
+      # SPIT's branch instead, and the two are tested together.
+      - name: Choose SPIT's branch
+        id: spit
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          ref=usability
+          if [ "$BRANCH" != main ] && [ "$BRANCH" != usability ] &&
+              git ls-remote --exit-code --heads https://github.com/eclnz/spit "refs/heads/$BRANCH" > /dev/null; then
+            ref=$BRANCH
+          fi
+          echo "Building SPIT from $ref"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
       - name: Check out SPIT compiler
         uses: actions/checkout@v7
         with:
           repository: eclnz/spit
-          ref: usability
+          ref: ${{ steps.spit.outputs.ref }}
           path: spit
           persist-credentials: false
 

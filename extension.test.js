@@ -62,21 +62,21 @@ test('checks unsaved edits and clears fixed errors', { skip: !fs.existsSync(bina
 
 test('checks a recipe against the pipeline it names', { skip: !fs.existsSync(binary) }, async () => {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-'));
-  fs.writeFileSync(path.join(folder, 'analysis.spit'), 'source raw [id]\noperation copy(input)\nresult = copy(raw)\n');
+  fs.writeFileSync(path.join(folder, 'analysis.spit'), 'source raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\n');
   let onChange;
   const results = new Map();
-  const document = fakeDocument(path.join(folder, 'cohort.spitin'), 'pipeline analysis.spit\nrequire raw count>=1 per [id]\n');
+  const document = fakeDocument(path.join(folder, 'cohort.spitin'), 'pipeline analysis.spit\nroot .\nrequire raw count>=1 per [id]\n');
   const extension = load(mockVscode(document, results, callback => { onChange = callback; }));
   try {
     extension.activate({ extensionPath: __dirname, subscriptions: [] });
     await until(() => results.get(document.uri.toString())?.length === 0);
 
-    document.text = 'pipeline analysis.spit\nrequire raw count>=1 per [id]\nrequire rwa count>=1 per [id]\n';
+    document.text = 'pipeline analysis.spit\nroot .\nrequire raw count>=1 per [id]\nrequire rwa count>=1 per [id]\n';
     document.version++;
     onChange({ document });
     await until(() => results.get(document.uri.toString())?.length === 1);
     const [error] = results.get(document.uri.toString());
-    assert.equal(error.range.start.line, 2);
+    assert.equal(error.range.start.line, 3);
     assert.match(error.message, /rwa/);
   } finally {
     extension.deactivate();
@@ -87,10 +87,10 @@ test('checks a recipe against the pipeline it names', { skip: !fs.existsSync(bin
 test('places a recipe check\'s pipeline error on the pipeline file', { skip: !fs.existsSync(binary) }, async () => {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-pipeline-'));
   const pipeline = path.join(folder, 'analysis.spit');
-  fs.writeFileSync(pipeline, 'source raw [id]\noperation copy(input)\nresult = copy(rwa)\n');
+  fs.writeFileSync(pipeline, 'source raw [id]\noperation copy(input)\nresult = copy(rwa)\npath raw: in/{id}.txt\n');
   const results = new Map();
   let onChange;
-  const document = fakeDocument(path.join(folder, 'data.spitin'), 'pipeline analysis.spit\n');
+  const document = fakeDocument(path.join(folder, 'data.spitin'), 'pipeline analysis.spit\nroot .\n');
   const extension = load(mockVscode(document, results, callback => { onChange = callback; }));
   try {
     extension.activate({ extensionPath: __dirname, subscriptions: [] });
@@ -99,7 +99,7 @@ test('places a recipe check\'s pipeline error on the pipeline file', { skip: !fs
     assert.match(results.get(`file://${pipeline}`)[0].message, /unknown product `rwa`/);
     assert.deepEqual(results.get(document.uri.toString()), []);
 
-    fs.writeFileSync(pipeline, 'source raw [id]\noperation copy(input)\nresult = copy(raw)\n');
+    fs.writeFileSync(pipeline, 'source raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\n');
     document.version++;
     onChange({ document });
     await until(() => results.get(document.uri.toString())?.length === 0 && !results.has(`file://${pipeline}`));
@@ -452,6 +452,27 @@ test('hovers explain specialised operations and inferred products from unsaved t
   }
 });
 
+test('hovers show a folder\'s `/`', { skip: !fs.existsSync(binary) }, async () => {
+  const document = fakeDocument(path.join(__dirname, 'folders.spit'), [
+    'source dicom : Dicom / [sub]',
+    'operation recon(scan: Dicom) -> FsSubject /',
+    'subject = recon(dicom)',
+    ''
+  ].join('\n'));
+  const extension = load(mockVscode(document, new Map(), () => {}));
+  const context = { extensionPath: __dirname, subscriptions: [] };
+  extension.activate(context);
+  const provider = context.subscriptions.find(item => item.hoverProvider).hoverProvider;
+  try {
+    const source = await provider.provideHover(document, { line: 0, character: 8 });
+    assert.match(source.contents.value, /dicom: Dicom \/ \[sub\]/);
+    const operation = await provider.provideHover(document, { line: 2, character: 11 });
+    assert.match(operation.contents.value, /operation recon\(scan: Dicom\) -> FsSubject \//);
+  } finally {
+    extension.deactivate();
+  }
+});
+
 test('product hover separates user-defined snippets from prose', { skip: !fs.existsSync(binary) }, async () => {
   const pipeline = path.join(__dirname, '..', 'spit', 'examples', 'commands', 'field_survey', 'field_survey.spit');
   const text = fs.readFileSync(pipeline, 'utf8');
@@ -602,13 +623,13 @@ test('hovering shows SPIT\'s explanation of a word or a name, and nothing in a c
 
 test('a recipe and a .spitout explain SPIT\'s words, and a .spitout\'s records are checked', { skip: !fs.existsSync(binary) }, async () => {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-'));
-  fs.writeFileSync(path.join(folder, 'analysis.spit'), 'source raw [id]\noperation copy(input)\nresult = copy(raw)\n');
+  fs.writeFileSync(path.join(folder, 'analysis.spit'), 'source raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\n');
   const hints = {};
-  const recipe = fakeDocument(path.join(folder, 'cohort.spitin'), 'pipeline analysis.spit\nrequire raw count>=1 per [id]\n');
+  const recipe = fakeDocument(path.join(folder, 'cohort.spitin'), 'pipeline analysis.spit\nroot .\nrequire raw count>=1 per [id]\n');
   let extension = load(mockVscode(recipe, new Map(), () => {}, hints));
   try {
     extension.activate({ extensionPath: __dirname, subscriptions: [] });
-    const per = await hints.hover.provideHover(recipe, { line: 1, character: 22 });
+    const per = await hints.hover.provideHover(recipe, { line: 2, character: 22 });
     assert.match(per.contents.value, /groups by/);
     extension.deactivate();
 
