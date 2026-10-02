@@ -228,6 +228,11 @@ test('a sidecars block names its group, dimensions, stem and extensions', { skip
   assert.match(scopes(member, 'source'), /keyword\.control\.spit/);
   assert.match(scopes(member, 'GpsTrack'), /support\.type\.spit/);
   assert.match(scopes(member, '.gpx'), /constant\.other\.extension\.spit/);
+  // Any source may declare its extension, before its dimensions.
+  const source = 'source events : Events .nii.gz [sub, ses]';
+  assert.match(scopes(source, '.nii.gz'), /constant\.other\.extension\.spit/);
+  assert.match(scopes(source, 'sub'), /variable\.other\.spit/);
+  assert.match(scopes('source events .tsv [sub]', '.tsv'), /constant\.other\.extension\.spit/);
   // A product called `sidecars` stays a step.
   assert.doesNotMatch(scopes('sidecars = copy(raw)', 'sidecars'), /keyword\.control/);
 });
