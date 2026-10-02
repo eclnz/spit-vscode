@@ -210,6 +210,23 @@ test('an operation output may name the extension its file has', { skip }, async 
   assert.match(scopes(several, 'min'), /keyword\.other\.selector\.spit/);
 });
 
+test('a `/` after a type makes a source or an output a folder', { skip }, async () => {
+  const scopes = await tokenizer();
+  const source = 'source dicom : Dicom / [sub]';
+  assert.match(scopes(source, 'Dicom'), /support\.type\.spit/);
+  assert.match(scopes(source, '/'), /constant\.other\.extension\.folder\.spit/);
+  assert.match(scopes(source, 'sub'), /variable\.other\.spit/);
+  assert.match(scopes('source store .zarr/  # a store', '.zarr/'), /constant\.other\.extension\.folder\.spit/);
+  const output = 'operation recon(t1: Image) -> (subject: FsSubject /, log: Text .txt)';
+  assert.match(scopes(output, '/'), /constant\.other\.extension\.folder\.spit/);
+  assert.match(scopes(output, '.txt'), /constant\.other\.extension\.spit/);
+  assert.doesNotMatch(scopes(output, '.txt'), /folder/);
+  const store = 'operation store(table) -> Zarr .zarr/';
+  assert.match(scopes(store, '.zarr/'), /constant\.other\.extension\.folder\.spit/);
+  // A `/` in a path stays part of the path.
+  assert.doesNotMatch(scopes('path dicom: dicom/sub={sub}', '/'), /extension/);
+});
+
 test('an output written beside another names its suffix and sibling', { skip }, async () => {
   const scopes = await tokenizer();
   const line = 'operation strip(t1: Image) -> (brain: Image .nii.gz, mask: Image "_mask.nii.gz" beside brain, log .txt beside brain)';

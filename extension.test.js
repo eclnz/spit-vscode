@@ -452,6 +452,27 @@ test('hovers explain specialised operations and inferred products from unsaved t
   }
 });
 
+test('hovers show a folder\'s `/`', { skip: !fs.existsSync(binary) }, async () => {
+  const document = fakeDocument(path.join(__dirname, 'folders.spit'), [
+    'source dicom : Dicom / [sub]',
+    'operation recon(scan: Dicom) -> FsSubject /',
+    'subject = recon(dicom)',
+    ''
+  ].join('\n'));
+  const extension = load(mockVscode(document, new Map(), () => {}));
+  const context = { extensionPath: __dirname, subscriptions: [] };
+  extension.activate(context);
+  const provider = context.subscriptions.find(item => item.hoverProvider).hoverProvider;
+  try {
+    const source = await provider.provideHover(document, { line: 0, character: 8 });
+    assert.match(source.contents.value, /dicom: Dicom \/ \[sub\]/);
+    const operation = await provider.provideHover(document, { line: 2, character: 11 });
+    assert.match(operation.contents.value, /operation recon\(scan: Dicom\) -> FsSubject \//);
+  } finally {
+    extension.deactivate();
+  }
+});
+
 test('product hover separates user-defined snippets from prose', { skip: !fs.existsSync(binary) }, async () => {
   const pipeline = path.join(__dirname, '..', 'spit', 'examples', 'commands', 'field_survey', 'field_survey.spit');
   const text = fs.readFileSync(pipeline, 'utf8');
