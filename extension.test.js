@@ -465,7 +465,7 @@ test('product hover separates user-defined snippets from prose', { skip: !fs.exi
     const provider = context.subscriptions.find(item => item.hoverProvider).hoverProvider;
     const hover = await provider.provideHover(document, { line, character: lines[line].indexOf('flat_field') });
     const code = hover.contents.parts.filter(part => part.code).map(part => part.code);
-    assert.ok(code.includes('flat_field: Image<Flat,Captured> [site, visit]'));
+    assert.ok(code.includes('flat_field: Image<Flat,Captured> .raw [site, visit]'));
     assert.ok(code.includes('flat_img = import_flat(…)'));
     assert.ok(code.includes('site-{site}/visit-{visit}/calibration/site-{site}_visit-{visit}_flat.raw'));
     assert.ok(hover.contents.parts.some(part => part.text === 'Source product: a family of input artifacts.'));
