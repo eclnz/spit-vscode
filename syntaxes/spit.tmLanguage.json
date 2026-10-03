@@ -245,6 +245,17 @@
         }
       },
       "patterns": [
+        {
+          "comment": "A many input's minimum, `items: many Image @ min(2)`, matched whole so the `)` of `min(2)` does not end the inputs.",
+          "match": "(@)\\s*(min)\\s*(\\()\\s*(\\d+)\\s*(\\))",
+          "captures": {
+            "1": { "name": "keyword.operator.at.spit" },
+            "2": { "name": "keyword.other.selector.spit" },
+            "3": { "name": "punctuation.section.parens.spit" },
+            "4": { "name": "constant.numeric.spit" },
+            "5": { "name": "punctuation.section.parens.spit" }
+          }
+        },
         { "name": "storage.modifier.cardinality.spit", "match": "\\bmany\\b" },
         { "name": "keyword.other.selector.spit", "match": "\\bmin\\b" },
         { "name": "keyword.operator.at.spit", "match": "@" },
