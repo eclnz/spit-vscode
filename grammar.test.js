@@ -186,13 +186,23 @@ test('a dimensions line marks the pipeline order', { skip }, async () => {
   assert.doesNotMatch(scopes('dimensions = copy(raw)', 'dimensions'), /keyword\.control/);
 });
 
-test('an operation signature marks many and min', { skip }, async () => {
+test('an operation signature marks many and the minimum beside it', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = 'operation fit(waves: many Table, policy: Policy) -> Coef @ min(2)';
+  const line = 'operation fit(waves: many Table @ min(2), policy: Policy) -> Coef';
   assert.match(scopes(line, 'operation'), /keyword\.control\.spit/);
   assert.match(scopes(line, 'fit'), /entity\.name\.function\.spit/);
   assert.match(scopes(line, 'many'), /storage\.modifier\.cardinality\.spit/);
   assert.match(scopes(line, 'min'), /keyword\.other\.selector\.spit/);
+  assert.match(scopes(line, '2'), /constant\.numeric\.spit/);
+  // The `)` of `min(2)` does not end the inputs: the ports after it and
+  // the outputs keep their scopes.
+  assert.match(scopes(line, 'Policy'), /support\.type\.spit/);
+  assert.match(scopes(line, '->'), /keyword\.operator\.arrow\.spit/);
+  assert.match(scopes(line, 'Coef'), /meta\.operation\.output\.spit/);
+  const last = 'operation fit(waves: many @ min(3)) -> Coef .npz';
+  assert.match(scopes(last, '3'), /constant\.numeric\.spit/);
+  assert.match(scopes(last, '->'), /keyword\.operator\.arrow\.spit/);
+  assert.match(scopes(last, '.npz'), /constant\.other\.extension\.spit/);
   // `drop` and `one` are no longer operation keywords.
   assert.doesNotMatch(scopes('operation f(x: one Image) -> Image', 'one'), /cardinality/);
 });
@@ -224,6 +234,12 @@ test('a check is declared once and attached to ports and sources', { skip }, asy
   assert.match(scopes(several, 'nonempty'), /entity\.name\.function\.check\.spit/);
   assert.match(scopes(several, 'right'), /variable\.parameter\.port\.spit/);
 
+  const both = 'operation merge(items: many Table @ min(2) @ check(nonempty), policy: Policy) -> Table';
+  assert.match(scopes(both, 'min'), /keyword\.other\.selector\.spit/);
+  assert.match(scopes(both, 'nonempty'), /entity\.name\.function\.check\.spit/);
+  assert.match(scopes(both, 'Policy'), /support\.type\.spit/);
+  assert.match(scopes(both, '->'), /keyword\.operator\.arrow\.spit/);
+
   const source = 'source t1w : Image .nii.gz [sub] @ check(img::ndim(3))';
   assert.match(scopes(source, '.nii.gz'), /constant\.other\.extension\.spit/);
   assert.match(scopes(source, 'img::ndim'), /entity\.name\.function\.check\.spit/);
@@ -237,7 +253,7 @@ test('an operation output may name the extension its file has', { skip }, async 
   const line = 'operation align(moving: Image<M,S>) -> ToolTransform<S,T> .mat';
   assert.match(scopes(line, 'ToolTransform'), /support\.type\.spit/);
   assert.match(scopes(line, '.mat'), /constant\.other\.extension\.spit/);
-  const several = 'operation fit(runs: many Data) -> (weights: Weights .npz, quality: Metrics .tar.gz) @ min(2)';
+  const several = 'operation fit(runs: many Data @ min(2)) -> (weights: Weights .npz, quality: Metrics .tar.gz)';
   assert.match(scopes(several, 'weights', several.indexOf('->')), /variable\.parameter\.port\.spit/);
   assert.match(scopes(several, 'Weights'), /support\.type\.spit/);
   assert.match(scopes(several, '.npz'), /constant\.other\.extension\.spit/);
