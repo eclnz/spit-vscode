@@ -86,11 +86,18 @@ test('named discovery contexts have a section header', { skip }, async () => {
 
 test('require and drop rules highlight comparisons and groups', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = 'require sessions count!=2 per [sub]';
+  const line = 'require [sub] where sessions count!=2 has ses=1,2';
   assert.match(scopes(line, 'require'), /keyword\.control/);
+  assert.match(scopes(line, 'sub'), /meta\.dimension-list/);
+  assert.match(scopes(line, 'where'), /keyword\.control\.constraint/);
   assert.match(scopes(line, 'sessions'), /variable\.other\.product/);
   assert.match(scopes(line, 'count'), /keyword\.other\.count/);
-  assert.match(scopes(line, 'sub'), /meta\.dimension-list/);
+  assert.match(scopes(line, 'has'), /keyword\.control\.constraint/);
+  assert.match(scopes(line, 'ses', line.indexOf('has')), /variable\.parameter\.dimension/);
+  const values = 'require [sub, ses] where bold has run=1,2';
+  assert.match(scopes(values, 'has'), /keyword\.control\.constraint/);
+  // `per` belonged to the old order and is no longer a keyword.
+  assert.doesNotMatch(scopes('require sessions count>=2 per [sub]', 'per'), /keyword\.control/);
   for (const comparison of ['=', '!=', '>=', '<=', '>', '<']) {
     const rule = `drop [sub] where sessions count${comparison}2`;
     assert.match(scopes(rule, 'drop'), /keyword\.control\.constraint/);
