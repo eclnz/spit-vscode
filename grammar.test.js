@@ -207,6 +207,47 @@ test('an operation signature marks many and the minimum beside it', { skip }, as
   assert.doesNotMatch(scopes('operation f(x: one Image) -> Image', 'one'), /cardinality/);
 });
 
+test('a check is declared once and attached to ports and sources', { skip }, async () => {
+  const scopes = await tokenizer();
+  const declared = 'check ndim(n): check_ndim {@path} {n}';
+  assert.match(scopes(declared, 'check'), /keyword\.control\.spit/);
+  assert.match(scopes(declared, 'ndim'), /entity\.name\.function\.check\.spit/);
+  assert.match(scopes(declared, 'n', declared.indexOf('(')), /variable\.parameter\.spit/);
+  assert.match(scopes(declared, '@path'), /variable\.language\.placeholder\.spit/);
+  assert.match(scopes(declared, 'n}'), /variable\.parameter\.placeholder\.spit/);
+  assert.match(scopes('check nonempty: test -s {@path}', 'nonempty'), /entity\.name\.function\.check\.spit/);
+  // A product named `check` is assigned, not declared.
+  assert.doesNotMatch(scopes('check = copy(raw)', 'check'), /keyword\.control/);
+
+  const operation = 'operation denoise(dwi: DWI @ check(ndim(4)), mask: Mask) -> DWI .mif @ check(nonempty, ndim(4))';
+  assert.match(scopes(operation, 'check'), /keyword\.other\.selector\.spit/);
+  assert.match(scopes(operation, 'ndim'), /entity\.name\.function\.check\.spit/);
+  assert.match(scopes(operation, '4'), /constant\.other\.argument\.spit/);
+  // The port list goes on past the check's parentheses.
+  assert.match(scopes(operation, 'Mask'), /support\.type\.spit/);
+  assert.match(scopes(operation, '->'), /keyword\.operator\.arrow\.spit/);
+  assert.match(scopes(operation, '.mif'), /constant\.other\.extension\.spit/);
+  assert.match(scopes(operation, 'check', operation.indexOf('->')), /keyword\.other\.selector\.spit/);
+  assert.match(scopes(operation, 'nonempty'), /entity\.name\.function\.check\.spit/);
+
+  const several = 'operation split(table: Table) -> (left: Table @ check(nonempty), right: Table)';
+  assert.match(scopes(several, 'nonempty'), /entity\.name\.function\.check\.spit/);
+  assert.match(scopes(several, 'right'), /variable\.parameter\.port\.spit/);
+
+  const both = 'operation merge(items: many Table @ min(2) @ check(nonempty), policy: Policy) -> Table';
+  assert.match(scopes(both, 'min'), /keyword\.other\.selector\.spit/);
+  assert.match(scopes(both, 'nonempty'), /entity\.name\.function\.check\.spit/);
+  assert.match(scopes(both, 'Policy'), /support\.type\.spit/);
+  assert.match(scopes(both, '->'), /keyword\.operator\.arrow\.spit/);
+
+  const source = 'source t1w : Image .nii.gz [sub] @ check(img::ndim(3))';
+  assert.match(scopes(source, '.nii.gz'), /constant\.other\.extension\.spit/);
+  assert.match(scopes(source, 'img::ndim'), /entity\.name\.function\.check\.spit/);
+  const plain = 'source atlas : Image .nii.gz @ check(nonempty)';
+  assert.match(scopes(plain, '.nii.gz'), /constant\.other\.extension\.spit/);
+  assert.match(scopes(plain, 'nonempty'), /entity\.name\.function\.check\.spit/);
+});
+
 test('an operation output may name the extension its file has', { skip }, async () => {
   const scopes = await tokenizer();
   const line = 'operation align(moving: Image<M,S>) -> ToolTransform<S,T> .mat';

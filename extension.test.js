@@ -621,6 +621,32 @@ test('hovering shows SPIT\'s explanation of a word or a name, and nothing in a c
   extension.deactivate();
 });
 
+test('hovering explains a check, where it is declared and where it is attached', { skip: !fs.existsSync(binary) }, async () => {
+  const hints = {};
+  const text = 'check ndim(n): check_ndim {@path} {n}\nsource raw [id] @ check(ndim(3))\noperation copy(x @ check(ndim(3))) -> .txt\ncommand copy: cp {x} {@output}\ncopied = copy(raw)\n';
+  const document = fakeDocument(path.join(__dirname, 'checks.spit'), text);
+  const extension = load(mockVscode(document, new Map(), () => {}, hints));
+  extension.activate({ extensionPath: __dirname, subscriptions: [] });
+  const at = async (line, word, from = 0) => {
+    const character = document.lineAt(line).text.indexOf(word, from) + 1;
+    return hints.hover.provideHover(document, { line, character });
+  };
+
+  const declared = await at(0, 'ndim');
+  assert.match(declared.contents.value, /^```spit\ncheck ndim\(n\): check_ndim \{@path\} \{n\}\n```/);
+  const keyword = await at(0, 'check');
+  assert.match(keyword.contents.value, /language-reference\.md#checks\)$/);
+  const path_ = await at(0, '@path');
+  assert.match(path_.contents.value, /the artifact being checked/);
+  const clause = await at(1, 'check');
+  assert.match(clause.contents.value, /Attaches checks to a port or a source/);
+  const source = await at(1, 'raw');
+  assert.match(source.contents.value, /^```spit\nraw: Unknown \[id\] @ check\(ndim\(3\)\)\n```/);
+  const operation = await at(2, 'copy');
+  assert.match(operation.contents.value, /operation copy\(x: Unknown @ check\(ndim\(3\)\)\) -> Unknown \.txt/);
+  extension.deactivate();
+});
+
 test('a recipe and a .spitout explain SPIT\'s words, and a .spitout\'s records are checked', { skip: !fs.existsSync(binary) }, async () => {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-'));
   fs.writeFileSync(path.join(folder, 'analysis.spit'), 'source raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\n');
