@@ -132,16 +132,6 @@
           "captures": { "2": { "name": "keyword.control.spit" } }
         },
         {
-          "comment": "`sidecars name [dimensions]:`; an indented `path:` line beneath it gives the stem its sources share.",
-          "match": "^(sidecars)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(\\[[^\\]]*\\])?\\s*(:)",
-          "captures": {
-            "1": { "name": "keyword.control.spit" },
-            "2": { "name": "entity.name.section.sidecars.spit" },
-            "3": { "name": "meta.dimension-list.spit", "patterns": [{ "include": "#dimension-list-inner" }] },
-            "4": { "name": "punctuation.separator.colon.spit" }
-          }
-        },
-        {
           "comment": "`ext:`, the extension a default path is completed with.",
           "match": "^(\\s*)(ext)\\s*(:)(?![^#]*=)\\s*((?:\\.[A-Za-z0-9_-]+)+)?",
           "captures": {
@@ -164,15 +154,18 @@
       ]
     },
     "constraint-rule": {
-      "match": "^(\\s*)(require)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+(count)(!=|>=|<=|=|>|<)(\\d+)(?:\\s+(per)\\s+(\\[[^\\]]*\\]))?",
+      "match": "^(\\s*)(require)\\s+(\\[[^\\]]*\\])\\s+(where)\\s+([A-Za-z_][A-Za-z0-9_]*)(?:\\s+(count)(!=|>=|<=|=|>|<)(\\d+)|\\s+(has)\\s+([A-Za-z_][A-Za-z0-9_]*)(=))",
       "captures": {
         "2": { "name": "keyword.control.constraint.spit" },
-        "3": { "name": "variable.other.product.spit" },
-        "4": { "name": "keyword.other.count.spit" },
-        "5": { "name": "keyword.operator.comparison.spit" },
-        "6": { "name": "constant.numeric.spit" },
-        "7": { "name": "keyword.control.per.spit" },
-        "8": { "name": "meta.dimension-list.spit" }
+        "3": { "name": "meta.dimension-list.spit" },
+        "4": { "name": "keyword.control.constraint.spit" },
+        "5": { "name": "variable.other.product.spit" },
+        "6": { "name": "keyword.other.count.spit" },
+        "7": { "name": "keyword.operator.comparison.spit" },
+        "8": { "name": "constant.numeric.spit" },
+        "9": { "name": "keyword.control.constraint.spit" },
+        "10": { "name": "variable.parameter.dimension.spit" },
+        "11": { "name": "keyword.operator.comparison.spit" }
       },
       "patterns": [{ "include": "#dimension-list-inner" }]
     },
@@ -477,9 +470,16 @@
         {
           "comment": "The extension a source declares, before its dimensions or at the end of its line: `source events : Events .tsv [sub]`, `source gps : Track .gpx`.",
           "name": "constant.other.extension.spit",
-          "match": "(?<=\\s)(?:\\.[A-Za-z0-9_-]+)+(?=\\s*(?:#|$|\\[|@))"
+          "match": "(?<=\\s)(?:\\.[A-Za-z0-9_-]+)+(?=\\s*(?:#|$|\\[|@|beside\\b))"
         },
         { "include": "#check-clause" },
+        {
+          "match": "\\b(beside)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.other.beside.spit" },
+            "2": { "name": "variable.other.product.spit" }
+          }
+        },
         { "name": "keyword.control.spit", "match": "\\b(require|exclude|per|verify|check|use|from|as|source|dimensions|discover|operation|command|path)\\b" },
         { "name": "keyword.other.discovery.spit", "match": "\\bdirs\\b" },
         { "name": "storage.modifier.cardinality.spit", "match": "\\bmany\\b" },

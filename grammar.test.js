@@ -86,7 +86,7 @@ test('named discovery contexts have a section header', { skip }, async () => {
 
 test('require and drop rules highlight comparisons and groups', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = 'require sessions count!=2 per [sub]';
+  const line = 'require [sub] where sessions count!=2';
   assert.match(scopes(line, 'require'), /keyword\.control/);
   assert.match(scopes(line, 'sessions'), /variable\.other\.product/);
   assert.match(scopes(line, 'count'), /keyword\.other\.count/);
@@ -298,28 +298,20 @@ test('ext: sets the extension a default path is completed with', { skip }, async
   assert.doesNotMatch(scopes('ext: Image = copy(raw)', 'ext'), /keyword\.control/);
 });
 
-test('a sidecars block names its group, dimensions, stem and extensions', { skip }, async () => {
+test('a source beside another highlights its suffix and anchor', { skip }, async () => {
   const scopes = await tokenizer();
-  const header = 'sidecars photo [site, shot]:  # with its pose';
-  assert.match(scopes(header, 'sidecars'), /keyword\.control\.spit/);
-  assert.match(scopes(header, 'photo'), /entity\.name\.section\.sidecars\.spit/);
-  assert.match(scopes(header, 'site', header.indexOf('[')), /variable\.parameter/);
-  assert.match(scopes(header, ':'), /punctuation\.separator\.colon\.spit/);
-  assert.match(scopes(header, '# with'), /comment\.line/);
-  // The stem is an indented `path:` line, or a recipe's `path photo:`.
-  const stem = '    path: site-{site}/shot-{shot}_photo';
-  assert.match(scopes(stem, 'path'), /keyword\.control\.spit/);
-  assert.match(scopes(stem, 'shot', stem.indexOf('{shot}')), /variable\.parameter\.placeholder\.dimension\.spit/);
-  const recipe = 'path photo: site-{site}/shot-{shot}_photo';
-  assert.match(scopes(recipe, 'photo'), /variable\.other\.product\.spit/);
-  const member = '    source photo_gps : GpsTrack .gpx  # the pose';
-  assert.match(scopes(member, 'source'), /keyword\.control\.spit/);
-  assert.match(scopes(member, 'GpsTrack'), /support\.type\.spit/);
-  assert.match(scopes(member, '.gpx'), /constant\.other\.extension\.spit/);
-  // Any source may declare its extension, before its dimensions.
-  const source = 'source events : Events .nii.gz [sub, ses]';
-  assert.match(scopes(source, '.nii.gz'), /constant\.other\.extension\.spit/);
-  assert.match(scopes(source, 'sub'), /variable\.other\.spit/);
+  const anchor = 'source raw_photo : Image .raw [site, shot]';
+  assert.match(scopes(anchor, 'source'), /keyword\.control\.spit/);
+  assert.match(scopes(anchor, '.raw'), /constant\.other\.extension\.spit/);
+  assert.match(scopes(anchor, 'site'), /variable\.other\.spit/);
+  const companion = 'source photo_gps : GpsTrack .gpx beside raw_photo  # the pose';
+  assert.match(scopes(companion, 'source'), /keyword\.control\.spit/);
+  assert.match(scopes(companion, 'GpsTrack'), /support\.type\.spit/);
+  assert.match(scopes(companion, '.gpx'), /constant\.other\.extension\.spit/);
+  assert.match(scopes(companion, 'beside'), /keyword\.other\.beside\.spit/);
+  assert.match(scopes(companion, 'raw_photo', companion.indexOf('beside')), /variable\.other\.product\.spit/);
+  const recipe = 'path raw_photo: site-{site}/shot-{shot}.raw';
+  assert.match(scopes(recipe, 'raw_photo'), /variable\.other\.product\.spit/);
   assert.match(scopes('source events .tsv [sub]', '.tsv'), /constant\.other\.extension\.spit/);
   // A product called `sidecars` stays a step.
   assert.doesNotMatch(scopes('sidecars = copy(raw)', 'sidecars'), /keyword\.control/);
