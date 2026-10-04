@@ -3,7 +3,7 @@
   "displayName": "SPIT",
   "icon": "icon.png",
   "description": "Live diagnostics for SPIT pipelines and input recipes",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "publisher": "spit-local",
   "private": true,
   "license": "MIT",
