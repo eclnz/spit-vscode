@@ -305,6 +305,25 @@ test('an output written beside another names its suffix and sibling', { skip }, 
   assert.match(scopes(line, '.txt'), /constant\.other\.extension\.spit/);
 });
 
+test('check: lists the checks every output of a file or stage runs', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = '    check: nonempty, ndim(3), !lines(2)  # in this stage';
+  assert.match(scopes(line, 'check'), /keyword\.control\.spit/);
+  assert.match(scopes(line, 'nonempty'), /entity\.name\.function\.check\.spit/);
+  assert.match(scopes(line, 'ndim'), /entity\.name\.function\.check\.spit/);
+  assert.match(scopes(line, '3'), /constant\.other\.argument\.spit/);
+  assert.match(scopes(line, '!'), /keyword\.operator\.negation\.spit/);
+  assert.match(scopes(line, 'lines'), /entity\.name\.function\.check\.spit/);
+  assert.match(scopes(line, '# in this'), /comment\.line/);
+  // An output may opt out of a default.
+  const operation = 'operation split(table: Table) -> (left: Table @ check(!nonempty), right: Table)';
+  assert.match(scopes(operation, '!'), /keyword\.operator\.negation\.spit/);
+  assert.match(scopes(operation, 'nonempty'), /entity\.name\.function\.check\.spit/);
+  // A step's output named `check` stays a step, typed or not.
+  assert.doesNotMatch(scopes('check: Report [sub] = summarise(raw)', 'check'), /keyword\.control/);
+  assert.doesNotMatch(scopes('check = summarise(raw)', 'check'), /keyword\.control/);
+});
+
 test('ext: sets the extension a default path is completed with', { skip }, async () => {
   const scopes = await tokenizer();
   const line = '    ext: .nii.gz  # images in this stage';
