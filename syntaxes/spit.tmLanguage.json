@@ -11,7 +11,7 @@
     { "include": "#use-line" },
     { "include": "#check-declaration" },
     { "include": "#flow-declaration" },
-    { "include": "#drop-rule" },
+    { "include": "#conditional-exclude-rule" },
     { "include": "#exclude-rule" },
     { "include": "#constraint-rule" },
     { "include": "#invocation" },
@@ -169,8 +169,8 @@
       },
       "patterns": [{ "include": "#dimension-list-inner" }]
     },
-    "drop-rule": {
-      "match": "^(\\s*)(drop)\\s+(\\[[^\\]]*\\])\\s+(where)\\s+([A-Za-z_][A-Za-z0-9_]*)(?:\\s+(count)(!=|>=|<=|=|>|<)(\\d+)|\\s+(missing|has)\\s+([A-Za-z_][A-Za-z0-9_]*)(=))",
+    "conditional-exclude-rule": {
+      "match": "^(\\s*)(exclude)\\s+(\\[[^\\]]*\\])\\s+(where)\\s+([A-Za-z_][A-Za-z0-9_]*)(?:\\s+(count)(!=|>=|<=|=|>|<)(\\d+)|\\s+(missing|has)\\s+([A-Za-z_][A-Za-z0-9_]*)(=))",
       "captures": {
         "2": { "name": "keyword.control.constraint.spit" },
         "3": { "name": "meta.dimension-list.spit" },

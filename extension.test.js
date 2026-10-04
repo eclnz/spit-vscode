@@ -71,7 +71,7 @@ test('checks a recipe against the pipeline it names', { skip: !fs.existsSync(bin
     extension.activate({ extensionPath: __dirname, subscriptions: [] });
     await until(() => results.get(document.uri.toString())?.length === 0);
 
-    document.text = 'pipeline analysis.spit\nroot .\nrequire [id] where raw count>=1\nrequire [id] where rwa count>=1\n';
+    document.text = 'pipeline analysis.spit\nroot .\nrequire [id] where raw count>=1\nexclude [id] where rwa count=0\n';
     document.version++;
     onChange({ document });
     await until(() => results.get(document.uri.toString())?.length === 1);
@@ -647,9 +647,9 @@ test('hovering explains a check, where it is declared and where it is attached',
   extension.deactivate();
 });
 
-test('hovering explains a companion source and beside', { skip: !fs.existsSync(binary) }, async () => {
+test('hovering explains an output beside another', { skip: !fs.existsSync(binary) }, async () => {
   const hints = {};
-  const text = 'source raw .raw [id]\npath raw: scans/{id}.raw\nsource meta .json beside raw\noperation read(image, metadata) -> Image\nresult = read(raw, meta)\n';
+  const text = 'source raw .raw [id]\npath raw: scans/{id}.raw\noperation read(image) -> (result: Image .raw, meta: Json .json beside result)\nresult, meta = read(raw)\n';
   const document = fakeDocument(path.join(__dirname, 'beside.spit'), text);
   const extension = load(mockVscode(document, new Map(), () => {}, hints));
   extension.activate({ extensionPath: __dirname, subscriptions: [] });
@@ -658,9 +658,7 @@ test('hovering explains a companion source and beside', { skip: !fs.existsSync(b
     return hints.hover.provideHover(document, { line, character });
   };
   const beside = await at(2, 'beside');
-  assert.match(beside.contents.value, /source or output whose file shares another file's stem/);
-  const meta = await at(2, 'meta');
-  assert.match(meta.contents.value, /meta: Unknown \.json \[id\]/);
+  assert.match(beside.contents.value, /output the tool writes next to another/);
   extension.deactivate();
 });
 
@@ -668,12 +666,14 @@ test('a recipe and a .spitout explain SPIT\'s words, and a .spitout\'s records a
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-'));
   fs.writeFileSync(path.join(folder, 'analysis.spit'), 'source raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\n');
   const hints = {};
-  const recipe = fakeDocument(path.join(folder, 'cohort.spitin'), 'pipeline analysis.spit\nroot .\nrequire [id] where raw count>=1\n');
+  const recipe = fakeDocument(path.join(folder, 'cohort.spitin'), 'pipeline analysis.spit\nroot .\nrequire [id] where raw count>=1\nexclude [id] where raw count=0\n');
   let extension = load(mockVscode(recipe, new Map(), () => {}, hints));
   try {
     extension.activate({ extensionPath: __dirname, subscriptions: [] });
     const where = await hints.hover.provideHover(recipe, { line: 2, character: 14 });
     assert.match(where.contents.value, /rule's condition/);
+    const excludeWhere = await hints.hover.provideHover(recipe, { line: 3, character: 14 });
+    assert.match(excludeWhere.contents.value, /conditional `exclude` rule's condition/);
     extension.deactivate();
 
     const results = new Map();
