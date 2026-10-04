@@ -658,7 +658,7 @@ test('hovering explains an output beside another', { skip: !fs.existsSync(binary
     return hints.hover.provideHover(document, { line, character });
   };
   const beside = await at(2, 'beside');
-  assert.match(beside.contents.value, /output the tool writes next to another/);
+  assert.match(beside.contents.value, /source or output whose file shares another file's stem/);
   extension.deactivate();
 });
 
