@@ -319,9 +319,15 @@
       }
     },
     "invocation": {
-      "match": "^(\\s*)([A-Za-z_][A-Za-z0-9_]*)\\s*(=)\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*(\\()",
+      "comment": "A step: its outputs, then the operation it calls, which an import may qualify, as `m, t = L::summarise(`.",
+      "match": "^(\\s*)([A-Za-z_][A-Za-z0-9_]*(?:\\s*,\\s*[A-Za-z_][A-Za-z0-9_]*)*)\\s*(=)\\s*((?:[A-Za-z_][A-Za-z0-9_]*::)*[A-Za-z_][A-Za-z0-9_]*)\\s*(\\()",
       "captures": {
-        "2": { "name": "variable.other.product.spit" },
+        "2": {
+          "patterns": [
+            { "name": "variable.other.product.spit", "match": "[A-Za-z_][A-Za-z0-9_]*" },
+            { "name": "punctuation.separator.comma.spit", "match": "," }
+          ]
+        },
         "3": { "name": "keyword.operator.assignment.spit" },
         "4": { "name": "entity.name.function.spit" },
         "5": { "name": "punctuation.definition.arguments.begin.spit" }

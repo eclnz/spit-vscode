@@ -201,6 +201,31 @@ function refreshRelated(uri) {
   else relatedDiagnostics.delete(uri);
 }
 
+// A file SPIT names, as a document `issue` can place a range in.
+function fileTarget(file) {
+  let text = '';
+  try { text = fs.readFileSync(file, 'utf8'); } catch {}
+  const lines = text.split(/\r?\n/);
+  return {
+    lineCount: lines.length,
+    lineAt(index) { return { range: new vscode.Range(index, 0, index, lines[index].length) }; }
+  };
+}
+
+// SPIT's `related` places, such as the step in a library's body that a
+// call made: each in its `file`, from the pipeline's folder, or else in
+// the diagnostic's own file.
+function relatedInformation(document, ownFile, related) {
+  return related.map(place => {
+    const file = place.file
+      ? (path.isAbsolute(place.file) ? place.file : path.resolve(path.dirname(ownFile), place.file))
+      : ownFile;
+    const target = path.resolve(file) === path.resolve(document.uri.fsPath) ? document : fileTarget(file);
+    const { range } = issue(target, place.line, place.message, 'error', place.column, place.end_column);
+    return new vscode.DiagnosticRelatedInformation(new vscode.Location(vscode.Uri.file(file), range), place.message);
+  });
+}
+
 function publishIssues(document, items) {
   const key = document.uri.toString();
   clearRelated(key);
@@ -210,20 +235,19 @@ function publishIssues(document, items) {
     const file = item.file && (path.isAbsolute(item.file)
       ? item.file
       : path.resolve(path.dirname(document.uri.fsPath), item.file));
+    const withRelated = diagnostic => {
+      if (item.related?.length) {
+        diagnostic.relatedInformation = relatedInformation(document, file || document.uri.fsPath, item.related);
+      }
+      return diagnostic;
+    };
     if (!file || path.resolve(file) === path.resolve(document.uri.fsPath)) {
-      local.push(issue(document, item.line, item.message, item.severity, item.column, item.end_column));
+      local.push(withRelated(issue(document, item.line, item.message, item.severity, item.column, item.end_column)));
       continue;
     }
     const uri = vscode.Uri.file(file);
-    let text = '';
-    try { text = fs.readFileSync(file, 'utf8'); } catch {}
-    const lines = text.split(/\r?\n/);
-    const target = {
-      lineCount: lines.length,
-      lineAt(index) { return { range: new vscode.Range(index, 0, index, lines[index].length) }; }
-    };
     const found = external.get(uri.toString()) || { uri, items: [] };
-    found.items.push(issue(target, item.line, item.message, item.severity, item.column, item.end_column));
+    found.items.push(withRelated(issue(fileTarget(file), item.line, item.message, item.severity, item.column, item.end_column)));
     external.set(uri.toString(), found);
   }
   diagnostics.set(document.uri, local);
@@ -318,6 +342,20 @@ function appendHoverDetail(contents, detail) {
       contents.appendMarkdown('\n\n').appendText(rest.slice(descriptionStart + 1));
       return;
     }
+  }
+  const steps = /^(This call expands to|Carried out by the steps in its body): (.+)$/.exec(detail);
+  if (steps) {
+    contents.appendText(`${steps[1]}:`).appendMarkdown('\n\n');
+    contents.appendCodeblock(steps[2].split('; ').join('\n'), 'spit');
+    return;
+  }
+  const called = /^Derived product\. Produced by (.+), by its step (.+)\.$/.exec(detail);
+  if (called) {
+    contents.appendText('Derived product. Produced by:').appendMarkdown('\n\n');
+    contents.appendCodeblock(called[1], 'spit');
+    contents.appendMarkdown('\n\n').appendText('by its step:').appendMarkdown('\n\n');
+    contents.appendCodeblock(called[2], 'spit');
+    return;
   }
   const producer = /^Derived product\. Produced by (.+)\.$/.exec(detail);
   if (producer) {

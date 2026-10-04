@@ -207,6 +207,22 @@ test('an operation signature marks many and the minimum beside it', { skip }, as
   assert.doesNotMatch(scopes('operation f(x: one Image) -> Image', 'one'), /cardinality/);
 });
 
+test('an operation carried out by steps, and a call with several outputs to an imported one', { skip }, async () => {
+  const scopes = await tokenizer();
+  const header = 'operation summarise(reads: Lines, table: Table) -> (merged: Lines, total: Count):';
+  assert.match(scopes(header, 'summarise'), /entity\.name\.function\.spit/);
+  assert.match(scopes(header, 'Count'), /support\.type\.spit/);
+  const step = '    cleaned = clean(reads, table)';
+  assert.match(scopes(step, 'cleaned'), /variable\.other\.product\.spit/);
+  assert.match(scopes(step, 'clean('), /entity\.name\.function\.spit/);
+  const call = 'm, t = L::summarise(raw, cal @ where(revision=2))';
+  assert.match(scopes(call, 'm'), /variable\.other\.product\.spit/);
+  assert.match(scopes(call, 't ='), /variable\.other\.product\.spit/);
+  assert.match(scopes(call, '='), /keyword\.operator\.assignment\.spit/);
+  assert.match(scopes(call, 'L::summarise'), /entity\.name\.function\.spit/);
+  assert.match(scopes(call, 'where'), /keyword\.other\.selector\.spit/);
+});
+
 test('a check is declared once and attached to ports and sources', { skip }, async () => {
   const scopes = await tokenizer();
   const declared = 'check ndim(n): check_ndim {@path} {n}';
