@@ -41,8 +41,30 @@
           }
         },
         {
+          "comment": "`source_paths:` in a .spitout: each indented `source: path` line is a source path rule, which may hold shapes.",
+          "begin": "^\\s*(source_paths)\\s*(:)\\s*$",
+          "beginCaptures": {
+            "0": { "name": "entity.name.section.spit" },
+            "1": { "name": "keyword.other.section.spit" },
+            "2": { "name": "punctuation.separator.colon.spit" }
+          },
+          "end": "^(?=\\S)",
+          "patterns": [
+            { "include": "#comments" },
+            {
+              "begin": "^(\\s+)([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s*(:)\\s*",
+              "beginCaptures": {
+                "2": { "name": "variable.other.product.spit" },
+                "3": { "name": "punctuation.separator.colon.spit" }
+              },
+              "end": "$",
+              "patterns": [{ "include": "#word-comment" }, { "include": "#brace-escape" }, { "include": "#path-group" }, { "include": "#path-placeholder" }]
+            }
+          ]
+        },
+        {
           "name": "entity.name.section.spit keyword.other.section.spit",
-          "match": "^\\s*(sources|source_paths|contexts|removed)\\s*:\\s*$"
+          "match": "^\\s*(sources|contexts|removed)\\s*:\\s*$"
         }
       ]
     },
@@ -364,6 +386,17 @@
             "1": { "name": "punctuation.definition.template-expression.begin.spit" },
             "2": { "name": "variable.language.placeholder.spit" },
             "3": { "name": "punctuation.definition.template-expression.end.spit" }
+          }
+        },
+        {
+          "comment": "A dimension with a shape, `{date:date}`, `{run:digits}`, `{year:year}`: it narrows what a source's placeholder matches. Shapes belong to path rules and `discover` patterns only; a `command` line's `{x:date}` is something else, and takes the generic placeholder.",
+          "match": "(\\{)([A-Za-z_][A-Za-z0-9_]*)(:)(digits|year|date)(\\})",
+          "captures": {
+            "1": { "name": "punctuation.definition.template-expression.begin.spit" },
+            "2": { "name": "variable.parameter.placeholder.dimension.spit" },
+            "3": { "name": "punctuation.separator.colon.spit" },
+            "4": { "name": "constant.language.shape.spit" },
+            "5": { "name": "punctuation.definition.template-expression.end.spit" }
           }
         },
         {

@@ -26,13 +26,23 @@ async function tokenizer() {
   });
   const grammar = await registry.loadGrammar('source.spit');
   // The scopes of the token covering `text` on the one line given.
-  return (line, text, from = 0) => {
+  const scopes = (line, text, from = 0) => {
     const { tokens } = grammar.tokenizeLine(line, textmate.INITIAL);
     const start = line.indexOf(text, from);
     assert.notEqual(start, -1, `\`${text}\` not in \`${line}\``);
     const token = tokens.find(token => token.startIndex <= start && start < token.endIndex);
     return token.scopes.join(' ');
   };
+  // The scopes of `text` on line number `index` of a multi-line `lines`.
+  scopes.inFile = (lines, index, text, from = 0) => {
+    let state = textmate.INITIAL;
+    for (let i = 0; i < index; i++) state = grammar.tokenizeLine(lines[i], state).ruleStack;
+    const { tokens } = grammar.tokenizeLine(lines[index], state);
+    const start = lines[index].indexOf(text, from);
+    assert.notEqual(start, -1, `\`${text}\` not in \`${lines[index]}\``);
+    return tokens.find(token => token.startIndex <= start && start < token.endIndex).scopes.join(' ');
+  };
+  return scopes;
 }
 
 const skip = !textmate && 'run npm install to test the grammar';
@@ -327,4 +337,55 @@ test('records mark the product and its dimensions', { skip }, async () => {
   for (const header of ['sources:', 'source_paths:', 'contexts:', 'removed:']) {
     assert.match(scopes(header, header.slice(0, -1)), /keyword\.other\.section\.spit/, header);
   }
+});
+
+test('a shape after a source placeholder\'s colon is marked in path rules', { skip }, async () => {
+  const scopes = await tokenizer();
+  const log = 'path log: logs/{server}/{date:date}.log';
+  const at = log.indexOf('{date');
+  // A dimension named `date` keeps its placeholder scope; the shape is its own.
+  assert.match(scopes(log, 'date', at), /variable\.parameter\.placeholder\.dimension\.spit/);
+  assert.doesNotMatch(scopes(log, 'date', at), /shape/);
+  assert.match(scopes(log, ':', at), /punctuation\.separator\.colon\.spit/);
+  assert.match(scopes(log, 'date', at + 2), /constant\.language\.shape\.spit/);
+  assert.match(scopes(log, '}', at), /punctuation\.definition\.template-expression\.end/);
+  assert.match(scopes(log, 'server'), /variable\.parameter\.placeholder\.dimension\.spit/);
+  const run = 'path run: raw/run-{run:digits}.csv';
+  assert.match(scopes(run, 'run', run.indexOf('{run')), /variable\.parameter\.placeholder\.dimension\.spit/);
+  assert.match(scopes(run, 'digits'), /constant\.language\.shape\.spit/);
+  assert.match(scopes(run, ':', run.indexOf('{run')), /punctuation\.separator\.colon\.spit/);
+  // A recipe's default `path:` and a source's `path source:` are path rules too.
+  const year = '    path: data/{site}/{year:year}/{@product}';
+  assert.match(scopes(year, 'year', year.indexOf(':year') + 1), /constant\.language\.shape\.spit/);
+  // A word that is not a shape is not marked as one.
+  assert.doesNotMatch(scopes('path run: raw/{run:other}.csv', 'other'), /shape/);
+});
+
+test('a shape is marked in a discover pattern and in a .spitout\'s source_paths', { skip }, async () => {
+  const scopes = await tokenizer();
+  const discover = 'discover days: [day] from dirs data/{day:year}';
+  assert.match(scopes(discover, 'day', discover.indexOf('{day')), /variable\.parameter\.placeholder\.dimension\.spit/);
+  assert.match(scopes(discover, 'year', discover.indexOf(':year')), /constant\.language\.shape\.spit/);
+  const file = ['root ../data', 'source_paths:', '    log: logs/{server}/{date:date}.log  # one a day', '    run: raw/run-{run:digits}.csv', 'sources:', '    log[server=web1,date=2026-09-01]'];
+  assert.match(scopes.inFile(file, 1, 'source_paths'), /keyword\.other\.section\.spit/);
+  assert.match(scopes.inFile(file, 2, 'log'), /variable\.other\.product\.spit/);
+  assert.match(scopes.inFile(file, 2, 'date', file[2].indexOf('{date') + 2), /constant\.language\.shape\.spit/);
+  assert.match(scopes.inFile(file, 2, 'date', file[2].indexOf('{date')), /variable\.parameter\.placeholder\.dimension\.spit/);
+  assert.match(scopes.inFile(file, 2, '# one'), /comment\.line/);
+  assert.match(scopes.inFile(file, 3, 'digits'), /constant\.language\.shape\.spit/);
+  // The next section ends the block, and its records are records again.
+  assert.match(scopes.inFile(file, 4, 'sources'), /keyword\.other\.section\.spit/);
+  assert.match(scopes.inFile(file, 5, 'log'), /variable\.other\.product\.spit/);
+  assert.doesNotMatch(scopes.inFile(file, 5, 'date'), /shape/);
+});
+
+test('a `command` line\'s `{x:date}` is not a shape', { skip }, async () => {
+  const scopes = await tokenizer();
+  for (const line of ['command copy: tool {x:date} {@output}', 'verify test -s {x:digits}']) {
+    const word = line.includes('date') ? 'date' : 'digits';
+    assert.doesNotMatch(scopes(line, word), /shape/, line);
+    assert.match(scopes(line, word), /variable\.parameter\.placeholder\.spit/, line);
+  }
+  const quoted = 'command copy: tool "--day={day:date}"';
+  assert.doesNotMatch(scopes(quoted, 'date', quoted.indexOf(':date')), /shape/);
 });

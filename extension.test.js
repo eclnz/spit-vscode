@@ -647,3 +647,33 @@ test('a recipe and a .spitout explain SPIT\'s words, and a .spitout\'s records a
     fs.rmSync(folder, { recursive: true, force: true });
   }
 });
+
+test('hovering shows SPIT\'s explanation of a shape on a source placeholder', { skip: !fs.existsSync(binary) }, async () => {
+  const hints = {};
+  const text = 'source log [server, date]\noperation copy(input)\nresult = copy(log)\npath log: logs/{server}/{date:date}.log\n';
+  const document = fakeDocument(path.join(__dirname, 'shape.spit'), text);
+  const results = new Map();
+  const extension = load(mockVscode(document, results, () => {}, hints));
+  try {
+    extension.activate({ extensionPath: __dirname, subscriptions: [] });
+    await until(() => results.get(document.uri.toString())?.length === 0);
+
+    // The `check --json --hovers` output names the shape among the words, with a doc of kind `shape`.
+    const output = require('node:child_process').spawnSync(binary, ['check', 'shape.spit', '--json', '--stdin', '--hovers'], { input: text, encoding: 'utf8', cwd: __dirname });
+    const checked = JSON.parse(output.stdout);
+    const line = text.split('\n')[3];
+    const shape = checked.words.filter(word => word.word === 'date' && word.line === 4);
+    assert.equal(shape.length, 1, 'the shape is one word, and the dimension before the colon is not');
+    assert.equal(shape[0].column - 1, line.indexOf(':date') + 1);
+    assert.equal(checked.word_docs.date.kind, 'shape');
+
+    // Hovering the shape shows that doc; hovering the dimension named `date` before the colon shows none.
+    const hover = await hints.hover.provideHover(document, { line: 3, character: line.indexOf(':date') + 2 });
+    assert.deepEqual(span(hover), [3, line.indexOf(':date') + 1, line.indexOf(':date') + 5]);
+    assert.match(hover.contents.value, /^```spit\npath log: logs\/\{server\}\/\{date:date\}\.log\n```\n\nA shape for a placeholder in a source's path rule/);
+    assert.match(hover.contents.value, /\[Language reference\]\(https:\/\/github\.com\/eclnz\/spit\/blob\/main\/docs\/language-reference\.md#shapes-on-a-source-placeholder\)$/);
+    assert.equal(await hints.hover.provideHover(document, { line: 3, character: line.indexOf('{date') + 2 }), null, 'the dimension has no hover');
+  } finally {
+    extension.deactivate();
+  }
+});
