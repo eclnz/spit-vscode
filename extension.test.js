@@ -109,6 +109,119 @@ test('places a recipe check\'s pipeline error on the pipeline file', { skip: !fs
   }
 });
 
+const LIBRARY_OPERATIONS = 'operation cp(a: Lines) -> Lines\ncommand cp: cp {a} {@output}\n';
+
+// Check `text` as a pipeline in a fresh folder holding `files`, and return
+// the folder, what each file's collection holds, and a way to recheck.
+async function checkImporting(files, text, ready) {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-imports-'));
+  for (const [name, content] of Object.entries(files)) {
+    fs.mkdirSync(path.dirname(path.join(folder, name)), { recursive: true });
+    fs.writeFileSync(path.join(folder, name), content);
+  }
+  const results = new Map();
+  let onChange;
+  const document = fakeDocument(path.join(folder, 'pipeline.spit'), text);
+  const extension = load(mockVscode(document, results, callback => { onChange = callback; }));
+  extension.activate({ extensionPath: __dirname, subscriptions: [] });
+  const at = name => results.get(`file://${path.join(folder, name)}`);
+  await until(() => ready(at));
+  const recheck = async (newText, done) => {
+    if (newText !== undefined) document.text = newText;
+    document.version++;
+    onChange({ document });
+    await until(() => done(at));
+  };
+  return { folder, at, document, extension, recheck };
+}
+
+// Where a related place is: its file relative to the folder, and its span.
+function place(folder, related) {
+  return [path.relative(folder, related.location.uri.fsPath), ...span(related.location), related.message];
+}
+
+test('places an error in an imported library in the library, with its `use` line related', { skip: !fs.existsSync(binary) }, async () => {
+  const cases = [
+    ['a body that reads a missing product',
+      `${LIBRARY_OPERATIONS}operation wrap(x: Lines) -> (out: Lines):\n    out = cp(x)\n    z = cp(nope)\n`,
+      [4, 8, 16], /the body of `wrap` reads `nope`/],
+    ['an undeclared operation',
+      `${LIBRARY_OPERATIONS}operation wrap(x: Lines) -> (out: Lines):\n    out = missing(x)\n`,
+      [3, 10, 20], /operation `missing` must be declared before `wrap`/],
+    ['a bad placeholder',
+      'operation cp(a: Lines) -> Lines\ncommand cp: cp {a} {@output} {oops\noperation wrap(x: Lines) -> Lines\n',
+      [1, 12, 34], /unclosed `\{` in `\{oops`/]
+  ];
+  for (const [name, library, library_span, message] of cases) {
+    const text = 'use wrap from libs/lib.spit\nsource raw : Lines [id]\nout = wrap(raw)\nfoo bar baz\n';
+    const run = await checkImporting({ 'libs/lib.spit': library }, text, at => at('libs/lib.spit')?.length === 1 && at('pipeline.spit')?.length === 1);
+    try {
+      const [error] = run.at('libs/lib.spit');
+      assert.deepEqual(span(error), library_span, name);
+      assert.match(error.message, message, name);
+      assert.equal(error.severity, 0, name);
+      // The `use` line is the related place, in the checked file by its own name.
+      assert.deepEqual(error.relatedInformation.map(item => place(run.folder, item)), [['pipeline.spit', 0, 0, 27, 'imported here']], name);
+      // The pipeline's own error stays in the pipeline, at its own line.
+      const [own] = run.at('pipeline.spit');
+      assert.deepEqual(span(own), [3, 0, 3], name);
+      assert.match(own.message, /`foo` does not start a statement/, name);
+      assert.equal(own.relatedInformation, undefined, name);
+    } finally {
+      run.extension.deactivate();
+      fs.rmSync(run.folder, { recursive: true, force: true });
+    }
+  }
+});
+
+test('a nested import names each `use` line, and a fixed library loses its marks', { skip: !fs.existsSync(binary) }, async () => {
+  const broken = `${LIBRARY_OPERATIONS}operation wrap(x: Lines) -> (out: Lines):\n    out = cp(nope)\n`;
+  const run = await checkImporting(
+    { 'a/b/lib.spit': broken, 'a/mid.spit': '# the middle\nuse wrap from b/lib.spit\n' },
+    'use wrap from a/mid.spit\n',
+    at => at('a/b/lib.spit')?.length === 1);
+  try {
+    assert.deepEqual(run.at('pipeline.spit'), []);
+    assert.equal(run.at('a/mid.spit'), undefined);
+    const [error] = run.at('a/b/lib.spit');
+    assert.deepEqual(span(error), [3, 10, 18]);
+    assert.deepEqual(error.relatedInformation.map(item => place(run.folder, item)), [
+      ['a/mid.spit', 1, 0, 24, 'imported here'],
+      ['pipeline.spit', 0, 0, 24, 'imported here']
+    ]);
+
+    // Fixing the library, then recheck: its marks go.
+    fs.writeFileSync(path.join(run.folder, 'a/b/lib.spit'), broken.replace('cp(nope)', 'cp(x)'));
+    await run.recheck(undefined, at => at('a/b/lib.spit') === undefined);
+    assert.deepEqual(run.at('pipeline.spit'), []);
+  } finally {
+    run.extension.deactivate();
+    fs.rmSync(run.folder, { recursive: true, force: true });
+  }
+});
+
+test('a library error and the pipeline\'s later error on the same line are each in their own file', { skip: !fs.existsSync(binary) }, async () => {
+  const library = `${LIBRARY_OPERATIONS}operation wrap(x: Lines) -> (out: Lines):\n    out = cp(nope)\n`;
+  const text = 'use wrap from libs/lib.spit\nsource raw : Lines [id]\nout = wrap(raw)\nfoo bar baz\n';
+  const run = await checkImporting({ 'libs/lib.spit': library }, text, at => at('libs/lib.spit')?.length === 1 && at('pipeline.spit')?.length === 1);
+  try {
+    // Line 4 of the library and line 4 of the pipeline are different places.
+    assert.equal(run.at('libs/lib.spit')[0].range.start.line, 3);
+    assert.equal(run.at('pipeline.spit')[0].range.start.line, 3);
+    assert.match(run.at('libs/lib.spit')[0].message, /the body of `wrap`/);
+    assert.match(run.at('pipeline.spit')[0].message, /`foo` does not start a statement/);
+
+    // Fixing the pipeline's own line leaves the library's mark, and removing
+    // the import leaves none.
+    await run.recheck(text.replace('foo bar baz\n', ''), at => at('pipeline.spit')?.length === 0);
+    assert.equal(run.at('libs/lib.spit').length, 1);
+    await run.recheck('source raw : Lines [id]\n', at => at('libs/lib.spit') === undefined);
+  } finally {
+    run.extension.deactivate();
+    fs.rmSync(run.folder, { recursive: true, force: true });
+  }
+});
+
 test('shows each output path with its groups resolved and labels written out', { skip: !fs.existsSync(binary) }, async () => {
   const hints = {};
   const document = fakeDocument(path.join(__dirname, 'labels.spit'), [
@@ -221,6 +334,12 @@ function mockVscode(document, results, onChange, hints = {}) {
     },
     Diagnostic: class {
       constructor(range, message, severity) { Object.assign(this, { range, message, severity }); }
+    },
+    DiagnosticRelatedInformation: class {
+      constructor(location, message) { Object.assign(this, { location, message }); }
+    },
+    Location: class {
+      constructor(uri, range) { Object.assign(this, { uri, range }); }
     },
     DiagnosticSeverity: { Error: 0, Warning: 1 },
     SemanticTokensLegend: class {},

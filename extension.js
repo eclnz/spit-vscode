@@ -201,29 +201,65 @@ function refreshRelated(uri) {
   else relatedDiagnostics.delete(uri);
 }
 
+// The file a diagnostic or a related place names. SPIT gives it relative to
+// the checked pipeline's folder (a recipe's folder, for a recipe), and the
+// checked file itself by its own name there, so every `file` resolves the same
+// way; one without a `file` is in the checked document.
+function resolveFile(document, file) {
+  if (!file) return document.uri.fsPath;
+  return path.resolve(path.dirname(document.uri.fsPath), file);
+}
+
+// The lines of a file as `issue` reads them: the checked document, an open
+// one with its unsaved text, or the file on disk.
+function linesOf(document, file) {
+  if (file === path.resolve(document.uri.fsPath)) return document;
+  const open = vscode.workspace.textDocuments.find(item => item.uri.scheme === 'file' && path.resolve(item.uri.fsPath) === file);
+  if (open) return open;
+  let text = '';
+  try { text = fs.readFileSync(file, 'utf8'); } catch {}
+  const lines = text.split(/\r?\n/);
+  return {
+    lineCount: lines.length,
+    lineAt(index) { return { range: new vscode.Range(index, 0, index, lines[index].length) }; }
+  };
+}
+
+// An item of SPIT's `diagnostics` as an editor diagnostic in the file its
+// `file` names, with each `related` place, such as an `imported here` line,
+// as related information.
+function issueFor(document, item) {
+  const file = path.resolve(resolveFile(document, item.file));
+  const diagnostic = issue(linesOf(document, file), item.line, item.message, item.severity, item.column, item.end_column);
+  const related = [];
+  for (const place of item.related || []) {
+    const placeFile = path.resolve(resolveFile(document, place.file));
+    const range = issue(linesOf(document, placeFile), place.line, '', 'error', place.column, place.end_column).range;
+    related.push(new vscode.DiagnosticRelatedInformation(new vscode.Location(vscode.Uri.file(placeFile), range), place.message));
+  }
+  if (related.length) diagnostic.relatedInformation = related;
+  return { file, diagnostic };
+}
+
+// A check's diagnostics are not all in the checked document: an imported
+// library's are in the library, and a recipe's pipeline's in the pipeline.
+// Those go to a collection of their own, rebuilt from every check, so a
+// file whose problems are gone loses its marks.
 function publishIssues(document, items) {
   const key = document.uri.toString();
   clearRelated(key);
   const local = [];
   const external = new Map();
+  const own = path.resolve(document.uri.fsPath);
   for (const item of items) {
-    const file = item.file && (path.isAbsolute(item.file)
-      ? item.file
-      : path.resolve(path.dirname(document.uri.fsPath), item.file));
-    if (!file || path.resolve(file) === path.resolve(document.uri.fsPath)) {
-      local.push(issue(document, item.line, item.message, item.severity, item.column, item.end_column));
+    const { file, diagnostic } = issueFor(document, item);
+    if (file === own) {
+      local.push(diagnostic);
       continue;
     }
     const uri = vscode.Uri.file(file);
-    let text = '';
-    try { text = fs.readFileSync(file, 'utf8'); } catch {}
-    const lines = text.split(/\r?\n/);
-    const target = {
-      lineCount: lines.length,
-      lineAt(index) { return { range: new vscode.Range(index, 0, index, lines[index].length) }; }
-    };
     const found = external.get(uri.toString()) || { uri, items: [] };
-    found.items.push(issue(target, item.line, item.message, item.severity, item.column, item.end_column));
+    found.items.push(diagnostic);
     external.set(uri.toString(), found);
   }
   diagnostics.set(document.uri, local);
@@ -458,7 +494,7 @@ function finishCheck(document, key, code, timedOut, output, errors) {
 function activate(context) {
   diagnostics = vscode.languages.createDiagnosticCollection('SPIT');
   context.subscriptions.push(diagnostics);
-  relatedDiagnostics = vscode.languages.createDiagnosticCollection('SPIT recipe pipelines');
+  relatedDiagnostics = vscode.languages.createDiagnosticCollection('SPIT other files');
   context.subscriptions.push(relatedDiagnostics);
   context.subscriptions.push(vscode.languages.registerDocumentSemanticTokensProvider(
     { language: 'spit' },
