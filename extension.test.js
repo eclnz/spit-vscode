@@ -50,12 +50,12 @@ test('checks unsaved edits and clears fixed errors', { skip: !fs.existsSync(bina
   assert.match(warning.message, /never used/);
 
   // Rules about a dataset belong in its recipe, not the pipeline.
-  document.text = 'source raw [id]\nrequire raw count>=1 per [id]\n';
+  document.text = 'source raw [id]\nrequire [id] where raw count>=1\n';
   document.version++;
   onChange({ document });
   await until(() => results.get(document.uri.toString())?.some(item => /belong in/.test(item.message)));
   assert.equal(results.get(document.uri.toString()).length, 1);
-  assert.deepEqual(span(results.get(document.uri.toString())[0]), [1, 0, 29]);
+  assert.deepEqual(span(results.get(document.uri.toString())[0]), [1, 0, document.lineAt(1).text.length]);
   assert.match(results.get(document.uri.toString())[0].message, /belong in a \.spitin recipe/);
   extension.deactivate();
 });
@@ -65,13 +65,13 @@ test('checks a recipe against the pipeline it names', { skip: !fs.existsSync(bin
   fs.writeFileSync(path.join(folder, 'analysis.spit'), 'source raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\n');
   let onChange;
   const results = new Map();
-  const document = fakeDocument(path.join(folder, 'cohort.spitin'), 'pipeline analysis.spit\nroot .\nrequire raw count>=1 per [id]\n');
+  const document = fakeDocument(path.join(folder, 'cohort.spitin'), 'pipeline analysis.spit\nroot .\nrequire [id] where raw count>=1\n');
   const extension = load(mockVscode(document, results, callback => { onChange = callback; }));
   try {
     extension.activate({ extensionPath: __dirname, subscriptions: [] });
     await until(() => results.get(document.uri.toString())?.length === 0);
 
-    document.text = 'pipeline analysis.spit\nroot .\nrequire raw count>=1 per [id]\nrequire rwa count>=1 per [id]\n';
+    document.text = 'pipeline analysis.spit\nroot .\nrequire [id] where raw count>=1\nrequire [id] where rwa count>=1\n';
     document.version++;
     onChange({ document });
     await until(() => results.get(document.uri.toString())?.length === 1);
@@ -647,16 +647,33 @@ test('hovering explains a check, where it is declared and where it is attached',
   extension.deactivate();
 });
 
+test('hovering explains a companion source and beside', { skip: !fs.existsSync(binary) }, async () => {
+  const hints = {};
+  const text = 'source raw .raw [id]\npath raw: scans/{id}.raw\nsource meta .json beside raw\noperation read(image, metadata) -> Image\nresult = read(raw, meta)\n';
+  const document = fakeDocument(path.join(__dirname, 'beside.spit'), text);
+  const extension = load(mockVscode(document, new Map(), () => {}, hints));
+  extension.activate({ extensionPath: __dirname, subscriptions: [] });
+  const at = async (line, word) => {
+    const character = document.lineAt(line).text.indexOf(word) + 1;
+    return hints.hover.provideHover(document, { line, character });
+  };
+  const beside = await at(2, 'beside');
+  assert.match(beside.contents.value, /source or output whose file shares another file's stem/);
+  const meta = await at(2, 'meta');
+  assert.match(meta.contents.value, /meta: Unknown \.json \[id\]/);
+  extension.deactivate();
+});
+
 test('a recipe and a .spitout explain SPIT\'s words, and a .spitout\'s records are checked', { skip: !fs.existsSync(binary) }, async () => {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-'));
   fs.writeFileSync(path.join(folder, 'analysis.spit'), 'source raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\n');
   const hints = {};
-  const recipe = fakeDocument(path.join(folder, 'cohort.spitin'), 'pipeline analysis.spit\nroot .\nrequire raw count>=1 per [id]\n');
+  const recipe = fakeDocument(path.join(folder, 'cohort.spitin'), 'pipeline analysis.spit\nroot .\nrequire [id] where raw count>=1\n');
   let extension = load(mockVscode(recipe, new Map(), () => {}, hints));
   try {
     extension.activate({ extensionPath: __dirname, subscriptions: [] });
-    const per = await hints.hover.provideHover(recipe, { line: 2, character: 22 });
-    assert.match(per.contents.value, /groups by/);
+    const where = await hints.hover.provideHover(recipe, { line: 2, character: 14 });
+    assert.match(where.contents.value, /rule's condition/);
     extension.deactivate();
 
     const results = new Map();
