@@ -222,6 +222,12 @@ function mockVscode(document, results, onChange, hints = {}) {
     Diagnostic: class {
       constructor(range, message, severity) { Object.assign(this, { range, message, severity }); }
     },
+    DiagnosticRelatedInformation: class {
+      constructor(location, message) { Object.assign(this, { location, message }); }
+    },
+    Location: class {
+      constructor(uri, range) { Object.assign(this, { uri, range }); }
+    },
     DiagnosticSeverity: { Error: 0, Warning: 1 },
     SemanticTokensLegend: class {},
     SemanticTokensBuilder: class {},
@@ -447,6 +453,73 @@ test('hovers explain specialised operations and inferred products from unsaved t
     onChange({ document });
     assert.equal(await stale, undefined, 'discard a check interrupted by a new document version');
     assert.match((await hover(1)).contents.value, /out: Frame<Current>/);
+  } finally {
+    extension.deactivate();
+  }
+});
+
+test('an error in a call\'s step relates the library\'s call and step', { skip: !fs.existsSync(binary) }, async () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-call-'));
+  fs.mkdirSync(path.join(folder, 'libs'));
+  const library = path.join(folder, 'libs', 'lib.spit');
+  fs.writeFileSync(library, [
+    'operation clean(x: Lines, t: Table) -> Lines',
+    'command clean: clean {x} {t} {@output}',
+    'operation tidy(r: Lines, t: Table) -> (o: Lines):',
+    '    o = clean(r, t)',
+    'operation summarise(reads: Lines, table: Table) -> (merged: Lines):',
+    '    merged = tidy(reads, table)',
+    ''
+  ].join('\n'));
+  const document = fakeDocument(path.join(folder, 'main.spit'), [
+    'use summarise from libs/lib.spit as L',
+    'source raw : Lines [group]',
+    'source cal : Table [group]',
+    'm = L::summarise(cal, raw)',
+    ''
+  ].join('\n'));
+  const results = new Map();
+  const extension = load(mockVscode(document, results, () => {}));
+  try {
+    extension.activate({ extensionPath: __dirname, subscriptions: [] });
+    await until(() => results.get(document.uri.toString())?.length === 1);
+    const [error] = results.get(document.uri.toString());
+    assert.match(error.message, /^in `m = L::summarise\(\.\.\.\)`: type mismatch/);
+    assert.deepEqual(span(error), [3, 17, 20], 'the argument the caller gave');
+    assert.deepEqual(error.relatedInformation.map(item => [item.location.uri.fsPath, ...span(item.location), item.message]), [
+      [library, 5, 13, 31, 'the call of `L::tidy` in the body of `L::summarise`'],
+      [library, 3, 8, 19, 'the step in the body of `L::tidy`']
+    ]);
+  } finally {
+    extension.deactivate();
+    fs.rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test('hovers on a call list the steps it expands to', { skip: !fs.existsSync(binary) }, async () => {
+  const document = fakeDocument(path.join(__dirname, 'call.spit'), [
+    'source raw : Lines [group]',
+    'source cal : Table [group]',
+    'operation clean(x: Lines, t: Table) -> Lines',
+    'command clean: clean {x} {t} {@output}',
+    'operation flip(t: Table, x: Lines) -> (y: Lines):',
+    '    y = clean(x, t)',
+    'out = flip(cal, raw)',
+    ''
+  ].join('\n'));
+  const vscode = mockVscode(document, new Map(), () => {});
+  const extension = load(vscode);
+  const context = { extensionPath: __dirname, subscriptions: [] };
+  extension.activate(context);
+  const provider = context.subscriptions.find(item => item.hoverProvider).hoverProvider;
+  try {
+    const call = await provider.provideHover(document, { line: 6, character: 7 });
+    assert.ok(call.contents.parts.some(part => part.text === 'This call expands to:'));
+    assert.ok(call.contents.parts.some(part => part.code === 'out = clean(raw, cal)'));
+    assert.ok(call.contents.parts.some(part => part.code === 'y = clean(x, t)'));
+    const product = await provider.provideHover(document, { line: 6, character: 1 });
+    assert.ok(product.contents.parts.some(part => part.code === 'flip(cal, raw)'));
+    assert.ok(product.contents.parts.some(part => part.code === 'out = clean(raw, cal)'));
   } finally {
     extension.deactivate();
   }
