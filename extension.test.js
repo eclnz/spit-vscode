@@ -731,7 +731,7 @@ test('hovering explains an output beside another', { skip: !fs.existsSync(binary
     return hints.hover.provideHover(document, { line, character });
   };
   const beside = await at(2, 'beside');
-  assert.match(beside.contents.value, /output the tool writes next to another/);
+  assert.match(beside.contents.value, /an output is written by the same job/);
   extension.deactivate();
 });
 
