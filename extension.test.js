@@ -50,12 +50,12 @@ test('checks unsaved edits and clears fixed errors', { skip: !fs.existsSync(bina
   assert.match(warning.message, /never used/);
 
   // Rules about a dataset belong in its recipe, not the pipeline.
-  document.text = 'source raw [id]\nrequire raw count>=1 per [id]\n';
+  document.text = 'source raw [id]\nrequire [id] where raw count>=1\n';
   document.version++;
   onChange({ document });
   await until(() => results.get(document.uri.toString())?.some(item => /belong in/.test(item.message)));
   assert.equal(results.get(document.uri.toString()).length, 1);
-  assert.deepEqual(span(results.get(document.uri.toString())[0]), [1, 0, 29]);
+  assert.deepEqual(span(results.get(document.uri.toString())[0]), [1, 0, 31]);
   assert.match(results.get(document.uri.toString())[0].message, /belong in a \.spitin recipe/);
   extension.deactivate();
 });
@@ -65,13 +65,13 @@ test('checks a recipe against the pipeline it names', { skip: !fs.existsSync(bin
   fs.writeFileSync(path.join(folder, 'analysis.spit'), 'source raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\n');
   let onChange;
   const results = new Map();
-  const document = fakeDocument(path.join(folder, 'cohort.spitin'), 'pipeline analysis.spit\nroot .\nrequire raw count>=1 per [id]\n');
+  const document = fakeDocument(path.join(folder, 'cohort.spitin'), 'pipeline analysis.spit\nroot .\nrequire [id] where raw count>=1\n');
   const extension = load(mockVscode(document, results, callback => { onChange = callback; }));
   try {
     extension.activate({ extensionPath: __dirname, subscriptions: [] });
     await until(() => results.get(document.uri.toString())?.length === 0);
 
-    document.text = 'pipeline analysis.spit\nroot .\nrequire raw count>=1 per [id]\nrequire rwa count>=1 per [id]\n';
+    document.text = 'pipeline analysis.spit\nroot .\nrequire [id] where raw count>=1\nrequire [id] where rwa count>=1\n';
     document.version++;
     onChange({ document });
     await until(() => results.get(document.uri.toString())?.length === 1);
@@ -625,12 +625,13 @@ test('a recipe and a .spitout explain SPIT\'s words, and a .spitout\'s records a
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-'));
   fs.writeFileSync(path.join(folder, 'analysis.spit'), 'source raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\n');
   const hints = {};
-  const recipe = fakeDocument(path.join(folder, 'cohort.spitin'), 'pipeline analysis.spit\nroot .\nrequire raw count>=1 per [id]\n');
+  const recipe = fakeDocument(path.join(folder, 'cohort.spitin'), 'pipeline analysis.spit\nroot .\nrequire [id] where raw count>=1\n');
   let extension = load(mockVscode(recipe, new Map(), () => {}, hints));
   try {
     extension.activate({ extensionPath: __dirname, subscriptions: [] });
-    const per = await hints.hover.provideHover(recipe, { line: 2, character: 22 });
-    assert.match(per.contents.value, /groups by/);
+    // `where` in `require [id] where raw count>=1`.
+    const where = await hints.hover.provideHover(recipe, { line: 2, character: 14 });
+    assert.match(where.contents.value, /a `require` rule's condition/);
     extension.deactivate();
 
     const results = new Map();
