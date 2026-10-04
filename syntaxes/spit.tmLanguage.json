@@ -10,6 +10,7 @@
     { "include": "#recipe-header" },
     { "include": "#use-line" },
     { "include": "#check-declaration" },
+    { "include": "#check-default" },
     { "include": "#flow-declaration" },
     { "include": "#conditional-exclude-rule" },
     { "include": "#exclude-rule" },
@@ -226,18 +227,10 @@
         { "include": "#placeholder" }
       ]
     },
-    "check-clause": {
-      "comment": "`check(nonempty, ndim(3))` after `@`: the checks a port or a source attaches, each a name with its arguments.",
-      "begin": "\\b(check)\\s*(\\()",
-      "beginCaptures": {
-        "1": { "name": "keyword.other.selector.spit" },
-        "2": { "name": "punctuation.section.parens.spit" }
-      },
-      "end": "\\)",
-      "endCaptures": {
-        "0": { "name": "punctuation.section.parens.spit" }
-      },
+    "check-items": {
+      "comment": "Checks, each a name with its arguments; `!` before one drops it from the defaults of a wider scope.",
       "patterns": [
+        { "name": "keyword.operator.negation.spit", "match": "!" },
         {
           "match": "([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s*(\\()([^()]*)(\\))",
           "captures": {
@@ -255,6 +248,29 @@
         { "name": "entity.name.function.check.spit", "match": "[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*" },
         { "name": "punctuation.separator.comma.spit", "match": "," }
       ]
+    },
+    "check-default": {
+      "comment": "`check: nonempty, ndim(3), !lines(2)`: the checks every output of a file or stage runs. A step's product named `check` takes `=` outside parentheses, so it is not one.",
+      "begin": "^(\\s*)(check)\\s*(:)(?!(?:[^#=()]|\\([^()]*\\))*=)",
+      "beginCaptures": {
+        "2": { "name": "keyword.control.spit" },
+        "3": { "name": "punctuation.separator.colon.spit" }
+      },
+      "end": "$",
+      "patterns": [{ "include": "#word-comment" }, { "include": "#check-items" }]
+    },
+    "check-clause": {
+      "comment": "`check(nonempty, ndim(3))` after `@`: the checks a port or a source attaches, each a name with its arguments.",
+      "begin": "\\b(check)\\s*(\\()",
+      "beginCaptures": {
+        "1": { "name": "keyword.other.selector.spit" },
+        "2": { "name": "punctuation.section.parens.spit" }
+      },
+      "end": "\\)",
+      "endCaptures": {
+        "0": { "name": "punctuation.section.parens.spit" }
+      },
+      "patterns": [{ "include": "#check-items" }]
     },
     "operation-signature": {
       "begin": "^(\\s*)(operation)\\s+([A-Za-z_][A-Za-z0-9_]*)(\\()",
@@ -486,7 +502,7 @@
             "2": { "name": "variable.other.product.spit" }
           }
         },
-        { "name": "keyword.control.spit", "match": "\\b(require|exclude|per|verify|check|use|from|as|source|dimensions|discover|operation|command|path)\\b" },
+        { "name": "keyword.control.spit", "match": "\\b(?:require|exclude|per|verify|use|from|as|source|dimensions|discover|operation|command|path|check(?!\\s*:))\\b" },
         { "name": "keyword.other.discovery.spit", "match": "\\bdirs\\b" },
         { "name": "storage.modifier.cardinality.spit", "match": "\\bmany\\b" },
         { "name": "keyword.other.selector.spit", "match": "\\b(vary|where|same|each|min)\\b" },

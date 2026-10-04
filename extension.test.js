@@ -735,6 +735,17 @@ test('hovering explains an output beside another', { skip: !fs.existsSync(binary
   extension.deactivate();
 });
 
+test('hovering a check: default list explains the check keyword', { skip: !fs.existsSync(binary) }, async () => {
+  const hints = {};
+  const text = 'check nonempty: test -s {@path}\ncheck: nonempty\nsource raw [id]\noperation copy(x) -> .txt\ncommand copy: cp {x} {@output}\ncopied = copy(raw)\n';
+  const document = fakeDocument(path.join(__dirname, 'defaults.spit'), text);
+  const extension = load(mockVscode(document, new Map(), () => {}, hints));
+  extension.activate({ extensionPath: __dirname, subscriptions: [] });
+  const keyword = await hints.hover.provideHover(document, { line: 1, character: 2 });
+  assert.match(keyword.contents.value, /A bare `check:` line lists the checks every output/);
+  assert.match(keyword.contents.value, /language-reference\.md#checks\)$/);
+});
+
 test('a recipe and a .spitout explain SPIT\'s words, and a .spitout\'s records are checked', { skip: !fs.existsSync(binary) }, async () => {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-'));
   fs.writeFileSync(path.join(folder, 'analysis.spit'), 'source raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\n');
