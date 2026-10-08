@@ -60,6 +60,51 @@ test('checks unsaved edits and clears fixed errors', { skip: !fs.existsSync(bina
   extension.deactivate();
 });
 
+test('reads JSON errors on exit 1 and reports failed processes without diagnostics', async () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-exit-'));
+  const executable = path.join(folder, 'spit-stub');
+  const mode = path.join(folder, 'mode');
+  fs.writeFileSync(executable, `#!/usr/bin/env node
+const fs = require('node:fs');
+const mode = fs.readFileSync(${JSON.stringify(mode)}, 'utf8');
+if (mode === 'json') {
+  fs.writeSync(1, JSON.stringify({ diagnostics: [{ severity: 'error', source: 'pipeline', line: 1, column: 2, end_column: 5, message: 'bad type' }] }));
+  process.exitCode = 1;
+} else {
+  fs.writeSync(2, 'compiler failed');
+  if (mode === 'invalid') fs.writeSync(1, 'not JSON');
+  process.exitCode = mode === 'invalid' ? 1 : 2;
+}
+`, { mode: 0o755 });
+  fs.writeFileSync(mode, 'json');
+  const direct = require('node:child_process').spawnSync(executable, [], { encoding: 'utf8' });
+  assert.equal(direct.status, 1, direct.stderr);
+  assert.match(direct.stdout, /bad type/);
+  const document = fakeDocument(path.join(folder, 'bad.spit'), 'bad type\n');
+  const results = new Map();
+  let onChange;
+  const vscode = mockVscode(document, results, callback => { onChange = callback; });
+  vscode.workspace.getConfiguration = () => ({ get: () => executable });
+  const extension = load(vscode);
+  try {
+    extension.activate({ extensionPath: __dirname, subscriptions: [] });
+    await until(() => results.has(document.uri.toString()));
+    assert.equal(results.get(document.uri.toString())?.[0]?.message, 'bad type');
+    assert.deepEqual(span(results.get(document.uri.toString())[0]), [0, 1, 4]);
+    for (const expected of ['invalid', 'crash']) {
+      fs.writeFileSync(mode, expected);
+      document.version++;
+      onChange({ document });
+      await until(() => results.get(document.uri.toString())?.[0]?.message.includes('compiler failed'));
+      assert.match(results.get(document.uri.toString())[0].message, /SPIT check failed/);
+      results.clear();
+    }
+  } finally {
+    extension.deactivate();
+    fs.rmSync(folder, { recursive: true, force: true });
+  }
+});
+
 test('checks a recipe against the pipeline it names', { skip: !fs.existsSync(binary) }, async () => {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-'));
   fs.writeFileSync(path.join(folder, 'analysis.spit'), 'source raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\n');
@@ -675,12 +720,11 @@ test('hovers reuse one compiler analysis per document version', { skip: !fs.exis
   const calls = path.join(folder, 'calls.jsonl');
   fs.writeFileSync(wrapper, `#!/usr/bin/env node
 const fs = require('node:fs');
-const { spawnSync } = require('node:child_process');
+const { spawn } = require('node:child_process');
 fs.appendFileSync(${JSON.stringify(calls)}, JSON.stringify(process.argv.slice(2)) + '\\n');
-const result = spawnSync(${JSON.stringify(binary)}, process.argv.slice(2), { input: fs.readFileSync(0) });
-process.stdout.write(result.stdout);
-process.stderr.write(result.stderr);
-process.exit(result.status);
+const child = spawn(${JSON.stringify(binary)}, process.argv.slice(2), { stdio: 'inherit' });
+child.on('error', error => { console.error(error); process.exitCode = 1; });
+child.on('close', code => { process.exitCode = code ?? 1; });
 `, { mode: 0o755 });
   const document = fakeDocument(path.join(folder, 'cached.spit'), 'source raw [id]\noperation copy(input)\nout = copy(raw)\n');
   const results = new Map();
@@ -694,7 +738,9 @@ process.exit(result.status);
   const hover = () => provider.provideHover(document, { line: 2, character: 1 });
   const recorded = () => fs.readFileSync(calls, 'utf8').trim().split('\n').map(line => JSON.parse(line));
   try {
-    assert.match((await hover()).contents.value, /out: Unknown \[id\]/);
+    const firstHover = await hover();
+    assert.ok(firstHover, JSON.stringify([...results.values()]));
+    assert.match(firstHover.contents.value, /out: Unknown \[id\]/);
     assert.deepEqual(results.get(document.uri.toString()), []);
     assert.equal(recorded().length, 1);
     assert.ok(recorded()[0].includes('--hovers'));
