@@ -471,7 +471,7 @@ function finishCheck(document, key, code, timedOut, output, errors) {
     diagnostics.set(document.uri, [issue(document, null, `SPIT check did not finish within ${CHECK_TIMEOUT_MS / 1000} seconds and was stopped`)]);
     return null;
   }
-  if (code !== 0) {
+  if (code !== 0 && code !== 1) {
     showPaths(document, null);
     clearRelated(key);
     diagnostics.set(document.uri, [issue(document, null, `SPIT check failed: ${errors.trim() || `exit ${code}`}`)]);
@@ -479,6 +479,9 @@ function finishCheck(document, key, code, timedOut, output, errors) {
   }
   try {
     const result = JSON.parse(output);
+    if (!Array.isArray(result.diagnostics) || (code === 1 && !result.diagnostics.some(item => item.severity === 'error'))) {
+      throw new Error('missing error diagnostics');
+    }
     publishIssues(document, result.diagnostics);
     // Only a pipeline that checks clean has `paths`.
     showPaths(document, result.paths);
@@ -486,7 +489,10 @@ function finishCheck(document, key, code, timedOut, output, errors) {
   } catch (error) {
     showPaths(document, null);
     clearRelated(key);
-    diagnostics.set(document.uri, [issue(document, null, `SPIT returned invalid diagnostics: ${error.message}`)]);
+    const message = code === 0
+      ? `SPIT returned invalid diagnostics: ${error.message}`
+      : `SPIT check failed: ${errors.trim() || `exit ${code}`} (invalid diagnostics: ${error.message})`;
+    diagnostics.set(document.uri, [issue(document, null, message)]);
     return null;
   }
 }

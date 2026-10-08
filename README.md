@@ -10,6 +10,8 @@ Each file is checked on its own with `spit check <file> --json --stdin --hovers`
 
 It checks unsaved text after a short pause and reports syntax errors throughout the file. Once the syntax is valid, it reports every semantic, command, and path error, each on its related line, and shows warnings for likely mistakes such as unused definitions. Each problem underlines the text it is about, such as a misspelled input or one `{placeholder}`; with an older SPIT build that reports no columns, the whole line is marked.
 
+The extension reads JSON diagnostics from `spit check` even when validation exits 1. If the process fails without valid diagnostics, it shows a process failure instead.
+
 ## Operation and product hovers
 
 Hover over an operation or product in a `.spit` pipeline to see what the compiler knows about it, including qualified references to imported definitions.
