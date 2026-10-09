@@ -237,20 +237,168 @@
       ]
     },
     "operation-signature": {
-      "begin": "^(\\s*)(operation)\\s+([A-Za-z_][A-Za-z0-9_]*)(\\()",
+      "begin": "^(\\s*)(operation)\\s+([A-Za-z_][A-Za-z0-9_]*)(?=\\()",
       "beginCaptures": {
-        "2": { "name": "keyword.control.spit" },
-        "3": { "name": "entity.name.function.spit" },
-        "4": { "name": "punctuation.definition.parameters.begin.spit" }
-      },
-      "end": "\\)\\s*(->)\\s*([^@#]*[^@#\\s])|\\)",
-      "endCaptures": {
-        "1": { "name": "keyword.operator.arrow.spit" },
         "2": {
+          "name": "keyword.control.spit"
+        },
+        "3": {
+          "name": "entity.name.function.spit"
+        }
+      },
+      "end": "$",
+      "patterns": [
+        {
+          "begin": "\\(",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.parameters.begin.spit"
+            }
+          },
+          "end": "\\)",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.section.parens.spit"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "include": "#check-clause"
+            },
+            {
+              "comment": "A many input's minimum, `items: many Image @ min(2)`, matched whole so the `)` of `min(2)` does not end the inputs.",
+              "match": "(@)\\s*(min)\\s*(\\()\\s*(\\d+)\\s*(\\))",
+              "captures": {
+                "1": {
+                  "name": "keyword.operator.at.spit"
+                },
+                "2": {
+                  "name": "keyword.other.selector.spit"
+                },
+                "3": {
+                  "name": "punctuation.section.parens.spit"
+                },
+                "4": {
+                  "name": "constant.numeric.spit"
+                },
+                "5": {
+                  "name": "punctuation.section.parens.spit"
+                }
+              }
+            },
+            {
+              "name": "storage.modifier.cardinality.spit",
+              "match": "\\bmany\\b"
+            },
+            {
+              "name": "keyword.other.selector.spit",
+              "match": "\\bmin\\b"
+            },
+            {
+              "name": "keyword.operator.at.spit",
+              "match": "@"
+            },
+            {
+              "name": "punctuation.separator.comma.spit",
+              "match": ","
+            },
+            {
+              "include": "#type-reference"
+            }
+          ]
+        },
+        {
+          "begin": "->",
+          "beginCaptures": {
+            "0": {
+              "name": "keyword.operator.arrow.spit"
+            }
+          },
+          "end": "$",
           "name": "meta.operation.output.spit",
           "patterns": [
-            { "name": "string.quoted.double.spit", "match": "\"[^\"]*\"" },
-            { "name": "keyword.other.beside.spit", "match": "\\bbeside\\b" },
+            { "name": "keyword.other.selector.spit", "match": "\\bmin\\b" },
+            {
+              "begin": "\\(",
+              "end": "\\)",
+              "beginCaptures": {
+                "0": {
+                  "name": "punctuation.section.parens.spit"
+                }
+              },
+              "endCaptures": {
+                "0": {
+                  "name": "punctuation.section.parens.spit"
+                }
+              },
+              "patterns": [
+                {
+                  "include": "#comments"
+                },
+                {
+                  "include": "#check-clause"
+                },
+                {
+                  "name": "keyword.operator.at.spit",
+                  "match": "@"
+                },
+                {
+                  "name": "string.quoted.double.spit",
+                  "match": "\"[^\"]*\""
+                },
+                {
+                  "name": "keyword.other.beside.spit",
+                  "match": "\\bbeside\\b"
+                },
+                {
+                  "comment": "A `/` that makes the output a folder, alone or after its extension: `-> (subject: FsSubject /)`, `-> Zarr .zarr/`.",
+                  "name": "constant.other.extension.folder.spit",
+                  "match": "(?<![A-Za-z0-9_])(?:(?:\\.[A-Za-z0-9_-]+)+)?/"
+                },
+                {
+                  "comment": "The extension the tool gives an output's file: `-> Transform .mat`.",
+                  "name": "constant.other.extension.spit",
+                  "match": "(?<![A-Za-z0-9_])(?:\\.[A-Za-z0-9_-]+)+"
+                },
+                {
+                  "include": "#type-reference"
+                },
+                {
+                  "name": "variable.parameter.port.spit",
+                  "match": "\\b[a-z_][A-Za-z0-9_]*\\b"
+                },
+                {
+                  "name": "punctuation.separator.comma.spit",
+                  "match": ","
+                },
+                {
+                  "name": "punctuation.separator.colon.spit",
+                  "match": ":"
+                },
+                {
+                  "name": "punctuation.section.parens.spit",
+                  "match": "[()]"
+                }
+              ]
+            },
+            {
+              "include": "#check-clause"
+            },
+            {
+              "name": "keyword.operator.at.spit",
+              "match": "@"
+            },
+            {
+              "name": "string.quoted.double.spit",
+              "match": "\"[^\"]*\""
+            },
+            {
+              "name": "keyword.other.beside.spit",
+              "match": "\\bbeside\\b"
+            },
             {
               "comment": "A `/` that makes the output a folder, alone or after its extension: `-> (subject: FsSubject /)`, `-> Zarr .zarr/`.",
               "name": "constant.other.extension.folder.spit",
@@ -261,20 +409,27 @@
               "name": "constant.other.extension.spit",
               "match": "(?<![A-Za-z0-9_])(?:\\.[A-Za-z0-9_-]+)+"
             },
-            { "include": "#type-reference" },
-            { "name": "variable.parameter.port.spit", "match": "\\b[a-z_][A-Za-z0-9_]*\\b" },
-            { "name": "punctuation.separator.comma.spit", "match": "," },
-            { "name": "punctuation.separator.colon.spit", "match": ":" },
-            { "name": "punctuation.section.parens.spit", "match": "[()]" }
+            {
+              "include": "#type-reference"
+            },
+            {
+              "name": "variable.parameter.port.spit",
+              "match": "\\b[a-z_][A-Za-z0-9_]*\\b"
+            },
+            {
+              "name": "punctuation.separator.comma.spit",
+              "match": ","
+            },
+            {
+              "name": "punctuation.separator.colon.spit",
+              "match": ":"
+            },
+            {
+              "name": "punctuation.section.parens.spit",
+              "match": "[()]"
+            }
           ]
         }
-      },
-      "patterns": [
-        { "name": "storage.modifier.cardinality.spit", "match": "\\bmany\\b" },
-        { "name": "keyword.other.selector.spit", "match": "\\bmin\\b" },
-        { "name": "keyword.operator.at.spit", "match": "@" },
-        { "name": "punctuation.separator.comma.spit", "match": "," },
-        { "include": "#type-reference" }
       ]
     },
     "product-declaration": {
