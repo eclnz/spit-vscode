@@ -317,14 +317,16 @@ test('a recipe names its pipeline', { skip }, async () => {
   assert.doesNotMatch(scopes('pipeline = copy(raw)', 'pipeline'), /keyword\.control\.import/);
 });
 
-test('a recipe or a .spitout names its dataset root', { skip }, async () => {
+test('a pipeline, recipe or .spitout names its dataset root', { skip }, async () => {
   const scopes = await tokenizer();
   const line = 'root ../data  # where the dataset is';
   assert.match(scopes(line, 'root'), /keyword\.control\.import\.spit/);
   assert.match(scopes(line, '../data'), /string\.unquoted\.file\.spit/);
   assert.match(scopes(line, '# where'), /comment\.line/);
+  assert.match(scopes('root data=set', 'data=set'), /string\.unquoted\.file\.spit/);
   // A product or record called `root` stays one.
   assert.doesNotMatch(scopes('root = copy(raw)', 'root'), /keyword\.control\.import/);
+  assert.doesNotMatch(scopes('root : Text = copy(raw)', 'root'), /keyword\.control\.import/);
   assert.doesNotMatch(scopes('    root[sub=01]', 'root'), /keyword\.control\.import/);
 });
 

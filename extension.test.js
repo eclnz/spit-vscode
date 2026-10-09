@@ -129,6 +129,49 @@ test('checks a recipe against the pipeline it names', { skip: !fs.existsSync(bin
   }
 });
 
+test('a recipe inherits an inline root and marks a duplicate on the recipe', { skip: !fs.existsSync(binary) }, async () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-inline-'));
+  fs.writeFileSync(path.join(folder, 'analysis.spit'), 'root .\nsource raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\n');
+  const document = fakeDocument(path.join(folder, 'cohort.spitin'), 'pipeline analysis.spit\nrequire [id] where raw count>=1\n');
+  const results = new Map();
+  let onChange;
+  const extension = load(mockVscode(document, results, callback => { onChange = callback; }));
+  try {
+    extension.activate({ extensionPath: __dirname, subscriptions: [] });
+    await until(() => results.get(document.uri.toString())?.length === 0);
+    document.text += 'root .\n';
+    document.version++;
+    onChange({ document });
+    await until(() => results.get(document.uri.toString())?.length === 1);
+    assert.equal(results.get(document.uri.toString())[0].range.start.line, 2);
+    assert.match(results.get(document.uri.toString())[0].message, /root is declared in both/);
+  } finally {
+    extension.deactivate();
+    fs.rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test('an unsaved inline root shows its hover and missing-folder warning', { skip: !fs.existsSync(binary) }, async () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-root-'));
+  const document = fakeDocument(path.join(folder, 'analysis.spit'), 'root missing\nsource raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\n');
+  const results = new Map();
+  const hints = {};
+  const extension = load(mockVscode(document, results, () => {}, hints));
+  try {
+    extension.activate({ extensionPath: __dirname, subscriptions: [] });
+    await until(() => results.get(document.uri.toString())?.length === 1);
+    const [warning] = results.get(document.uri.toString());
+    assert.deepEqual(span(warning), [0, 5, 12]);
+    assert.equal(warning.severity, 1);
+    assert.match(warning.message, /dataset root `missing` is not a folder/);
+    const hover = await hints.hover.provideHover(document, { line: 0, character: 1 });
+    assert.match(JSON.stringify(hover), /inherits its pipeline's root/);
+  } finally {
+    extension.deactivate();
+    fs.rmSync(folder, { recursive: true, force: true });
+  }
+});
+
 test('places a recipe check\'s pipeline error on the pipeline file', { skip: !fs.existsSync(binary) }, async () => {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-pipeline-'));
   const pipeline = path.join(folder, 'analysis.spit');

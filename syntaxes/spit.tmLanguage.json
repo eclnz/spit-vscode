@@ -7,7 +7,7 @@
     { "include": "#section-headers" },
     { "include": "#stage-header" },
     { "include": "#discover-line" },
-    { "include": "#recipe-header" },
+    { "include": "#input-header" },
     { "include": "#use-line" },
     { "include": "#flow-declaration" },
     { "include": "#drop-rule" },
@@ -110,8 +110,8 @@
         }
       ]
     },
-    "recipe-header": {
-      "comment": "A .spitin names the pipeline it serves, `pipeline analysis.spit`, and may name its dataset root, `root data`, which a .spitout also records.",
+    "input-header": {
+      "comment": "A .spitin names its pipeline; pipelines, recipes and saved inventories can name a dataset root. Definitions and records named root remain names.",
       "match": "^(\\s*)(pipeline|root)\\s+([^\\s=:#][^#]*?)\\s*(?=#|$)",
       "captures": {
         "2": { "name": "keyword.control.import.spit" },
