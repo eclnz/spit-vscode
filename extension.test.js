@@ -638,7 +638,7 @@ test('hovers show a folder\'s `/`', { skip: !fs.existsSync(binary) }, async () =
 });
 
 test('product hover separates user-defined snippets from prose', { skip: !fs.existsSync(binary) }, async () => {
-  const pipeline = path.join(__dirname, '..', 'spit', 'examples', 'commands', 'field_survey', 'field_survey.spit');
+  const pipeline = path.resolve(path.dirname(binary), '..', '..', 'examples', 'commands', 'field_survey', 'field_survey.spit');
   const text = fs.readFileSync(pipeline, 'utf8');
   const document = fakeDocument(pipeline, text);
   const extension = load(mockVscode(document, new Map(), () => {}));
@@ -838,6 +838,31 @@ test('hovering shows SPIT\'s explanation of a shape on a source placeholder', { 
     assert.match(hover.contents.value, /^```spit\npath log: logs\/\{server\}\/\{date:date\}\.log\n```\n\nA shape for a placeholder in a source's path rule/);
     assert.match(hover.contents.value, /\[Language reference\]\(https:\/\/github\.com\/eclnz\/spit\/blob\/main\/docs\/language-reference\.md#shapes-on-a-source-placeholder\)$/);
     assert.equal(await hints.hover.provideHover(document, { line: 3, character: line.indexOf('{date') + 2 }), null, 'the dimension has no hover');
+  } finally {
+    extension.deactivate();
+  }
+});
+
+test('multiline signatures preserve diagnostic and hover ranges in unsaved edits', { skip: !fs.existsSync(binary) }, async () => {
+  const document = fakeDocument(path.join(__dirname, 'multiline.spit'), 'operation broken(\n    first: Image,\n    second: Image<Bad]>\n) -> Image\noperation later(\n    x: Image\n) -> Image\n');
+  const results = new Map();
+  let onChange;
+  const extension = load(mockVscode(document, results, callback => { onChange = callback; }));
+  const context = { extensionPath: __dirname, subscriptions: [] };
+  extension.activate(context);
+  const provider = context.subscriptions.find(item => item.hoverProvider).hoverProvider;
+  try {
+    await until(() => results.get(document.uri.toString())?.length === 1);
+    assert.deepEqual(span(results.get(document.uri.toString())[0]), [2, 21, 22]);
+    const later = await provider.provideHover(document, { line: 4, character: 11 });
+    assert.match(later.contents.value, /operation later/);
+    assert.deepEqual(span(later), [4, 10, 15]);
+    document.text = document.text.replace('Image<Bad]>', 'Image<Bad>');
+    document.version++;
+    onChange({ document });
+    await until(() => results.get(document.uri.toString())?.length === 0);
+    const fixed = await provider.provideHover(document, { line: 0, character: 11 });
+    assert.match(fixed.contents.value, /operation broken/);
   } finally {
     extension.deactivate();
   }

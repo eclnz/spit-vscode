@@ -389,3 +389,32 @@ test('a `command` line\'s `{x:date}` is not a shape', { skip }, async () => {
   const quoted = 'command copy: tool "--day={day:date}"';
   assert.doesNotMatch(scopes(quoted, 'date', quoted.indexOf(':date')), /shape/);
 });
+
+test('multiline operation lists keep their scopes through the closing delimiter', { skip }, async () => {
+  const wasm = fs.readFileSync(require.resolve('vscode-oniguruma/release/onig.wasm'));
+  await oniguruma.loadWASM(wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength));
+  const registry = new textmate.Registry({
+    onigLib: Promise.resolve({
+      createOnigScanner: patterns => new oniguruma.OnigScanner(patterns),
+      createOnigString: text => new oniguruma.OnigString(text)
+    }),
+    loadGrammar: async () => textmate.parseRawGrammar(fs.readFileSync(path.join(__dirname, 'syntaxes', 'spit.tmLanguage.json'), 'utf8'), 'spit.tmLanguage.json')
+  });
+  const grammar = await registry.loadGrammar('source.spit');
+  let state = textmate.INITIAL;
+  const scopes = (line, word) => {
+    const result = grammar.tokenizeLine(line, state);
+    state = result.ruleStack;
+    const start = line.indexOf(word);
+    return result.tokens.find(token => token.startIndex <= start && start < token.endIndex).scopes.join(' ');
+  };
+  assert.match(scopes('    operation prep(', 'prep'), /entity.name.function.spit/);
+  assert.match(scopes('        images: many MRI<Native> @ min(2),', 'many'), /storage.modifier.cardinality.spit/);
+  assert.match(scopes('        reference: MRI<Native>', 'MRI'), /support.type.spit/);
+  assert.match(scopes('    ) -> (', '->'), /keyword.operator.arrow.spit/);
+  assert.match(scopes('        mask: MRI<Mask,Grid<Native>>,', 'mask'), /variable.parameter.port.spit/);
+  assert.match(scopes('        report: Json .json', '.json'), /constant.other.extension.spit/);
+  scopes('    ):', ')');
+  assert.match(scopes('        result = clean(images)', 'clean'), /entity.name.function.spit/);
+  assert.match(scopes('operation later(x: Image) -> Image', 'later'), /entity.name.function.spit/);
+});
