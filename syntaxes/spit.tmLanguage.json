@@ -10,6 +10,7 @@
     { "include": "#recipe-header" },
     { "include": "#use-line" },
     { "include": "#flow-declaration" },
+    { "include": "#entities-declaration" },
     { "include": "#drop-rule" },
     { "include": "#exclude-rule" },
     { "include": "#constraint-rule" },
@@ -181,6 +182,109 @@
           },
           "end": "$",
           "patterns": [{ "include": "#word-comment" }, { "include": "#brace-escape" }, { "include": "#path-group" }, { "include": "#path-placeholder" }]
+        }
+      ]
+    },
+    "entities-declaration": {
+      "patterns": [
+        {
+          "comment": "One assignment template for every product shape; an annotated product named entities still takes = outside braces.",
+          "begin": "^(\\s*)(entities)(:)(?=[^#]*(?:\\{key\\}|\\{value\\}|separated)|[^#=]*$)",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.spit"
+            },
+            "3": {
+              "name": "punctuation.separator.colon.spit"
+            }
+          },
+          "end": "$",
+          "patterns": [
+            {
+              "include": "#word-comment"
+            },
+            {
+              "name": "keyword.control.spit",
+              "match": "\\b(?:separated|empty)\\b"
+            },
+            {
+              "match": "(\\{)(key|value)(\\})",
+              "captures": {
+                "1": {
+                  "name": "punctuation.definition.template-expression.begin.spit"
+                },
+                "2": {
+                  "name": "variable.language.placeholder.spit"
+                },
+                "3": {
+                  "name": "punctuation.definition.template-expression.end.spit"
+                }
+              }
+            },
+            {
+              "patterns": [
+                {
+                  "name": "string.quoted.double.spit",
+                  "begin": "\"",
+                  "end": "\"",
+                  "patterns": [
+                    {
+                      "match": "(\\{)(key|value)(\\})",
+                      "captures": {
+                        "1": {
+                          "name": "punctuation.definition.template-expression.begin.spit"
+                        },
+                        "2": {
+                          "name": "variable.language.placeholder.spit"
+                        },
+                        "3": {
+                          "name": "punctuation.definition.template-expression.end.spit"
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "string.quoted.single.spit",
+                  "begin": "'",
+                  "end": "'",
+                  "patterns": [
+                    {
+                      "match": "(\\{)(key|value)(\\})",
+                      "captures": {
+                        "1": {
+                          "name": "punctuation.definition.template-expression.begin.spit"
+                        },
+                        "2": {
+                          "name": "variable.language.placeholder.spit"
+                        },
+                        "3": {
+                          "name": "punctuation.definition.template-expression.end.spit"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "match": "^(\\s*)(entities)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(:)\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*(?=#|$)",
+          "captures": {
+            "2": {
+              "name": "keyword.control.spit"
+            },
+            "3": {
+              "name": "variable.parameter.dimension.spit"
+            },
+            "4": {
+              "name": "punctuation.separator.colon.spit"
+            },
+            "5": {
+              "name": "constant.other.entity-label.spit"
+            }
+          }
         }
       ]
     },
