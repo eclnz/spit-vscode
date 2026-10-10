@@ -295,7 +295,6 @@ function providePathHints(document, range) {
     if (index < range.start.line || index > range.end.line || index >= document.lineCount) continue;
     const hint = new vscode.InlayHint(document.lineAt(index).range.end, label);
     hint.paddingLeft = true;
-    hint.tooltip = 'Where SPIT writes this output: its path rule, with its extension';
     hints.push(hint);
   }
   return hints;
