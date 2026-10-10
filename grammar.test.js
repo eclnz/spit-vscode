@@ -47,6 +47,29 @@ async function tokenizer() {
 
 const skip = !textmate && 'run npm install to test the grammar';
 
+test('entities templates and aliases highlight their roles without reserving product names', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'entities: {key}_{value} separated "-" empty "all"';
+  for (const keyword of ['entities', 'separated', 'empty']) {
+    assert.match(scopes(line, keyword), /keyword\.control\.spit/);
+  }
+  for (const name of ['key', 'value']) {
+    assert.match(scopes(line, name), /variable\.language\.placeholder\.spit/);
+    for (const quote of ['"', "'"]) {
+      const quoted = `entities: ${quote}{key}_{value}${quote} separated "-"`;
+      assert.match(scopes(quoted, name), /variable\.language\.placeholder\.spit/);
+    }
+  }
+  assert.match(scopes(line, '-'), /string\.quoted\.double\.spit/);
+  const alias = 'entities sub: subject';
+  assert.match(scopes(alias, 'entities'), /keyword\.control\.spit/);
+  assert.match(scopes(alias, 'sub'), /variable\.parameter\.dimension\.spit/);
+  assert.match(scopes(alias, 'subject'), /constant\.other\.entity-label\.spit/);
+  assert.match(scopes('entities = copy(raw)', 'entities'), /variable\.other\.product\.spit/);
+  assert.doesNotMatch(scopes('entities : Image [sub] = copy(raw)', 'entities'), /keyword\.control/);
+  assert.doesNotMatch(scopes('entities: Image [sub] = copy(raw)', 'entities'), /keyword\.control/);
+});
+
 test('path templates mark the built-in placeholders apart from dimensions', { skip }, async () => {
   const scopes = await tokenizer();
   const line = 'path t1_to_dwi_flirt: derivatives/{@stage}/{@product}/{@entities}_{sub}_{stage}.mat';
@@ -317,14 +340,16 @@ test('a recipe names its pipeline', { skip }, async () => {
   assert.doesNotMatch(scopes('pipeline = copy(raw)', 'pipeline'), /keyword\.control\.import/);
 });
 
-test('a recipe or a .spitout names its dataset root', { skip }, async () => {
+test('a pipeline, recipe or .spitout names its dataset root', { skip }, async () => {
   const scopes = await tokenizer();
   const line = 'root ../data  # where the dataset is';
   assert.match(scopes(line, 'root'), /keyword\.control\.import\.spit/);
   assert.match(scopes(line, '../data'), /string\.unquoted\.file\.spit/);
   assert.match(scopes(line, '# where'), /comment\.line/);
+  assert.match(scopes('root data=set', 'data=set'), /string\.unquoted\.file\.spit/);
   // A product or record called `root` stays one.
   assert.doesNotMatch(scopes('root = copy(raw)', 'root'), /keyword\.control\.import/);
+  assert.doesNotMatch(scopes('root : Text = copy(raw)', 'root'), /keyword\.control\.import/);
   assert.doesNotMatch(scopes('    root[sub=01]', 'root'), /keyword\.control\.import/);
 });
 
