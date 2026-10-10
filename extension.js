@@ -337,6 +337,12 @@ function hoverItems(result) {
 // Compiler details are plain text. Keep prose escaped, and only turn the
 // known code-bearing fields into code blocks.
 function appendHoverDetail(contents, detail) {
+  const body = /^(Carried out by the steps in its body|This call expands to): ([\s\S]+)$/.exec(detail);
+  if (body) {
+    contents.appendText(`${body[1]}:`).appendMarkdown('\n\n');
+    contents.appendCodeblock(body[2], 'spit');
+    return;
+  }
   const labelledCode = /^(Used by|Command|Verify|Type bindings|Stage): (.+)$/.exec(detail);
   if (labelledCode) {
     const [, label, value] = labelledCode;
@@ -393,8 +399,20 @@ async function provideHover(context, document, position, token) {
   contents.supportHtml = false;
   contents.appendCodeblock(item.code, 'spit');
   if (item.summary) contents.appendMarkdown(`\n\n${item.summary}`);
-  for (const detail of item.details || []) {
+  const details = item.details || [];
+  for (let index = 0; index < details.length; index++) {
+    const detail = details[index];
     contents.appendMarkdown('\n\n');
+    // Keep the call's port/product mappings together as one readable block.
+    // Each line is compiler plain text; code blocks escape embedded fences.
+    if (/^[^\n]+ [←→] [^\n]+$/.test(detail)) {
+      const bindings = [detail];
+      while (/^[^\n]+ [←→] [^\n]+$/.test(details[index + 1] || '')) {
+        bindings.push(details[++index]);
+      }
+      contents.appendCodeblock(bindings.join('\n'), 'spit');
+      continue;
+    }
     appendHoverDetail(contents, detail);
   }
   if (item.reference) contents.appendMarkdown(`\n\n[Language reference](${item.reference})`);

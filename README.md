@@ -25,8 +25,8 @@ The extension reads JSON diagnostics from `spit check` even when validation exit
 
 Hover over an operation or product in a `.spit` pipeline to see what the compiler knows about it, including qualified references to imported definitions.
 
-- Operations show their input and output ports, types, collection cardinality, aggregation contracts, and command and verification templates. At a call, the hover also shows the bound products, specialised input and output types, dimensions, and local generic type bindings.
-- Products show their inferred type and dimensions, declared type, producing step, consuming steps, stage, and effective path template. The path explanation names an explicit rule, inherited stage default, pipeline default, or built-in output default. Sources without a pipeline path rule say that a recipe or inventory must supply it.
+- Operation declarations show their generic signature and body, or their primitive matching behavior and command/verification templates. Calls show concrete port/product mappings and inferred types; composites show one concrete expansion instead of repeating their generic body. Primitive calls retain execution templates, type bindings and selector explanations. Long signatures and multiple outputs are laid out at port boundaries; bindings and expansions are grouped into code blocks.
+- Products show their inferred type and dimensions, a declared type only when it differs from inference, producing step, consuming steps, stage, and effective path template. The path explanation names an explicit rule, inherited stage default, pipeline default, or built-in output default. Sources without a pipeline path rule say that a recipe or inventory must supply it. Broken steps explicitly report unavailable inference. A product with many consumers lists eight readers and counts the remainder.
 
 For example, `cleaned = clean(raw)` with `source raw : Frame<Native> [sample]` and `operation clean(frame: Frame<S>) -> CleanFrame<S>` shows `S = Native` on the call and `cleaned: CleanFrame<Native> [sample]` on the product.
 

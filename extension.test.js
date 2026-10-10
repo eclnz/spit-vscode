@@ -654,7 +654,7 @@ test('hovers explain specialised operations and inferred products from unsaved t
     assert.match(operation.contents.value, /S = Native/);
     assert.match(operation.contents.value, /out: Frame<Native> \[id\]/);
     assert.ok(operation.contents.parts.some(part => part.code === 'S = Native'));
-    assert.ok(operation.contents.parts.some(part => part.code === 'output → out: Frame<Native> [id]'));
+    assert.ok(operation.contents.parts.some(part => part.code?.includes('output → out: Frame<Native> [id]')));
     assert.deepEqual(span(operation), [3, 6, 10]);
     const product = await hover(1);
     assert.match(product.contents.value, /out: Frame<Native> \[id\]/);
@@ -684,6 +684,49 @@ test('hovers explain specialised operations and inferred products from unsaved t
     onChange({ document });
     assert.equal(await stale, undefined, 'discard a check interrupted by a new document version');
     assert.match((await hover(1)).contents.value, /out: Frame<Current>/);
+  } finally {
+    extension.deactivate();
+  }
+});
+
+test('composite hovers present readable signatures, typed bindings and the relevant expansion', { skip: !fs.existsSync(binary) }, async () => {
+  const lines = [
+    'source raw_t1: MRI<T1w,Native,Original> [sub]',
+    'operation parcellate(image: MRI<$I,$Space,$Grid>) -> (parc: MRI<Parc,$Space,SynthGrid<$Grid>>, resampled: MRI<$I,$Space,SynthGrid<$Grid>>)',
+    'operation brainmask(image: MRI<Parc,$Space,$Grid>) -> MRI<Mask,$Space,$Grid>',
+    'operation prep_registration(image: MRI<$I,$Space,$Grid>) -> (parc: MRI<Parc,$Space,SynthGrid<$Grid>>, resampled: MRI<$I,$Space,SynthGrid<$Grid>>, mask: MRI<Mask,$Space,SynthGrid<$Grid>>):',
+    '    parc, resampled = parcellate(image)',
+    '    mask = brainmask(parc)',
+    't1_parc, t1_resampled, t1_mask = prep_registration(raw_t1)',
+    'command parcellate: tool {image} {parc} {resampled}',
+    'command brainmask: tool {image} {@output}'
+  ];
+  const document = fakeDocument(path.join(__dirname, 'registration.spit'), lines.join('\n'));
+  const hints = {};
+  const results = new Map();
+  const extension = load(mockVscode(document, results, () => {}, hints));
+  try {
+    extension.activate({ extensionPath: __dirname, subscriptions: [] });
+    const hover = line => hints.hover.provideHover(document, { line, character: lines[line].indexOf('prep_registration') });
+    const declaration = await hover(3);
+    const declaredCode = declaration.contents.parts.filter(part => part.code).map(part => part.code);
+    assert.match(declaredCode[0], /^operation prep_registration\(\n    image: MRI</);
+    assert.match(declaredCode[0], /\) -> \(\n    parc: MRI</);
+    assert.match(declaredCode[0], /,\n    resampled: MRI</);
+    assert.ok(declaredCode.includes('parc, resampled = parcellate(image)\nmask = brainmask(parc)'));
+    assert.doesNotMatch(declaration.contents.value, /This call expands to/);
+    const call = await hover(6);
+    const code = call.contents.parts.filter(part => part.code).map(part => part.code);
+    assert.doesNotMatch(call.contents.value, /Carried out by the steps in its body/);
+    const mappings = code.find(value => value.startsWith('image ←'));
+    assert.match(mappings, /image ← raw_t1: MRI<T1w,Native,Original> \[sub\]/);
+    assert.match(mappings, /\nmask → t1_mask: MRI<Mask,Native,SynthGrid<Original>> \[sub\]/);
+    assert.ok(code.includes('t1_parc, t1_resampled = parcellate(raw_t1)\nt1_mask = brainmask(t1_parc)'));
+    assert.equal(code.filter(value => value.includes('= parcellate(')).length, 1);
+    assert.equal(call.contents.isTrusted, false);
+    assert.equal(call.contents.supportHtml, false);
+    assert.ok(call.contents.parts.filter(part => part.markdown).every(part => part.markdown === '\n\n'));
+    assert.deepEqual(results.get(document.uri.toString()), []);
   } finally {
     extension.deactivate();
   }
