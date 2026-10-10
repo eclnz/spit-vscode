@@ -142,6 +142,29 @@
           }
         },
         {
+          "comment": "`with:`, `with operation name:` or `with product name:`, then `key=value` properties. A step's output named `with` stays a step.",
+          "begin": "^(\\s*)(with)(?:\\s+(operation|product)\\s+([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*))?\\s*(:)(?=\\s*(?:[a-z][a-z0-9_]*=|$|#))",
+          "beginCaptures": {
+            "2": { "name": "keyword.control.spit" },
+            "3": { "name": "keyword.other.spit" },
+            "4": { "name": "variable.other.product.spit" },
+            "5": { "name": "punctuation.separator.colon.spit" }
+          },
+          "end": "$",
+          "patterns": [
+            { "include": "#comments" },
+            { "include": "#strings" },
+            {
+              "match": "([a-z][a-z0-9_]*)(=)(-)?",
+              "captures": {
+                "1": { "name": "variable.parameter.property.spit" },
+                "2": { "name": "keyword.operator.assignment.spit" },
+                "3": { "name": "constant.language.spit" }
+              }
+            }
+          ]
+        },
+        {
           "comment": "`path:` or `path product:`, then a template.",
           "begin": "^(\\s*)(path)(?:\\s+([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*))?\\s*(:)",
           "beginCaptures": {

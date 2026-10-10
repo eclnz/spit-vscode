@@ -334,6 +334,22 @@ test('ext: sets the extension a default path is completed with', { skip }, async
   assert.doesNotMatch(scopes('ext: Image = copy(raw)', 'ext'), /keyword\.control/);
 });
 
+test('with lines mark their target and their key=value properties', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = '    with operation denoise: cpus=8 queue="long jobs" mem=-  # per job';
+  assert.match(scopes(line, 'with'), /keyword\.control\.spit/);
+  assert.match(scopes(line, 'operation'), /keyword\.other\.spit/);
+  assert.match(scopes(line, 'denoise'), /variable\.other\.product\.spit/);
+  assert.match(scopes(line, 'cpus'), /variable\.parameter\.property\.spit/);
+  assert.match(scopes(line, '"long jobs"'), /string/);
+  assert.match(scopes(line, '-', line.indexOf('mem=')), /constant\.language\.spit/);
+  assert.match(scopes(line, '# per job'), /comment\.line/);
+  assert.match(scopes('with: cpus=1', 'with'), /keyword\.control\.spit/);
+  // A step's output named `with` stays a step.
+  assert.doesNotMatch(scopes('with: Image = copy(raw)', 'with'), /keyword\.control/);
+  assert.doesNotMatch(scopes('with = copy(raw)', 'with'), /keyword\.control/);
+});
+
 test('a source beside another highlights its suffix and anchor', { skip }, async () => {
   const scopes = await tokenizer();
   const anchor = 'source raw_photo : Image .raw [site, shot]';
