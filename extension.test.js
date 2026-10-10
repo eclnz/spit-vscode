@@ -333,6 +333,36 @@ test('shows each output path with its groups resolved and labels written out', {
   extension.deactivate();
 });
 
+test('shows custom entities for each shape and drops an empty optional group', { skip: !fs.existsSync(binary) }, async () => {
+  const hints = {};
+  const document = fakeDocument(path.join(__dirname, 'entities.spit'), [
+    'entities: {key}_{value} separated "-" empty ""',
+    'entities sub: subject',
+    'path: out/[{@entities}_]{@product}.img',
+    'source scan [sub, ses]',
+    'path scan: in/{sub}/{ses}.raw',
+    'operation copy(input)',
+    'operation merge(inputs: many)',
+    'copied = copy(scan)',
+    'merged = merge(copied @ vary(ses))',
+    'all = merge(merged @ vary(sub))',
+    ''
+  ].join('\n'));
+  const extension = load(mockVscode(document, new Map(), () => {}, hints));
+  extension.activate({ extensionPath: __dirname, subscriptions: [] });
+  try {
+    const shown = () => hints.provider.provideInlayHints(document, new Range(0, 0, document.lineCount, 0));
+    await until(() => shown().length === 3);
+    assert.deepEqual(shown().map(hint => hint.label), [
+      '→ out/subject_{sub}-ses_{ses}_copied.img',
+      '→ out/subject_{sub}_merged.img',
+      '→ out/all.img'
+    ]);
+  } finally {
+    extension.deactivate();
+  }
+});
+
 test('shows where each output is written at the end of its step', { skip: !fs.existsSync(binary) }, async () => {
   const hints = {};
   let changed = 0;
