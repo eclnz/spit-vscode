@@ -86,7 +86,7 @@ test('path templates mark the built-in placeholders apart from dimensions', { sk
 
 test('path templates mark optional groups, literal brackets and labels', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = 'path: derivatives/sub-{sub}[/ses-{ses}][[x]]/{@labels}_{@product}';
+  const line = 'default path: derivatives/sub-{sub}[/ses-{ses}][[x]]/{@labels}_{@product}';
   assert.match(scopes(line, '[', line.indexOf('[/')), /punctuation\.definition\.optional\.spit/);
   assert.match(scopes(line, ']', line.indexOf('}]') + 1), /punctuation\.definition\.optional\.spit/);
   assert.match(scopes(line, '[[', line.indexOf('[[')), /constant\.character\.escape\.bracket\.spit/);
@@ -157,14 +157,15 @@ test('exclude rules highlight a product or an external file', { skip }, async ()
 
 test('a default path rule, a comment, and escaped braces', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = '    path: out/{{literal}}/{run}.txt # per stage';
+  const line = '    default path: out/{{literal}}/{run}.txt # per stage';
+  assert.match(scopes(line, 'default'), /keyword\.control\.spit/);
   assert.match(scopes(line, 'path'), /keyword\.control\.spit/);
   assert.match(scopes(line, '{{'), /constant\.character\.escape\.brace\.spit/);
   assert.doesNotMatch(scopes(line, 'literal'), /placeholder/);
   assert.match(scopes(line, 'run'), /variable\.parameter\.placeholder\.dimension\.spit/);
   assert.match(scopes(line, '# per stage'), /comment\.line/);
   // As in SPIT, a `#` inside a word is not a comment.
-  assert.doesNotMatch(scopes('path: out/#tag/{@entities}', '#tag'), /comment/);
+  assert.doesNotMatch(scopes('default path: out/#tag/{@entities}', '#tag'), /comment/);
 });
 
 test('a product called `path` is still a step', { skip }, async () => {
@@ -277,14 +278,40 @@ test('an output written beside another names its suffix and sibling', { skip }, 
   assert.match(scopes(line, '.txt'), /constant\.other\.extension\.spit/);
 });
 
-test('ext: sets the extension a default path is completed with', { skip }, async () => {
+test('default ext: sets the extension a default path is completed with', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = '    ext: .nii.gz  # images in this stage';
+  const line = '    default ext: .nii.gz  # images in this stage';
+  assert.match(scopes(line, 'default'), /keyword\.control\.spit/);
   assert.match(scopes(line, 'ext'), /keyword\.control\.spit/);
   assert.match(scopes(line, '.nii.gz'), /constant\.other\.extension\.spit/);
   assert.match(scopes(line, '# images'), /comment\.line/);
   // A step's output named `ext` stays a step.
   assert.doesNotMatch(scopes('ext: Image = copy(raw)', 'ext'), /keyword\.control/);
+});
+
+test('a default: block holds path:, ext: and check: lines, and default check: lists checks', { skip }, async () => {
+  const scopes = await tokenizer();
+  const lines = [
+    'stage preprocess:',
+    '    default:  # this stage\'s outputs',
+    '        path: work/{@stage}/{@product}/{@entities}',
+    '        ext: .nii.gz',
+    '        check: nonempty, !ndim(3)',
+    '    cleaned = denoise(raw)'
+  ];
+  assert.match(scopes.inFile(lines, 1, 'default'), /keyword\.control\.spit/);
+  assert.match(scopes.inFile(lines, 1, ':'), /punctuation\.separator\.colon\.spit/);
+  assert.match(scopes.inFile(lines, 1, '# this'), /comment\.line/);
+  assert.match(scopes.inFile(lines, 2, 'path'), /keyword\.control\.spit/);
+  assert.match(scopes.inFile(lines, 2, '@stage'), /variable\.language\.placeholder\.spit/);
+  assert.match(scopes.inFile(lines, 3, '.nii.gz'), /constant\.other\.extension\.spit/);
+  assert.match(scopes.inFile(lines, 4, 'check'), /keyword\.control\.spit/);
+  const list = 'default check: nonempty';
+  assert.match(scopes(list, 'default'), /keyword\.control\.spit/);
+  assert.match(scopes(list, 'check'), /keyword\.control\.spit/);
+  // A product named `default` or `check` is still a step.
+  assert.doesNotMatch(scopes('default = copy(raw)', 'default'), /keyword\.control/);
+  assert.doesNotMatch(scopes('check: Report = copy(raw)', 'check'), /keyword\.control/);
 });
 
 test('a sidecars block names its group, dimensions, stem and extensions', { skip }, async () => {
@@ -379,8 +406,8 @@ test('a shape after a source placeholder\'s colon is marked in path rules', { sk
   assert.match(scopes(run, 'run', run.indexOf('{run')), /variable\.parameter\.placeholder\.dimension\.spit/);
   assert.match(scopes(run, 'digits'), /constant\.language\.shape\.spit/);
   assert.match(scopes(run, ':', run.indexOf('{run')), /punctuation\.separator\.colon\.spit/);
-  // A recipe's default `path:` and a source's `path source:` are path rules too.
-  const year = '    path: data/{site}/{year:year}/{@product}';
+  // A recipe's `default path:` and a source's `path source:` are path rules too.
+  const year = 'default path: data/{site}/{year:year}/{@product}';
   assert.match(scopes(year, 'year', year.indexOf(':year') + 1), /constant\.language\.shape\.spit/);
   // A word that is not a shape is not marked as one.
   assert.doesNotMatch(scopes('path run: raw/{run:other}.csv', 'other'), /shape/);

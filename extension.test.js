@@ -313,8 +313,8 @@ test('a library error and the pipeline\'s later error on the same line are each 
 test('shows each output path with its groups resolved and labels written out', { skip: !fs.existsSync(binary) }, async () => {
   const hints = {};
   const document = fakeDocument(path.join(__dirname, 'labels.spit'), [
-    'path: out/sub-{sub}[/ses-{ses}]/{@labels}_{@product}',
-    'ext: .img',
+    'default path: out/sub-{sub}[/ses-{ses}]/{@labels}_{@product}',
+    'default ext: .img',
     'source scan : Image [sub, ses]',
     'path scan: in/{sub}/{ses}.raw',
     'operation copy(input: Image) -> Image',
@@ -338,7 +338,7 @@ test('shows custom entities for each shape and drops an empty optional group', {
   const document = fakeDocument(path.join(__dirname, 'entities.spit'), [
     'entities: {key}_{value} separated "-" empty ""',
     'entities sub: subject',
-    'path: out/[{@entities}_]{@product}.img',
+    'default path: out/[{@entities}_]{@product}.img',
     'source scan [sub, ses]',
     'path scan: in/{sub}/{ses}.raw',
     'operation copy(input)',
@@ -367,8 +367,8 @@ test('shows where each output is written at the end of its step', { skip: !fs.ex
   const hints = {};
   let changed = 0;
   const document = fakeDocument(path.join(__dirname, 'paths.spit'), [
-    'path: out/{@product}/{@entities}',
-    'ext: .img',
+    'default path: out/{@product}/{@entities}',
+    'default ext: .img',
     'source raw : Image [id]',
     'path raw: in/{id}.raw',
     'operation copy(input: Image) -> Image',
@@ -636,7 +636,7 @@ test('hovers explain specialised operations and inferred products from unsaved t
   const document = fakeDocument(path.join(__dirname, 'hover.spit'), [
     'source raw: Frame<Native> [id]',
     'operation copy(input: Frame<S>) -> Frame<S>',
-    'path: result/{@product}/{@entities}.txt',
+    'default path: result/{@product}/{@entities}.txt',
     'out = copy(raw)',
     ''
   ].join('\n'));
