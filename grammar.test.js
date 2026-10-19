@@ -47,7 +47,7 @@ async function tokenizer() {
 
 const skip = !textmate && 'run npm install to test the grammar';
 
-test('entities templates and aliases highlight their roles without reserving product names', { skip }, async () => {
+test('entities templates and aliases highlight their roles, and the word is reserved', { skip }, async () => {
   const scopes = await tokenizer();
   const line = 'entities: {key}_{value} separated "-" empty "all"';
   for (const keyword of ['entities', 'separated', 'empty']) {
@@ -65,9 +65,8 @@ test('entities templates and aliases highlight their roles without reserving pro
   assert.match(scopes(alias, 'entities'), /keyword\.control\.spit/);
   assert.match(scopes(alias, 'sub'), /variable\.parameter\.dimension\.spit/);
   assert.match(scopes(alias, 'subject'), /constant\.other\.entity-label\.spit/);
-  assert.match(scopes('entities = copy(raw)', 'entities'), /variable\.other\.product\.spit/);
-  assert.doesNotMatch(scopes('entities : Image [sub] = copy(raw)', 'entities'), /keyword\.control/);
-  assert.doesNotMatch(scopes('entities: Image [sub] = copy(raw)', 'entities'), /keyword\.control/);
+  // A product may not be named `entities`, so the word is always the keyword.
+  assert.match(scopes('entities: Image [sub] = copy(raw)', 'entities'), /keyword\.control\.spit/);
 });
 
 test('path templates mark the built-in placeholders apart from dimensions', { skip }, async () => {
@@ -285,8 +284,8 @@ test('default ext: sets the extension a default path is completed with', { skip 
   assert.match(scopes(line, 'ext'), /keyword\.control\.spit/);
   assert.match(scopes(line, '.nii.gz'), /constant\.other\.extension\.spit/);
   assert.match(scopes(line, '# images'), /comment\.line/);
-  // A step's output named `ext` stays a step.
-  assert.doesNotMatch(scopes('ext: Image = copy(raw)', 'ext'), /keyword\.control/);
+  // A product may not be named `ext`, so the word is always the keyword.
+  assert.match(scopes('ext: Image = copy(raw)', 'ext'), /keyword\.control\.spit/);
 });
 
 test('a default: block holds path:, ext: and check: lines, and default check: lists checks', { skip }, async () => {
@@ -309,9 +308,8 @@ test('a default: block holds path:, ext: and check: lines, and default check: li
   const list = 'default check: nonempty';
   assert.match(scopes(list, 'default'), /keyword\.control\.spit/);
   assert.match(scopes(list, 'check'), /keyword\.control\.spit/);
-  // A product named `default` or `check` is still a step.
-  assert.doesNotMatch(scopes('default = copy(raw)', 'default'), /keyword\.control/);
-  assert.doesNotMatch(scopes('check: Report = copy(raw)', 'check'), /keyword\.control/);
+  // A product may not be named `check`, so the word is always the keyword.
+  assert.match(scopes('check: Report = copy(raw)', 'check'), /keyword\.control\.spit/);
 });
 
 test('a keyword alone with its colon opens a block of its statements, written without it', { skip }, async () => {
@@ -419,9 +417,10 @@ test('a pipeline, recipe or .spitout names its dataset root', { skip }, async ()
   assert.match(scopes(line, '../data'), /string\.unquoted\.file\.spit/);
   assert.match(scopes(line, '# where'), /comment\.line/);
   assert.match(scopes('root data=set', 'data=set'), /string\.unquoted\.file\.spit/);
-  // A product or record called `root` stays one.
-  assert.doesNotMatch(scopes('root = copy(raw)', 'root'), /keyword\.control\.import/);
-  assert.doesNotMatch(scopes('root : Text = copy(raw)', 'root'), /keyword\.control\.import/);
+  // A product may not be named `root`, so the word is always the keyword,
+  // though a .spitout's record may still be called `root[...]`.
+  assert.match(scopes('root = copy(raw)', 'root'), /keyword\.control\.import/);
+  assert.match(scopes('root : Text = copy(raw)', 'root'), /keyword\.control\.import/);
   assert.doesNotMatch(scopes('    root[sub=01]', 'root'), /keyword\.control\.import/);
 });
 

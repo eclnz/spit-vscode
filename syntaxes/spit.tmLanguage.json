@@ -113,8 +113,8 @@
       ]
     },
     "input-header": {
-      "comment": "A .spitin names its pipeline; pipelines, recipes and saved inventories can name a dataset root. Definitions and records named root remain names.",
-      "match": "^(\\s*)(pipeline|root)\\s+([^\\s=:#][^#]*?)\\s*(?=#|$)",
+      "comment": "A .spitin names its pipeline; pipelines, recipes and saved inventories can name a dataset root. `root` is reserved, so a line starting with it is this keyword, though a .spitout record may still be called `root[...]`; `pipeline` is no keyword of a pipeline, so a product may take its name.",
+      "match": "^(\\s*)(pipeline(?=\\s+[^\\s=:#])|root(?=\\s|$))(?:\\s+([^\\s=:#][^#]*?)\\s*(?=#|$))?",
       "captures": {
         "2": { "name": "keyword.control.import.spit" },
         "3": { "name": "string.unquoted.file.spit" }
@@ -690,7 +690,7 @@
         },
         {
           "comment": "`default ext:`, or `ext:` in a `default:` block: the extension a default path is completed with.",
-          "match": "^(\\s*)(?:(default)\\s+)?(ext)\\s*(:)(?![^#]*=)\\s*((?:\\.[A-Za-z0-9_-]+)+)?",
+          "match": "^(\\s*)(?:(default)\\s+)?(ext)\\s*(:)\\s*((?:\\.[A-Za-z0-9_-]+)+)?",
           "captures": {
             "2": { "name": "keyword.control.spit" },
             "3": { "name": "keyword.control.spit" },
@@ -700,7 +700,7 @@
         },
         {
           "comment": "`default check:`, or `check:` in a `default:` block: the checks every output in a file or stage runs.",
-          "match": "^(\\s*)(?:(default)\\s+)?(check)\\s*(:)(?![^#()]*=)",
+          "match": "^(\\s*)(?:(default)\\s+)?(check)\\s*(:)",
           "captures": {
             "2": { "name": "keyword.control.spit" },
             "3": { "name": "keyword.control.spit" },
@@ -724,8 +724,8 @@
     "entities-declaration": {
       "patterns": [
         {
-          "comment": "One assignment template for every product shape; an annotated product named entities still takes = outside braces.",
-          "begin": "^(\\s*)(entities)(:)(?=[^#]*(?:\\{key\\}|\\{value\\}|separated)|[^#=]*$)",
+          "comment": "The entities template: `{key}` and `{value}`, joined by the text `separated` names.",
+          "begin": "^(\\s*)(entities)(:)",
           "beginCaptures": {
             "2": {
               "name": "keyword.control.spit"
