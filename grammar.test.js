@@ -314,6 +314,51 @@ test('a default: block holds path:, ext: and check: lines, and default check: li
   assert.doesNotMatch(scopes('check: Report = copy(raw)', 'check'), /keyword\.control/);
 });
 
+test('a keyword alone with its colon opens a block of its statements, written without it', { skip }, async () => {
+  const scopes = await tokenizer();
+  const lines = [
+    'source:',
+    '    bold : Bold [sub, run]',
+    '# a comment at the edge does not end the block',
+    '    t1w : T1w [sub]',
+    'operation:',
+    '    twice(x: Bold) -> (out: Bold):',
+    '        out = step(x)',
+    'command:',
+    '    register: flirt -in {bold}',
+    '        -out {@output}',
+    'stage s:',
+    '    path:',
+    '        cleaned: out/{@stage}/{@entities}',
+    '    cleaned = clean(bold)',
+    'require:',
+    '    [sub] where t1w count=1',
+    'exclude:',
+    '    bold[sub=2]'
+  ];
+  assert.match(scopes.inFile(lines, 0, 'source'), /keyword\.control\.spit/);
+  assert.match(scopes.inFile(lines, 1, 'bold'), /variable\.other\.product\.spit/);
+  assert.match(scopes.inFile(lines, 1, 'Bold'), /support\.type\.spit/);
+  assert.match(scopes.inFile(lines, 3, 't1w'), /variable\.other\.product\.spit/);
+  assert.match(scopes.inFile(lines, 4, 'operation'), /keyword\.control\.spit/);
+  assert.match(scopes.inFile(lines, 5, 'twice'), /entity\.name\.function\.spit/);
+  assert.match(scopes.inFile(lines, 5, 'Bold'), /support\.type\.spit/);
+  assert.match(scopes.inFile(lines, 6, '='), /keyword\.operator\.assignment\.spit/);
+  assert.match(scopes.inFile(lines, 8, 'register'), /entity\.name\.function\.spit/);
+  assert.match(scopes.inFile(lines, 8, '{bold}'), /variable\.parameter\.placeholder\.spit/);
+  // A command goes on over the lines indented beneath it.
+  assert.match(scopes.inFile(lines, 9, '@output'), /variable\.language\.placeholder\.spit/);
+  assert.match(scopes.inFile(lines, 10, 's', 6), /entity\.name\.section\.stage\.spit/);
+  assert.match(scopes.inFile(lines, 11, 'path'), /keyword\.control\.spit/);
+  assert.match(scopes.inFile(lines, 12, 'cleaned'), /variable\.other\.product\.spit/);
+  assert.match(scopes.inFile(lines, 12, '@stage'), /variable\.language\.placeholder\.spit/);
+  // The block ends at the stage's next step.
+  assert.match(scopes.inFile(lines, 13, '='), /keyword\.operator\.assignment\.spit/);
+  assert.match(scopes.inFile(lines, 15, 'where'), /keyword\.control\.constraint\.spit/);
+  assert.match(scopes.inFile(lines, 15, 't1w'), /variable\.other\.product\.spit/);
+  assert.match(scopes.inFile(lines, 17, 'bold'), /variable\.other\.product\.spit/);
+});
+
 test('a sidecars block names its group, dimensions, stem and extensions', { skip }, async () => {
   const scopes = await tokenizer();
   const header = 'sidecars photo [site, shot]:  # with its pose';
