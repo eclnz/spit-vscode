@@ -10,12 +10,12 @@ const binary = process.env.SPIT_TEST_EXECUTABLE || path.resolve(__dirname, '..',
 test('checks unsaved edits and clears fixed errors', { skip: !fs.existsSync(binary) }, async () => {
   let onChange;
   const results = new Map();
-  const document = fakeDocument(path.join(__dirname, 'unsaved.spit'), 'source raw [id]\noperation copy(input)\nresult = copy(raw)\nlater = copy(raw)\n');
+  const document = fakeDocument(path.join(__dirname, 'unsaved.spit'), 'source raw [id]\noperation copy(input)\nresult = copy(raw)\nlater = copy(raw)\npath result: out/result/{id}.txt\npath later: out/later/{id}.txt\n');
   const extension = load(mockVscode(document, results, callback => { onChange = callback; }));
 
   extension.activate({ extensionPath: __dirname, subscriptions: [] });
   await until(() => results.get(document.uri.toString())?.length === 0);
-  document.text = 'source raw [id]\noperation copy(input)\nresult copy(raw)\nlater = copy(raw\n';
+  document.text = 'source raw [id]\noperation copy(input)\nresult copy(raw)\nlater = copy(raw\npath result: out/result/{id}.txt\npath later: out/later/{id}.txt\n';
   document.version++;
   onChange({ document });
   await until(() => results.get(document.uri.toString())?.length === 2);
@@ -34,12 +34,12 @@ test('checks unsaved edits and clears fixed errors', { skip: !fs.existsSync(bina
   await until(() => results.get(document.uri.toString())?.length === 1);
   assert.equal(results.get(document.uri.toString())[0].range.start.line, 3);
 
-  document.text = 'source raw [id]\noperation copy(input)\nresult = copy(raw)\nlater = copy(raw)\n';
+  document.text = 'source raw [id]\noperation copy(input)\nresult = copy(raw)\nlater = copy(raw)\npath result: out/result/{id}.txt\npath later: out/later/{id}.txt\n';
   document.version++;
   onChange({ document });
   await until(() => results.get(document.uri.toString())?.length === 0);
 
-  document.text = 'source raw [id]\nsource spare [id]\noperation copy(input)\nresult = copy(raw)\n';
+  document.text = 'source raw [id]\nsource spare [id]\noperation copy(input)\nresult = copy(raw)\npath result: out/result/{id}.txt\n';
   document.version++;
   onChange({ document });
   await until(() => results.get(document.uri.toString())?.length === 1);
@@ -107,7 +107,7 @@ if (mode === 'json') {
 
 test('checks a recipe against the pipeline it names', { skip: !fs.existsSync(binary) }, async () => {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-'));
-  fs.writeFileSync(path.join(folder, 'analysis.spit'), 'source raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\n');
+  fs.writeFileSync(path.join(folder, 'analysis.spit'), 'source raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\npath result: out/result/{id}.txt\n');
   let onChange;
   const results = new Map();
   const document = fakeDocument(path.join(folder, 'cohort.spitin'), 'pipeline analysis.spit\nroot .\nrequire [id] where raw count>=1\n');
@@ -131,7 +131,7 @@ test('checks a recipe against the pipeline it names', { skip: !fs.existsSync(bin
 
 test('a recipe inherits an inline root and marks a duplicate on the recipe', { skip: !fs.existsSync(binary) }, async () => {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-inline-'));
-  fs.writeFileSync(path.join(folder, 'analysis.spit'), 'root .\nsource raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\n');
+  fs.writeFileSync(path.join(folder, 'analysis.spit'), 'root .\nsource raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\npath result: out/result/{id}.txt\n');
   const document = fakeDocument(path.join(folder, 'cohort.spitin'), 'pipeline analysis.spit\nrequire [id] where raw count>=1\n');
   const results = new Map();
   let onChange;
@@ -153,7 +153,7 @@ test('a recipe inherits an inline root and marks a duplicate on the recipe', { s
 
 test('an unsaved inline root shows its hover and missing-folder warning', { skip: !fs.existsSync(binary) }, async () => {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-root-'));
-  const document = fakeDocument(path.join(folder, 'analysis.spit'), 'root missing\nsource raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\n');
+  const document = fakeDocument(path.join(folder, 'analysis.spit'), 'root missing\nsource raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\npath result: out/result/{id}.txt\n');
   const results = new Map();
   const hints = {};
   const extension = load(mockVscode(document, results, () => {}, hints));
@@ -175,7 +175,7 @@ test('an unsaved inline root shows its hover and missing-folder warning', { skip
 test('places a recipe check\'s pipeline error on the pipeline file', { skip: !fs.existsSync(binary) }, async () => {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-pipeline-'));
   const pipeline = path.join(folder, 'analysis.spit');
-  fs.writeFileSync(pipeline, 'source raw [id]\noperation copy(input)\nresult = copy(rwa)\npath raw: in/{id}.txt\n');
+  fs.writeFileSync(pipeline, 'source raw [id]\noperation copy(input)\nresult = copy(rwa)\npath raw: in/{id}.txt\npath result: out/result/{id}.txt\n');
   const results = new Map();
   let onChange;
   const document = fakeDocument(path.join(folder, 'data.spitin'), 'pipeline analysis.spit\nroot .\n');
@@ -187,7 +187,7 @@ test('places a recipe check\'s pipeline error on the pipeline file', { skip: !fs
     assert.match(results.get(`file://${pipeline}`)[0].message, /unknown product `rwa`/);
     assert.deepEqual(results.get(document.uri.toString()), []);
 
-    fs.writeFileSync(pipeline, 'source raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\n');
+    fs.writeFileSync(pipeline, 'source raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\npath result: out/result/{id}.txt\n');
     document.version++;
     onChange({ document });
     await until(() => results.get(document.uri.toString())?.length === 0 && !results.has(`file://${pipeline}`));
@@ -310,11 +310,12 @@ test('a library error and the pipeline\'s later error on the same line are each 
   }
 });
 
-test('shows each output path with its groups resolved and labels written out', { skip: !fs.existsSync(binary) }, async () => {
+test('shows each output path with its groups resolved and BIDS-style entities written out', { skip: !fs.existsSync(binary) }, async () => {
   const hints = {};
   const document = fakeDocument(path.join(__dirname, 'labels.spit'), [
-    'path: out/sub-{sub}[/ses-{ses}]/{@labels}_{@product}',
-    'ext: .img',
+    'default entities: {@key}-{@value} separated "_"',
+    'default path: out/sub-{sub}[/ses-{ses}]/{@entities}_{@product}',
+    'default ext: .img',
     'source scan : Image [sub, ses]',
     'path scan: in/{sub}/{ses}.raw',
     'operation copy(input: Image) -> Image',
@@ -333,12 +334,12 @@ test('shows each output path with its groups resolved and labels written out', {
   extension.deactivate();
 });
 
-test('shows custom entities for each shape and drops an empty optional group', { skip: !fs.existsSync(binary) }, async () => {
+test('shows the entities spelling for each shape and drops the group of a product with no dimensions', { skip: !fs.existsSync(binary) }, async () => {
   const hints = {};
   const document = fakeDocument(path.join(__dirname, 'entities.spit'), [
-    'entities: {key}_{value} separated "-" empty ""',
-    'entities sub: subject',
-    'path: out/[{@entities}_]{@product}.img',
+    'default entities: {@key}_{@value} separated "-"',
+    'default entities sub: subject',
+    'default path: out/[{@entities}_]{@product}.img',
     'source scan [sub, ses]',
     'path scan: in/{sub}/{ses}.raw',
     'operation copy(input)',
@@ -367,8 +368,9 @@ test('shows where each output is written at the end of its step', { skip: !fs.ex
   const hints = {};
   let changed = 0;
   const document = fakeDocument(path.join(__dirname, 'paths.spit'), [
-    'path: out/{@product}/{@entities}',
-    'ext: .img',
+    'default entities: {@key}={@value} separated "__"',
+    'default path: out/{@product}/{@entities}',
+    'default ext: .img',
     'source raw : Image [id]',
     'path raw: in/{id}.raw',
     'operation copy(input: Image) -> Image',
@@ -385,10 +387,10 @@ test('shows where each output is written at the end of its step', { skip: !fs.ex
   assert.ok(changed > 0);
   const [copied, aligned] = shown();
   // At the end of each step's line, the source's own rule needing no hint.
-  assert.deepEqual([copied.position.line, copied.position.character], [6, 18]);
-  assert.equal(copied.label, '→ out/copied/{@entities}.img');
-  assert.equal(aligned.position.line, 7);
-  assert.equal(aligned.label, 'matrix → out/matrix/{@entities}.mat  log → out/log/{@entities}.txt');
+  assert.deepEqual([copied.position.line, copied.position.character], [7, 18]);
+  assert.equal(copied.label, '→ out/copied/id={id}.img');
+  assert.equal(aligned.position.line, 8);
+  assert.equal(aligned.label, 'matrix → out/matrix/id={id}.mat  log → out/log/id={id}.txt');
   extension.deactivate();
 });
 
@@ -636,7 +638,7 @@ test('hovers explain specialised operations and inferred products from unsaved t
   const document = fakeDocument(path.join(__dirname, 'hover.spit'), [
     'source raw: Frame<Native> [id]',
     'operation copy(input: Frame<S>) -> Frame<S>',
-    'path: result/{@product}/{@entities}.txt',
+    'default path: result/{@product}/{@entities}.txt',
     'out = copy(raw)',
     ''
   ].join('\n'));
@@ -699,7 +701,8 @@ test('composite hovers present readable signatures, typed bindings and the relev
     '    mask = brainmask(parc)',
     't1_parc, t1_resampled, t1_mask = prep_registration(raw_t1)',
     'command parcellate: tool {image} {parc} {resampled}',
-    'command brainmask: tool {image} {@output}'
+    'command brainmask: tool {image} {@output}',
+    'default path: out/{@product}/sub-{sub}'
   ];
   const document = fakeDocument(path.join(__dirname, 'registration.spit'), lines.join('\n'));
   const hints = {};
@@ -842,7 +845,7 @@ const child = spawn(${JSON.stringify(binary)}, process.argv.slice(2), { stdio: '
 child.on('error', error => { console.error(error); process.exitCode = 1; });
 child.on('close', code => { process.exitCode = code ?? 1; });
 `, { mode: 0o755 });
-  const document = fakeDocument(path.join(folder, 'cached.spit'), 'source raw [id]\noperation copy(input)\nout = copy(raw)\n');
+  const document = fakeDocument(path.join(folder, 'cached.spit'), 'source raw [id]\noperation copy(input)\nout = copy(raw)\npath out: out/{id}.txt\n');
   const results = new Map();
   let onChange;
   const vscode = mockVscode(document, results, callback => { onChange = callback; });
@@ -931,7 +934,7 @@ test('a recipe and a .spitout explain SPIT\'s words, and a .spitout\'s records a
 
 test('hovering shows SPIT\'s explanation of a shape on a source placeholder', { skip: !fs.existsSync(binary) }, async () => {
   const hints = {};
-  const text = 'source log [server, date]\noperation copy(input)\nresult = copy(log)\npath log: logs/{server}/{date:date}.log\n';
+  const text = 'source log [server, date]\noperation copy(input)\nresult = copy(log)\npath log: logs/{server}/{date:date}.log\npath result: out/{server}/{date}.txt\n';
   const document = fakeDocument(path.join(__dirname, 'shape.spit'), text);
   const results = new Map();
   const extension = load(mockVscode(document, results, () => {}, hints));

@@ -19,7 +19,7 @@
     ["{", "}"]
   ],
   "indentationRules": {
-    "increaseIndentPattern": "^\\s*(stage\\s+[A-Za-z_][A-Za-z0-9_]*|products|operations|pipeline|constraints|commands|sources|contexts)\\s*:\\s*(#.*)?$",
+    "increaseIndentPattern": "^\\s*((stage\\s+[A-Za-z_][A-Za-z0-9_]*|default|source|operation|command|verify|check|path|require|exclude|products|operations|pipeline|constraints|commands|sources|contexts)\\s*:|operation\\s.*\\)[^#]*:)\\s*(#.*)?$",
     "decreaseIndentPattern": "^(?!)"
   },
   "folding": {
