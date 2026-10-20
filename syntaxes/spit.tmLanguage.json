@@ -1176,7 +1176,7 @@
       "patterns": [
         {
           "comment": "SPIT's own placeholders, which take `@` to tell them from dimensions.",
-          "match": "(\\{)(@(?:product|entities|labels|stage))(\\})",
+          "match": "(\\{)(@(?:product|entities|stage))(\\})",
           "captures": {
             "1": { "name": "punctuation.definition.template-expression.begin.spit" },
             "2": { "name": "variable.language.placeholder.spit" },

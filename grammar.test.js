@@ -83,15 +83,17 @@ test('path templates mark the built-in placeholders apart from dimensions', { sk
   assert.match(scopes(line, '{', line.indexOf('{sub')), /punctuation\.definition\.template-expression\.begin/);
 });
 
-test('path templates mark optional groups, literal brackets and labels', { skip }, async () => {
+test('path templates mark optional groups and literal brackets, and `{@labels}` is no placeholder', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = 'default path: derivatives/sub-{sub}[/ses-{ses}][[x]]/{@labels}_{@product}';
+  const line = 'default path: derivatives/sub-{sub}[/ses-{ses}][[x]]/{@entities}_{@product}';
   assert.match(scopes(line, '[', line.indexOf('[/')), /punctuation\.definition\.optional\.spit/);
   assert.match(scopes(line, ']', line.indexOf('}]') + 1), /punctuation\.definition\.optional\.spit/);
   assert.match(scopes(line, '[[', line.indexOf('[[')), /constant\.character\.escape\.bracket\.spit/);
   assert.match(scopes(line, ']]', line.indexOf(']]')), /constant\.character\.escape\.bracket\.spit/);
   assert.match(scopes(line, 'ses', line.indexOf('{ses')), /variable\.parameter\.placeholder\.dimension\.spit/);
-  assert.match(scopes(line, '@labels'), /variable\.language\.placeholder\.spit/);
+  assert.match(scopes(line, '@entities'), /variable\.language\.placeholder\.spit/);
+  const gone = 'default path: out/{@labels}_{@product}';
+  assert.doesNotMatch(scopes(gone, '@labels'), /variable\.language\.placeholder\.spit/);
   const stem = '    path: site-{site}[_{shot}]';
   assert.match(scopes(stem, '[', stem.indexOf('[_')), /punctuation\.definition\.optional\.spit/);
 });
