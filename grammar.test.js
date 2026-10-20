@@ -47,21 +47,25 @@ async function tokenizer() {
 
 const skip = !textmate && 'run npm install to test the grammar';
 
-test('entities templates and aliases highlight their roles, and the word is reserved', { skip }, async () => {
+test('entities spellings and labels highlight their roles, as a default or in a default block', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = 'entities: {key}_{value} separated "-" empty "all"';
-  for (const keyword of ['entities', 'separated', 'empty']) {
+  const line = 'default entities: {@key}_{@value} separated "-"';
+  for (const keyword of ['default', 'entities', 'separated']) {
     assert.match(scopes(line, keyword), /keyword\.control\.spit/);
   }
-  for (const name of ['key', 'value']) {
+  for (const name of ['@key', '@value']) {
     assert.match(scopes(line, name), /variable\.language\.placeholder\.spit/);
     for (const quote of ['"', "'"]) {
-      const quoted = `entities: ${quote}{key}_{value}${quote} separated "-"`;
+      const quoted = `default entities: ${quote}{@key}_{@value}${quote} separated "-"`;
       assert.match(scopes(quoted, name), /variable\.language\.placeholder\.spit/);
     }
   }
   assert.match(scopes(line, '-'), /string\.quoted\.double\.spit/);
-  const alias = 'entities sub: subject';
+  const block = '    entities: {@key}-{@value} separated "_"';
+  assert.match(scopes(block, 'entities'), /keyword\.control\.spit/);
+  assert.match(scopes(block, '@key'), /variable\.language\.placeholder\.spit/);
+  const alias = 'default entities sub: subject';
+  assert.match(scopes(alias, 'default'), /keyword\.control\.spit/);
   assert.match(scopes(alias, 'entities'), /keyword\.control\.spit/);
   assert.match(scopes(alias, 'sub'), /variable\.parameter\.dimension\.spit/);
   assert.match(scopes(alias, 'subject'), /constant\.other\.entity-label\.spit/);

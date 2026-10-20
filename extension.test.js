@@ -313,7 +313,7 @@ test('a library error and the pipeline\'s later error on the same line are each 
 test('shows each output path with its groups resolved and BIDS-style entities written out', { skip: !fs.existsSync(binary) }, async () => {
   const hints = {};
   const document = fakeDocument(path.join(__dirname, 'labels.spit'), [
-    'entities: {key}-{value} separated "_" empty ""',
+    'default entities: {@key}-{@value} separated "_"',
     'default path: out/sub-{sub}[/ses-{ses}]/{@entities}_{@product}',
     'default ext: .img',
     'source scan : Image [sub, ses]',
@@ -334,11 +334,11 @@ test('shows each output path with its groups resolved and BIDS-style entities wr
   extension.deactivate();
 });
 
-test('shows custom entities for each shape and drops an empty optional group', { skip: !fs.existsSync(binary) }, async () => {
+test('shows the entities spelling for each shape and drops the group of a product with no dimensions', { skip: !fs.existsSync(binary) }, async () => {
   const hints = {};
   const document = fakeDocument(path.join(__dirname, 'entities.spit'), [
-    'entities: {key}_{value} separated "-" empty ""',
-    'entities sub: subject',
+    'default entities: {@key}_{@value} separated "-"',
+    'default entities sub: subject',
     'default path: out/[{@entities}_]{@product}.img',
     'source scan [sub, ses]',
     'path scan: in/{sub}/{ses}.raw',
@@ -368,7 +368,7 @@ test('shows where each output is written at the end of its step', { skip: !fs.ex
   const hints = {};
   let changed = 0;
   const document = fakeDocument(path.join(__dirname, 'paths.spit'), [
-    'entities: {key}={value} separated "__" empty "global"',
+    'default entities: {@key}={@value} separated "__"',
     'default path: out/{@product}/{@entities}',
     'default ext: .img',
     'source raw : Image [id]',

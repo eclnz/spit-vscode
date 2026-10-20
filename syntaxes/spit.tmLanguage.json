@@ -724,13 +724,16 @@
     "entities-declaration": {
       "patterns": [
         {
-          "comment": "The entities template: `{key}` and `{value}`, joined by the text `separated` names.",
-          "begin": "^(\\s*)(entities)(:)",
+          "comment": "`default entities:`, or `entities:` in a `default:` block: the spelling of `{@entities}`, `{@key}` and `{@value}` joined by the text `separated` names.",
+          "begin": "^(\\s*)(?:(default)\\s+)?(entities)(:)",
           "beginCaptures": {
             "2": {
               "name": "keyword.control.spit"
             },
             "3": {
+              "name": "keyword.control.spit"
+            },
+            "4": {
               "name": "punctuation.separator.colon.spit"
             }
           },
@@ -741,10 +744,10 @@
             },
             {
               "name": "keyword.control.spit",
-              "match": "\\b(?:separated|empty)\\b"
+              "match": "\\bseparated\\b"
             },
             {
-              "match": "(\\{)(key|value)(\\})",
+              "match": "(\\{)(@key|@value)(\\})",
               "captures": {
                 "1": {
                   "name": "punctuation.definition.template-expression.begin.spit"
@@ -765,7 +768,7 @@
                   "end": "\"",
                   "patterns": [
                     {
-                      "match": "(\\{)(key|value)(\\})",
+                      "match": "(\\{)(@key|@value)(\\})",
                       "captures": {
                         "1": {
                           "name": "punctuation.definition.template-expression.begin.spit"
@@ -786,7 +789,7 @@
                   "end": "'",
                   "patterns": [
                     {
-                      "match": "(\\{)(key|value)(\\})",
+                      "match": "(\\{)(@key|@value)(\\})",
                       "captures": {
                         "1": {
                           "name": "punctuation.definition.template-expression.begin.spit"
@@ -806,18 +809,22 @@
           ]
         },
         {
-          "match": "^(\\s*)(entities)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(:)\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*(?=#|$)",
+          "comment": "`default entities sub: subject`: the label a dimension takes in that spelling.",
+          "match": "^(\\s*)(?:(default)\\s+)?(entities)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(:)\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*(?=#|$)",
           "captures": {
             "2": {
               "name": "keyword.control.spit"
             },
             "3": {
-              "name": "variable.parameter.dimension.spit"
+              "name": "keyword.control.spit"
             },
             "4": {
-              "name": "punctuation.separator.colon.spit"
+              "name": "variable.parameter.dimension.spit"
             },
             "5": {
+              "name": "punctuation.separator.colon.spit"
+            },
+            "6": {
               "name": "constant.other.entity-label.spit"
             }
           }
