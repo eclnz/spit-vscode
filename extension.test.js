@@ -172,6 +172,27 @@ test('an unsaved inline root shows its hover and missing-folder warning', { skip
   }
 });
 
+test('types strict marks an untyped source as an error and explains its word', { skip: !fs.existsSync(binary) }, async () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-strict-'));
+  const document = fakeDocument(path.join(folder, 'strict.spit'), 'types strict\nsource raw [id]\noperation copy(input: Text) -> Text\nresult = copy(raw)\npath raw: in/{id}.txt\npath result: out/result/{id}.txt\n');
+  const results = new Map();
+  const hints = {};
+  const extension = load(mockVscode(document, results, () => {}, hints));
+  try {
+    extension.activate({ extensionPath: __dirname, subscriptions: [] });
+    await until(() => results.get(document.uri.toString())?.length === 1);
+    const [error] = results.get(document.uri.toString());
+    assert.deepEqual(span(error), [1, 7, 10]);
+    assert.equal(error.severity, 0);
+    assert.match(error.message, /`types strict` needs a type on source `raw`/);
+    const hover = await hints.hover.provideHover(document, { line: 0, character: 1 });
+    assert.match(JSON.stringify(hover), /How much of the pipeline must be typed/);
+  } finally {
+    extension.deactivate();
+    fs.rmSync(folder, { recursive: true, force: true });
+  }
+});
+
 test('places a recipe check\'s pipeline error on the pipeline file', { skip: !fs.existsSync(binary) }, async () => {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-pipeline-'));
   const pipeline = path.join(folder, 'analysis.spit');
