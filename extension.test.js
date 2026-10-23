@@ -65,7 +65,7 @@ test('checks a recipe against the pipeline it names', { skip: !fs.existsSync(bin
   fs.writeFileSync(path.join(folder, 'analysis.spit'), 'source raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\n');
   let onChange;
   const results = new Map();
-  const document = fakeDocument(path.join(folder, 'cohort.spitin'), 'pipeline analysis.spit\nroot .\nrequire [id] where raw count>=1\n');
+  const document = fakeDocument(path.join(folder, 'cohort.spitin'), 'pipeline analysis.spit\nroot .\ninputs:\n    contexts: samples/{id}\nrequire [id] where raw count>=1\nrequire [] where contexts[id] count>=1\n');
   const extension = load(mockVscode(document, results, callback => { onChange = callback; }));
   try {
     extension.activate({ extensionPath: __dirname, subscriptions: [] });
@@ -547,7 +547,7 @@ test('hovers show a folder\'s `/`', { skip: !fs.existsSync(binary) }, async () =
 });
 
 test('product hover separates user-defined snippets from prose', { skip: !fs.existsSync(binary) }, async () => {
-  const pipeline = path.join(__dirname, '..', 'spit', 'examples', 'commands', 'field_survey', 'field_survey.spit');
+  const pipeline = path.join(spitRepository, 'examples', 'commands', 'field_survey', 'field_survey.spit');
   const text = fs.readFileSync(pipeline, 'utf8');
   const document = fakeDocument(pipeline, text);
   const extension = load(mockVscode(document, new Map(), () => {}));

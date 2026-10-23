@@ -27,7 +27,15 @@ async function tokenizer() {
   const grammar = await registry.loadGrammar('source.spit');
   // The scopes of the token covering `text` on the one line given.
   return (line, text, from = 0) => {
-    const { tokens } = grammar.tokenizeLine(line, textmate.INITIAL);
+    let state = textmate.INITIAL;
+    let tokens;
+    for (const part of line.split('\n')) {
+      const result = grammar.tokenizeLine(part, state);
+      state = result.ruleStack;
+      tokens = result.tokens;
+    }
+    from = Math.max(0, from - (line.lastIndexOf('\n') + 1));
+    line = line.split('\n').at(-1);
     const start = line.indexOf(text, from);
     assert.notEqual(start, -1, `\`${text}\` not in \`${line}\``);
     const token = tokens.find(token => token.startIndex <= start && start < token.endIndex);
@@ -64,31 +72,27 @@ test('path templates mark optional groups, literal brackets and labels', { skip 
   assert.match(scopes(stem, '[', stem.indexOf('[_')), /punctuation\.definition\.optional\.spit/);
 });
 
-test('directory discovery marks its name, dimensions, and path captures', { skip }, async () => {
+test('input paths mark source names and directory captures', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = 'discover sessions: [sub, ses] from dirs data/sub-{sub}/ses-{ses}';
-  assert.match(scopes(line, 'discover'), /keyword\.control\.discovery\.spit/);
-  assert.match(scopes(line, 'sessions'), /entity\.name\.collection\.spit/);
+  assert.match(scopes('inputs:', 'inputs'), /keyword\.other\.section\.spit/);
+  const line = 'inputs:\n    contexts: data/sub-{sub}/ses-{ses}';
+  assert.match(scopes(line, 'contexts'), /variable\.other\.product\.spit/);
   assert.match(scopes(line, ':'), /punctuation\.separator\.colon\.spit/);
-  assert.match(scopes(line, 'sub', line.indexOf('[')), /variable\.parameter\.dimension\.spit/);
-  assert.match(scopes(line, 'ses', line.indexOf('[')), /variable\.parameter\.dimension\.spit/);
-  assert.match(scopes(line, 'from'), /keyword\.control\.discovery\.spit/);
-  assert.match(scopes(line, 'dirs'), /keyword\.other\.discovery\.spit/);
   assert.match(scopes(line, 'sub', line.indexOf('{sub')), /variable\.parameter\.placeholder\.dimension\.spit/);
+  assert.match(scopes('inputs:\n    image: data/{sub}.nii.gz', 'image'), /variable\.other\.product\.spit/);
 });
 
-test('named discovery contexts have a section header', { skip }, async () => {
+test('observed contexts have an unnamed section header', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = 'contexts sessions:';
+  const line = 'contexts:';
   assert.match(scopes(line, 'contexts'), /keyword\.other\.section\.spit/);
-  assert.match(scopes(line, 'sessions'), /entity\.name\.section\.discovery\.spit/);
 });
 
 test('require and conditional exclude rules highlight comparisons and groups', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = 'require [sub] where sessions count!=2';
+  const line = 'require [sub] where contexts[sub,ses] count!=2';
   assert.match(scopes(line, 'require'), /keyword\.control/);
-  assert.match(scopes(line, 'sessions'), /variable\.other\.product/);
+  assert.match(scopes(line, 'contexts'), /variable\.other\.product/);
   assert.match(scopes(line, 'count'), /keyword\.other\.count/);
   assert.match(scopes(line, 'sub'), /meta\.dimension-list/);
   for (const comparison of ['=', '!=', '>=', '<=', '>', '<']) {

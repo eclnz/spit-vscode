@@ -6,7 +6,7 @@
     { "include": "#comments" },
     { "include": "#section-headers" },
     { "include": "#stage-header" },
-    { "include": "#discover-line" },
+    { "include": "#input-block" },
     { "include": "#recipe-header" },
     { "include": "#use-line" },
     { "include": "#check-declaration" },
@@ -35,14 +35,6 @@
     "section-headers": {
       "patterns": [
         {
-          "match": "^\\s*(contexts)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(:)\\s*$",
-          "captures": {
-            "1": { "name": "keyword.other.section.spit" },
-            "2": { "name": "entity.name.section.discovery.spit" },
-            "3": { "name": "punctuation.separator.colon.spit" }
-          }
-        },
-        {
           "name": "entity.name.section.spit keyword.other.section.spit",
           "match": "^\\s*(sources|source_paths|contexts|removed)\\s*:\\s*$"
         }
@@ -57,21 +49,48 @@
         "3": { "name": "punctuation.separator.colon.spit" }
       }
     },
-    "discover-line": {
-      "comment": "Discover observed entity bindings from matching directories.",
-      "begin": "^(\\s*)(discover)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(:)\\s*(\\[)([^\\]]*)(\\])\\s+(from)\\s+(dirs)\\s+",
+    "input-block": {
+      "begin": "^([ \\t]*)(inputs)(:)\\s*(?:#.*)?$",
       "beginCaptures": {
-        "2": { "name": "keyword.control.discovery.spit" },
-        "3": { "name": "entity.name.collection.spit" },
-        "4": { "name": "punctuation.separator.colon.spit" },
-        "5": { "name": "punctuation.definition.dimensions.begin.spit" },
-        "6": { "patterns": [{ "include": "#dimension-list-inner" }] },
-        "7": { "name": "punctuation.definition.dimensions.end.spit" },
-        "8": { "name": "keyword.control.discovery.spit" },
-        "9": { "name": "keyword.other.discovery.spit" }
+        "2": {
+          "name": "keyword.other.section.spit"
+        },
+        "3": {
+          "name": "punctuation.separator.colon.spit"
+        }
       },
-      "end": "$",
-      "patterns": [{ "include": "#word-comment" }, { "include": "#brace-escape" }, { "include": "#path-placeholder" }]
+      "end": "^(?!\\s*(?:#|$))(?!\\1[ \\t]+)",
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "begin": "^(\\s+)(contexts|default|[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s*(:)\\s+",
+          "beginCaptures": {
+            "2": {
+              "name": "variable.other.product.spit"
+            },
+            "3": {
+              "name": "punctuation.separator.colon.spit"
+            }
+          },
+          "end": "$",
+          "patterns": [
+            {
+              "include": "#word-comment"
+            },
+            {
+              "include": "#brace-escape"
+            },
+            {
+              "include": "#path-group"
+            },
+            {
+              "include": "#path-placeholder"
+            }
+          ]
+        }
+      ]
     },
     "strings": {
       "patterns": [
@@ -155,7 +174,7 @@
       ]
     },
     "constraint-rule": {
-      "match": "^(\\s*)(require)\\s+(\\[[^\\]]*\\])\\s+(where)\\s+([A-Za-z_][A-Za-z0-9_]*)(?:\\s+(count)(!=|>=|<=|=|>|<)(\\d+)|\\s+(has)\\s+([A-Za-z_][A-Za-z0-9_]*)(=))",
+      "match": "^(\\s*)(require)\\s+(\\[[^\\]]*\\])\\s+(where)\\s+([A-Za-z_][A-Za-z0-9_]*(?:\\[[^\\]]*\\])?)(?:\\s+(count)(!=|>=|<=|=|>|<)(\\d+)|\\s+(has)\\s+([A-Za-z_][A-Za-z0-9_]*)(=))",
       "captures": {
         "2": { "name": "keyword.control.constraint.spit" },
         "3": { "name": "meta.dimension-list.spit" },
@@ -171,7 +190,7 @@
       "patterns": [{ "include": "#dimension-list-inner" }]
     },
     "conditional-exclude-rule": {
-      "match": "^(\\s*)(exclude)\\s+(\\[[^\\]]*\\])\\s+(where)\\s+([A-Za-z_][A-Za-z0-9_]*)(?:\\s+(count)(!=|>=|<=|=|>|<)(\\d+)|\\s+(missing|has)\\s+([A-Za-z_][A-Za-z0-9_]*)(=))",
+      "match": "^(\\s*)(exclude)\\s+(\\[[^\\]]*\\])\\s+(where)\\s+([A-Za-z_][A-Za-z0-9_]*(?:\\[[^\\]]*\\])?)(?:\\s+(count)(!=|>=|<=|=|>|<)(\\d+)|\\s+(missing|has)\\s+([A-Za-z_][A-Za-z0-9_]*)(=))",
       "captures": {
         "2": { "name": "keyword.control.constraint.spit" },
         "3": { "name": "meta.dimension-list.spit" },
@@ -502,8 +521,7 @@
             "2": { "name": "variable.other.product.spit" }
           }
         },
-        { "name": "keyword.control.spit", "match": "\\b(?:require|exclude|per|verify|use|from|as|source|dimensions|discover|operation|command|path|check(?!\\s*:))\\b" },
-        { "name": "keyword.other.discovery.spit", "match": "\\bdirs\\b" },
+        { "name": "keyword.control.spit", "match": "\\b(?:require|exclude|per|verify|use|from|as|source|dimensions|operation|command|path|check(?!\\s*:))\\b" },
         { "name": "storage.modifier.cardinality.spit", "match": "\\bmany\\b" },
         { "name": "keyword.other.selector.spit", "match": "\\b(vary|where|same|each|min)\\b" },
         { "include": "#strings" },
