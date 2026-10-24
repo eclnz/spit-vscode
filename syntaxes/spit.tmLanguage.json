@@ -667,6 +667,13 @@
           }
         },
         {
+          "comment": "`type Name<Param, ...>`: declares a parameterized type and names its parameters.",
+          "begin": "^(\\s*)(type)\\s+(?=[A-Z])",
+          "beginCaptures": { "2": { "name": "keyword.control.spit" } },
+          "end": "(?=#)|$",
+          "patterns": [{ "include": "#type-reference" }]
+        },
+        {
           "comment": "`types strict` or `types standard`: how much of the pipeline must be typed.",
           "match": "^(\\s*)(types)\\s+(strict|standard)\\s*(?=#|$)",
           "captures": {

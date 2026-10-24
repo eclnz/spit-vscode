@@ -243,6 +243,16 @@ test('a types line marks how much must be typed', { skip }, async () => {
   assert.doesNotMatch(scopes('types = copy(raw)', 'types'), /keyword\.control/);
 });
 
+test('a type line marks the keyword, the type and its parameters', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'type Frame<Kind, Space>';
+  assert.match(scopes(line, 'type'), /keyword\.control\.spit/);
+  assert.match(scopes(line, 'Frame'), /support\.type\.spit/);
+  assert.match(scopes(line, 'Space'), /support\.type\.spit/);
+  // A product called `type` is assigned, not declared.
+  assert.doesNotMatch(scopes('type = copy(raw)', 'type'), /keyword\.control/);
+});
+
 test('an operation signature marks many and min', { skip }, async () => {
   const scopes = await tokenizer();
   const line = 'operation fit(waves: many Table, policy: Policy) -> Coef @min(2)';
