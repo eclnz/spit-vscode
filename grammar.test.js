@@ -245,7 +245,7 @@ test('a types line marks how much must be typed', { skip }, async () => {
 
 test('an operation signature marks many and min', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = 'operation fit(waves: many Table, policy: Policy) -> Coef @ min(2)';
+  const line = 'operation fit(waves: many Table, policy: Policy) -> Coef @min(2)';
   assert.match(scopes(line, 'operation'), /keyword\.control\.spit/);
   assert.match(scopes(line, 'fit'), /entity\.name\.function\.spit/);
   assert.match(scopes(line, 'many'), /storage\.modifier\.cardinality\.spit/);
@@ -259,7 +259,7 @@ test('an operation output may name the extension its file has', { skip }, async 
   const line = 'operation align(moving: Image<M,S>) -> ToolTransform<S,T> .mat';
   assert.match(scopes(line, 'ToolTransform'), /support\.type\.spit/);
   assert.match(scopes(line, '.mat'), /constant\.other\.extension\.spit/);
-  const several = 'operation fit(runs: many Data) -> (weights: Weights .npz, quality: Metrics .tar.gz) @ min(2)';
+  const several = 'operation fit(runs: many Data) -> (weights: Weights .npz, quality: Metrics .tar.gz) @min(2)';
   assert.match(scopes(several, 'weights', several.indexOf('->')), /variable\.parameter\.port\.spit/);
   assert.match(scopes(several, 'Weights'), /support\.type\.spit/);
   assert.match(scopes(several, '.npz'), /constant\.other\.extension\.spit/);
@@ -403,7 +403,7 @@ test('a sidecars block names its group, dimensions, stem and extensions', { skip
 
 test('each is a selector keyword', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = 'forecast = predict(reading, model @ each(scenario), parameters)';
+  const line = 'forecast = predict(reading, model @each(scenario), parameters)';
   assert.match(scopes(line, 'each'), /keyword\.other\.selector\.spit/);
 });
 
@@ -522,7 +522,7 @@ test('multiline operation lists keep their scopes through the closing delimiter'
     return result.tokens.find(token => token.startIndex <= start && start < token.endIndex).scopes.join(' ');
   };
   assert.match(scopes('    operation prep(', 'prep'), /entity.name.function.spit/);
-  assert.match(scopes('        images: many MRI<Native> @ min(2),', 'many'), /storage.modifier.cardinality.spit/);
+  assert.match(scopes('        images: many MRI<Native> @min(2),', 'many'), /storage.modifier.cardinality.spit/);
   assert.match(scopes('        reference: MRI<Native>', 'MRI'), /support.type.spit/);
   assert.match(scopes('    ) -> (', '->'), /keyword.operator.arrow.spit/);
   assert.match(scopes('        mask: MRI<Mask,Grid<Native>>,', 'mask'), /variable.parameter.port.spit/);
@@ -530,4 +530,14 @@ test('multiline operation lists keep their scopes through the closing delimiter'
   scopes('    ):', ')');
   assert.match(scopes('        result = clean(images)', 'clean'), /entity.name.function.spit/);
   assert.match(scopes('operation later(x: Image) -> Image', 'later'), /entity.name.function.spit/);
+});
+
+test('a clause keyword is a selector only directly after its @', { skip }, async () => {
+  const scopes = await tokenizer();
+  assert.match(scopes('r = f(s @vary(a))', 'vary'), /keyword\.other\.selector\.spit/);
+  assert.match(scopes('r = f(s @where(a=1) @same(b))', 'same'), /keyword\.other\.selector\.spit/);
+  assert.match(scopes('operation f(xs: many T @min(2)) -> T', 'min'), /keyword\.other\.selector\.spit/);
+  // SPIT rejects `@ vary(`, so it is not coloured as the selector.
+  assert.doesNotMatch(scopes('r = f(s @ vary(a))', 'vary'), /selector/);
+  assert.doesNotMatch(scopes('operation f(xs: many T @ min(2)) -> T', 'min'), /selector/);
 });

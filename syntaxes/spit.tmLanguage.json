@@ -217,8 +217,8 @@
                       "include": "#check-clause"
                     },
                     {
-                      "comment": "A many input's minimum, `items: many Image @ min(2)`, matched whole so the `)` of `min(2)` does not end the inputs.",
-                      "match": "(@)\\s*(min)\\s*(\\()\\s*(\\d+)\\s*(\\))",
+                      "comment": "A many input's minimum, `items: many Image @min(2)`, matched whole so the `)` of `min(2)` does not end the inputs.",
+                      "match": "(@)(min)\\s*(\\()\\s*(\\d+)\\s*(\\))",
                       "captures": {
                         "1": {
                           "name": "keyword.operator.at.spit"
@@ -243,7 +243,7 @@
                     },
                     {
                       "name": "keyword.other.selector.spit",
-                      "match": "\\bmin\\b"
+                      "match": "(?<=@)min\\b"
                     },
                     {
                       "name": "keyword.operator.at.spit",
@@ -270,7 +270,7 @@
                   "patterns": [
                     {
                       "name": "keyword.other.selector.spit",
-                      "match": "\\bmin\\b"
+                      "match": "(?<=@)min\\b"
                     },
                     {
                       "begin": "\\(",
@@ -924,8 +924,8 @@
               "include": "#check-clause"
             },
             {
-              "comment": "A many input's minimum, `items: many Image @ min(2)`, matched whole so the `)` of `min(2)` does not end the inputs.",
-              "match": "(@)\\s*(min)\\s*(\\()\\s*(\\d+)\\s*(\\))",
+              "comment": "A many input's minimum, `items: many Image @min(2)`, matched whole so the `)` of `min(2)` does not end the inputs.",
+              "match": "(@)(min)\\s*(\\()\\s*(\\d+)\\s*(\\))",
               "captures": {
                 "1": {
                   "name": "keyword.operator.at.spit"
@@ -950,7 +950,7 @@
             },
             {
               "name": "keyword.other.selector.spit",
-              "match": "\\bmin\\b"
+              "match": "(?<=@)min\\b"
             },
             {
               "name": "keyword.operator.at.spit",
@@ -975,7 +975,7 @@
           "end": "$",
           "name": "meta.operation.output.spit",
           "patterns": [
-            { "name": "keyword.other.selector.spit", "match": "\\bmin\\b" },
+            { "name": "keyword.other.selector.spit", "match": "(?<=@)min\\b" },
             {
               "begin": "\\(",
               "end": "\\)",
@@ -1262,7 +1262,7 @@
         { "name": "keyword.control.spit", "match": "\\b(require|exclude|verify|use|from|as|source|dimensions|discover|operation|command|path)\\b" },
         { "name": "keyword.other.discovery.spit", "match": "\\bdirs\\b" },
         { "name": "storage.modifier.cardinality.spit", "match": "\\bmany\\b" },
-        { "name": "keyword.other.selector.spit", "match": "\\b(vary|where|same|each|min)\\b" },
+        { "name": "keyword.other.selector.spit", "comment": "A clause keyword directly after its `@`, as SPIT reads it: `@vary(`, not `@ vary(`.", "match": "(?<=@)(vary|where|same|each|min)\\b" },
         { "include": "#strings" },
         { "name": "keyword.operator.at.spit", "match": "@" },
         { "name": "keyword.operator.arrow.spit", "match": "->" },
