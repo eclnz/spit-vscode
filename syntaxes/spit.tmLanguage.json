@@ -729,6 +729,40 @@
         }
       ]
     },
+    "check-clause": {
+      "comment": "`@check(nonempty, ndim(3))` on a source or a port, ended at the end of the line so an unclosed one does not colour what follows, with its keyword directly after the `@` as SPIT reads it. An output may opt out of a default check with `!name`.",
+      "begin": "(@)(check)(\\()",
+      "beginCaptures": {
+        "1": { "name": "keyword.operator.at.spit" },
+        "2": { "name": "keyword.other.selector.spit" },
+        "3": { "name": "punctuation.section.parens.spit" }
+      },
+      "end": "\\)|$",
+      "endCaptures": { "0": { "name": "punctuation.section.parens.spit" } },
+      "patterns": [
+        {
+          "match": "(!)?([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)",
+          "captures": {
+            "1": { "name": "keyword.operator.negation.spit" },
+            "2": { "name": "entity.name.function.spit" }
+          }
+        },
+        { "name": "punctuation.separator.comma.spit", "match": "," },
+        { "include": "#check-arguments" }
+      ]
+    },
+    "check-arguments": {
+      "comment": "The parameters of one check, such as the `3` of `ndim(3)`; they may nest.",
+      "begin": "\\(",
+      "beginCaptures": { "0": { "name": "punctuation.section.parens.spit" } },
+      "end": "\\)|$",
+      "endCaptures": { "0": { "name": "punctuation.section.parens.spit" } },
+      "patterns": [
+        { "include": "#strings" },
+        { "name": "constant.numeric.spit", "match": "-?\\d+(?:\\.\\d+)?" },
+        { "include": "#check-arguments" }
+      ]
+    },
     "entities-declaration": {
       "patterns": [
         {
@@ -1262,6 +1296,7 @@
         { "name": "keyword.control.spit", "match": "\\b(require|exclude|verify|use|from|as|source|dimensions|discover|operation|command|path)\\b" },
         { "name": "keyword.other.discovery.spit", "match": "\\bdirs\\b" },
         { "name": "storage.modifier.cardinality.spit", "match": "\\bmany\\b" },
+        { "include": "#check-clause" },
         { "name": "keyword.other.selector.spit", "comment": "A clause keyword directly after its `@`, as SPIT reads it: `@vary(`, not `@ vary(`.", "match": "(?<=@)(vary|where|same|each|min)\\b" },
         { "include": "#strings" },
         { "name": "keyword.operator.at.spit", "match": "@" },
