@@ -541,3 +541,27 @@ test('a clause keyword is a selector only directly after its @', { skip }, async
   assert.doesNotMatch(scopes('r = f(s @ vary(a))', 'vary'), /selector/);
   assert.doesNotMatch(scopes('operation f(xs: many T @ min(2)) -> T', 'min'), /selector/);
 });
+
+test('@check(...) is coloured on a source and on input and output ports', { skip }, async () => {
+  const scopes = await tokenizer();
+  const source = 'source dwi : DWI [sub] @check(ndim(4), nonempty)';
+  assert.match(scopes(source, 'check'), /keyword\.other\.selector\.spit/);
+  assert.match(scopes(source, 'ndim'), /entity\.name\.function\.spit/);
+  assert.match(scopes(source, 'nonempty'), /entity\.name\.function\.spit/);
+  assert.match(scopes(source, '4'), /constant\.numeric\.spit/);
+  const port = 'operation f(x: Image @check(nonempty)) -> (mask: Mask @check(!nonempty, ndim(3)))';
+  assert.match(scopes(port, 'nonempty'), /entity\.name\.function\.spit/);
+  assert.match(scopes(port, '!'), /keyword\.operator\.negation\.spit/);
+  assert.match(scopes(port, 'ndim', port.indexOf('->')), /entity\.name\.function\.spit/);
+  // The parentheses of the clause do not end the signature early.
+  assert.match(scopes(port, 'mask'), /variable|parameter|entity|spit/);
+  // SPIT rejects `@ check(`, so it is not coloured as the clause.
+  assert.doesNotMatch(scopes('source dwi : DWI [sub] @ check(nonempty)', 'check'), /selector/);
+});
+
+test('an unclosed @check( does not colour the lines after it', { skip }, async () => {
+  const scopes = await tokenizer();
+  const lines = ['source dwi : DWI [sub] @check(ndim(4)', 'source t1w : T1 [sub]'];
+  assert.doesNotMatch(scopes.inFile(lines, 1, 't1w'), /entity\.name\.function/);
+  assert.match(scopes.inFile(lines, 1, 'source'), /keyword\.control\.spit/);
+});
