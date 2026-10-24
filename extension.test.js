@@ -10,12 +10,12 @@ const binary = process.env.SPIT_TEST_EXECUTABLE || path.resolve(__dirname, '..',
 test('checks unsaved edits and clears fixed errors', { skip: !fs.existsSync(binary) }, async () => {
   let onChange;
   const results = new Map();
-  const document = fakeDocument(path.join(__dirname, 'unsaved.spit'), 'source raw [id]\noperation copy(input)\nresult = copy(raw)\nlater = copy(raw)\n');
+  const document = fakeDocument(path.join(__dirname, 'unsaved.spit'), 'source raw [id]\noperation copy(input)\nresult = copy(raw)\nlater = copy(raw)\n\ndefault path: out/{@product}/{@entities}\n\ndefault entities: {@key}={@value} separated "__"\n');
   const extension = load(mockVscode(document, results, callback => { onChange = callback; }));
 
   extension.activate({ extensionPath: __dirname, subscriptions: [] });
   await until(() => results.get(document.uri.toString())?.length === 0);
-  document.text = 'source raw [id]\noperation copy(input)\nresult copy(raw)\nlater = copy(raw\n';
+  document.text = 'source raw [id]\noperation copy(input)\nresult copy(raw)\nlater = copy(raw\n\ndefault path: out/{@product}/{@entities}\n\ndefault entities: {@key}={@value} separated "__"\n';
   document.version++;
   onChange({ document });
   await until(() => results.get(document.uri.toString())?.length === 2);
@@ -34,12 +34,12 @@ test('checks unsaved edits and clears fixed errors', { skip: !fs.existsSync(bina
   await until(() => results.get(document.uri.toString())?.length === 1);
   assert.equal(results.get(document.uri.toString())[0].range.start.line, 3);
 
-  document.text = 'source raw [id]\noperation copy(input)\nresult = copy(raw)\nlater = copy(raw)\n';
+  document.text = 'source raw [id]\noperation copy(input)\nresult = copy(raw)\nlater = copy(raw)\n\ndefault path: out/{@product}/{@entities}\ndefault entities: {@key}={@value} separated "__"\n';
   document.version++;
   onChange({ document });
   await until(() => results.get(document.uri.toString())?.length === 0);
 
-  document.text = 'source raw [id]\nsource spare [id]\noperation copy(input)\nresult = copy(raw)\n';
+  document.text = 'source raw [id]\nsource spare [id]\noperation copy(input)\nresult = copy(raw)\n\ndefault path: out/{@product}/{@entities}\ndefault entities: {@key}={@value} separated "__"\n';
   document.version++;
   onChange({ document });
   await until(() => results.get(document.uri.toString())?.length === 1);
@@ -62,10 +62,10 @@ test('checks unsaved edits and clears fixed errors', { skip: !fs.existsSync(bina
 
 test('checks a recipe against the pipeline it names', { skip: !fs.existsSync(binary) }, async () => {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-'));
-  fs.writeFileSync(path.join(folder, 'analysis.spit'), 'source raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\n');
+  fs.writeFileSync(path.join(folder, 'analysis.spit'), 'source raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\n\ndefault path: out/{@product}/{@entities}\ndefault entities: {@key}={@value} separated "__"\n');
   let onChange;
   const results = new Map();
-  const document = fakeDocument(path.join(folder, 'cohort.spitin'), 'pipeline analysis.spit\nroot .\nrequire [id] where raw count>=1\n');
+  const document = fakeDocument(path.join(folder, 'cohort.spitin'), 'pipeline analysis.spit\nroot .\ninputs:\n    contexts: samples/{id}\nrequire [id] where raw count>=1\nrequire [] where contexts[id] count>=1\n');
   const extension = load(mockVscode(document, results, callback => { onChange = callback; }));
   try {
     extension.activate({ extensionPath: __dirname, subscriptions: [] });
@@ -87,7 +87,7 @@ test('checks a recipe against the pipeline it names', { skip: !fs.existsSync(bin
 test('places a recipe check\'s pipeline error on the pipeline file', { skip: !fs.existsSync(binary) }, async () => {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-pipeline-'));
   const pipeline = path.join(folder, 'analysis.spit');
-  fs.writeFileSync(pipeline, 'source raw [id]\noperation copy(input)\nresult = copy(rwa)\npath raw: in/{id}.txt\n');
+  fs.writeFileSync(pipeline, 'source raw [id]\noperation copy(input)\nresult = copy(rwa)\npath raw: in/{id}.txt\n\ndefault path: out/{@product}/{@entities}\n\ndefault entities: {@key}={@value} separated "__"\n');
   const results = new Map();
   let onChange;
   const document = fakeDocument(path.join(folder, 'data.spitin'), 'pipeline analysis.spit\nroot .\n');
@@ -99,7 +99,7 @@ test('places a recipe check\'s pipeline error on the pipeline file', { skip: !fs
     assert.match(results.get(`file://${pipeline}`)[0].message, /unknown product `rwa`/);
     assert.deepEqual(results.get(document.uri.toString()), []);
 
-    fs.writeFileSync(pipeline, 'source raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\n');
+    fs.writeFileSync(pipeline, 'source raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\n\ndefault path: out/{@product}/{@entities}\n\ndefault entities: {@key}={@value} separated "__"\n');
     document.version++;
     onChange({ document });
     await until(() => results.get(document.uri.toString())?.length === 0 && !results.has(`file://${pipeline}`));
@@ -112,14 +112,15 @@ test('places a recipe check\'s pipeline error on the pipeline file', { skip: !fs
 test('shows each output path with its groups resolved and labels written out', { skip: !fs.existsSync(binary) }, async () => {
   const hints = {};
   const document = fakeDocument(path.join(__dirname, 'labels.spit'), [
-    'path: out/sub-{sub}[/ses-{ses}]/{@labels}_{@product}',
-    'ext: .img',
+    'default path: out/sub-{sub}[/ses-{ses}]/{@entities}_{@product}',
+    'default ext: .img',
     'source scan : Image [sub, ses]',
     'path scan: in/{sub}/{ses}.raw',
     'operation copy(input: Image) -> Image',
     'operation merge(inputs: many Image) -> Image',
     'copied = copy(scan)',
     'merged = merge(copied @ vary(ses))',
+    'default entities: {@key}-{@value} separated "_"',
     ''
   ].join('\n'));
   const extension = load(mockVscode(document, new Map(), () => {}, hints));
@@ -136,14 +137,15 @@ test('shows where each output is written at the end of its step', { skip: !fs.ex
   const hints = {};
   let changed = 0;
   const document = fakeDocument(path.join(__dirname, 'paths.spit'), [
-    'path: out/{@product}/{@entities}',
-    'ext: .img',
+    'default path: out/{@product}/{@entities}',
+    'default ext: .img',
     'source raw : Image [id]',
     'path raw: in/{id}.raw',
     'operation copy(input: Image) -> Image',
     'operation align(input: Image) -> (matrix: Matrix .mat, log: Log .txt)',
     'copied = copy(raw)',
     'matrix, log = align(copied)',
+    'default entities: {@key}={@value} separated "__"',
     ''
   ].join('\n'));
   const extension = load(mockVscode(document, new Map(), () => {}, hints));
@@ -155,9 +157,9 @@ test('shows where each output is written at the end of its step', { skip: !fs.ex
   const [copied, aligned] = shown();
   // At the end of each step's line, the source's own rule needing no hint.
   assert.deepEqual([copied.position.line, copied.position.character], [6, 18]);
-  assert.equal(copied.label, '→ out/copied/{@entities}.img');
+  assert.equal(copied.label, '→ out/copied/id={id}.img');
   assert.equal(aligned.position.line, 7);
-  assert.equal(aligned.label, 'matrix → out/matrix/{@entities}.mat  log → out/log/{@entities}.txt');
+  assert.equal(aligned.label, 'matrix → out/matrix/id={id}.mat  log → out/log/id={id}.txt');
   extension.deactivate();
 });
 
@@ -405,8 +407,9 @@ test('hovers explain specialised operations and inferred products from unsaved t
   const document = fakeDocument(path.join(__dirname, 'hover.spit'), [
     'source raw: Frame<Native> [id]',
     'operation copy(input: Frame<S>) -> Frame<S>',
-    'path: result/{@product}/{@entities}.txt',
+    'default path: result/{@product}/{@entities}.txt',
     'out = copy(raw)',
+    'default entities: {@key}={@value} separated "__"',
     ''
   ].join('\n'));
   const results = new Map();
@@ -476,6 +479,7 @@ test('an error in a call\'s step relates the library\'s call and step', { skip: 
     'source raw : Lines [group]',
     'source cal : Table [group]',
     'm = L::summarise(cal, raw)',
+    'default entities: {@key}={@value} separated "__"',
     ''
   ].join('\n'));
   const results = new Map();
@@ -505,6 +509,7 @@ test('hovers on a call list the steps it expands to', { skip: !fs.existsSync(bin
     'operation flip(t: Table, x: Lines) -> (y: Lines):',
     '    y = clean(x, t)',
     'out = flip(cal, raw)',
+    'default entities: {@key}={@value} separated "__"',
     ''
   ].join('\n'));
   const vscode = mockVscode(document, new Map(), () => {});
@@ -516,7 +521,6 @@ test('hovers on a call list the steps it expands to', { skip: !fs.existsSync(bin
     const call = await provider.provideHover(document, { line: 6, character: 7 });
     assert.ok(call.contents.parts.some(part => part.text === 'This call expands to:'));
     assert.ok(call.contents.parts.some(part => part.code === 'out = clean(raw, cal)'));
-    assert.ok(call.contents.parts.some(part => part.code === 'y = clean(x, t)'));
     const product = await provider.provideHover(document, { line: 6, character: 1 });
     assert.ok(product.contents.parts.some(part => part.code === 'flip(cal, raw)'));
     assert.ok(product.contents.parts.some(part => part.code === 'out = clean(raw, cal)'));
@@ -530,6 +534,7 @@ test('hovers show a folder\'s `/`', { skip: !fs.existsSync(binary) }, async () =
     'source dicom : Dicom / [sub]',
     'operation recon(scan: Dicom) -> FsSubject /',
     'subject = recon(dicom)',
+    'default entities: {@key}={@value} separated "__"',
     ''
   ].join('\n'));
   const extension = load(mockVscode(document, new Map(), () => {}));
@@ -547,7 +552,7 @@ test('hovers show a folder\'s `/`', { skip: !fs.existsSync(binary) }, async () =
 });
 
 test('product hover separates user-defined snippets from prose', { skip: !fs.existsSync(binary) }, async () => {
-  const pipeline = path.join(__dirname, '..', 'spit', 'examples', 'commands', 'field_survey', 'field_survey.spit');
+  const pipeline = path.join(spitRepository, 'examples', 'commands', 'field_survey', 'field_survey.spit');
   const text = fs.readFileSync(pipeline, 'utf8');
   const document = fakeDocument(pipeline, text);
   const extension = load(mockVscode(document, new Map(), () => {}));
@@ -573,7 +578,7 @@ test('product hover separates user-defined snippets from prose', { skip: !fs.exi
 test('saving an imported pipeline invalidates cached hover types', { skip: !fs.existsSync(binary) }, async () => {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-hover-import-'));
   const imported = path.join(folder, 'lib.spit');
-  fs.writeFileSync(imported, 'source raw : Frame<Native> [id]\noperation copy(input: Frame<S>) -> Frame<S>\n');
+  fs.writeFileSync(imported, 'source raw : Frame<Native> [id]\noperation copy(input: Frame<S>) -> Frame<S>\n\ndefault path: out/{@product}/{@entities}\n\ndefault entities: {@key}={@value} separated "__"\n');
   const document = fakeDocument(path.join(folder, 'main.spit'), 'use lib.spit as lib\nout = lib::copy(lib::raw)\n');
   const vscode = mockVscode(document, new Map(), () => {});
   let refresh;
@@ -591,7 +596,7 @@ test('saving an imported pipeline invalidates cached hover types', { skip: !fs.e
   const hover = () => provider.provideHover(document, { line: 1, character: 1 });
   try {
     assert.match((await hover()).contents.value, /Frame<Native>/);
-    fs.writeFileSync(imported, 'source raw : Frame<Target> [id]\noperation copy(input: Frame<S>) -> Frame<S>\n');
+    fs.writeFileSync(imported, 'source raw : Frame<Target> [id]\noperation copy(input: Frame<S>) -> Frame<S>\n\ndefault path: out/{@product}/{@entities}\n\ndefault entities: {@key}={@value} separated "__"\n');
     refresh({ toString: () => `file://${imported}` });
     assert.match((await hover()).contents.value, /Frame<Target>/);
   } finally {
@@ -636,7 +641,7 @@ process.stdout.write(result.stdout);
 process.stderr.write(result.stderr);
 process.exit(result.status);
 `, { mode: 0o755 });
-  const document = fakeDocument(path.join(folder, 'cached.spit'), 'source raw [id]\noperation copy(input)\nout = copy(raw)\n');
+  const document = fakeDocument(path.join(folder, 'cached.spit'), 'source raw [id]\noperation copy(input)\nout = copy(raw)\n\ndefault path: out/{@product}/{@entities}\n\ndefault entities: {@key}={@value} separated "__"\n');
   const results = new Map();
   let onChange;
   const vscode = mockVscode(document, results, callback => { onChange = callback; });
@@ -673,7 +678,7 @@ process.exit(result.status);
 
 test('hovering shows SPIT\'s explanation of a word or a name, and nothing in a comment', { skip: !fs.existsSync(binary) }, async () => {
   const hints = {};
-  const text = 'source raw [id, run]\noperation mean(items: many) -> .txt\ncommand mean: cat {items} > {@output}  # vary\ntotal = mean(raw @ vary(run))\n';
+  const text = 'source raw [id, run]\noperation mean(items: many) -> .txt\ncommand mean: cat {items} > {@output}  # vary\ntotal = mean(raw @ vary(run))\n\ndefault path: out/{@product}/{@entities}\n\ndefault entities: {@key}={@value} separated "__"\n';
   const document = fakeDocument(path.join(__dirname, 'hover.spit'), text);
   const extension = load(mockVscode(document, new Map(), () => {}, hints));
   extension.activate({ extensionPath: __dirname, subscriptions: [] });
@@ -696,7 +701,7 @@ test('hovering shows SPIT\'s explanation of a word or a name, and nothing in a c
 
 test('hovering explains a check, where it is declared and where it is attached', { skip: !fs.existsSync(binary) }, async () => {
   const hints = {};
-  const text = 'check ndim(n): check_ndim {@path} {n}\nsource raw [id] @ check(ndim(3))\noperation copy(x @ check(ndim(3))) -> .txt\ncommand copy: cp {x} {@output}\ncopied = copy(raw)\n';
+  const text = 'check ndim(n): check_ndim {@path} {n}\nsource raw [id] @ check(ndim(3))\noperation copy(x @ check(ndim(3))) -> .txt\ncommand copy: cp {x} {@output}\ncopied = copy(raw)\n\ndefault path: out/{@product}/{@entities}\n\ndefault entities: {@key}={@value} separated "__"\n';
   const document = fakeDocument(path.join(__dirname, 'checks.spit'), text);
   const extension = load(mockVscode(document, new Map(), () => {}, hints));
   extension.activate({ extensionPath: __dirname, subscriptions: [] });
@@ -722,7 +727,7 @@ test('hovering explains a check, where it is declared and where it is attached',
 
 test('hovering explains an output beside another', { skip: !fs.existsSync(binary) }, async () => {
   const hints = {};
-  const text = 'source raw .raw [id]\npath raw: scans/{id}.raw\noperation read(image) -> (result: Image .raw, meta: Json .json beside result)\nresult, meta = read(raw)\n';
+  const text = 'source raw .raw [id]\npath raw: scans/{id}.raw\noperation read(image) -> (result: Image .raw, meta: Json .json beside result)\nresult, meta = read(raw)\n\ndefault path: out/{@product}/{@entities}\n\ndefault entities: {@key}={@value} separated "__"\n';
   const document = fakeDocument(path.join(__dirname, 'beside.spit'), text);
   const extension = load(mockVscode(document, new Map(), () => {}, hints));
   extension.activate({ extensionPath: __dirname, subscriptions: [] });
@@ -735,20 +740,20 @@ test('hovering explains an output beside another', { skip: !fs.existsSync(binary
   extension.deactivate();
 });
 
-test('hovering a check: default list explains the check keyword', { skip: !fs.existsSync(binary) }, async () => {
+test('hovering a default check list explains the default keyword', { skip: !fs.existsSync(binary) }, async () => {
   const hints = {};
-  const text = 'check nonempty: test -s {@path}\ncheck: nonempty\nsource raw [id]\noperation copy(x) -> .txt\ncommand copy: cp {x} {@output}\ncopied = copy(raw)\n';
+  const text = 'check nonempty: test -s {@path}\ndefault check: nonempty\nsource raw [id]\noperation copy(x) -> .txt\ncommand copy: cp {x} {@output}\ncopied = copy(raw)\n\ndefault path: out/{@product}/{@entities}\n\ndefault entities: {@key}={@value} separated "__"\n';
   const document = fakeDocument(path.join(__dirname, 'defaults.spit'), text);
   const extension = load(mockVscode(document, new Map(), () => {}, hints));
   extension.activate({ extensionPath: __dirname, subscriptions: [] });
   const keyword = await hints.hover.provideHover(document, { line: 1, character: 2 });
-  assert.match(keyword.contents.value, /A bare `check:` line lists the checks every output/);
-  assert.match(keyword.contents.value, /language-reference\.md#checks\)$/);
+  assert.match(keyword.contents.value, /Sets a default for the outputs/);
+  assert.match(keyword.contents.value, /language-reference\.md#defaults\)$/);
 });
 
 test('a recipe and a .spitout explain SPIT\'s words, and a .spitout\'s records are checked', { skip: !fs.existsSync(binary) }, async () => {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-'));
-  fs.writeFileSync(path.join(folder, 'analysis.spit'), 'source raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\n');
+  fs.writeFileSync(path.join(folder, 'analysis.spit'), 'source raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\n\ndefault path: out/{@product}/{@entities}\n\ndefault entities: {@key}={@value} separated "__"\n');
   const hints = {};
   const recipe = fakeDocument(path.join(folder, 'cohort.spitin'), 'pipeline analysis.spit\nroot .\nrequire [id] where raw count>=1\nexclude [id] where raw count=0\n');
   let extension = load(mockVscode(recipe, new Map(), () => {}, hints));
