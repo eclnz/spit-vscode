@@ -667,6 +667,14 @@
           }
         },
         {
+          "comment": "`types strict` or `types standard`: how much of the pipeline must be typed.",
+          "match": "^(\\s*)(types)\\s+(strict|standard)\\s*(?=#|$)",
+          "captures": {
+            "2": { "name": "keyword.control.spit" },
+            "3": { "name": "constant.language.type-checking.spit" }
+          }
+        },
+        {
           "match": "^(\\s*)(command)\\s+",
           "captures": { "2": { "name": "keyword.control.spit" } }
         },

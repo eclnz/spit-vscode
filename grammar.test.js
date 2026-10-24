@@ -232,6 +232,17 @@ test('a dimensions line marks the pipeline order', { skip }, async () => {
   assert.doesNotMatch(scopes('dimensions = copy(raw)', 'dimensions'), /keyword\.control/);
 });
 
+test('a types line marks how much must be typed', { skip }, async () => {
+  const scopes = await tokenizer();
+  for (const setting of ['strict', 'standard']) {
+    const line = `types ${setting}`;
+    assert.match(scopes(line, 'types'), /keyword\.control\.spit/, line);
+    assert.match(scopes(line, setting), /constant\.language\.type-checking\.spit/, line);
+  }
+  // A product called `types` is assigned, not declared.
+  assert.doesNotMatch(scopes('types = copy(raw)', 'types'), /keyword\.control/);
+});
+
 test('an operation signature marks many and min', { skip }, async () => {
   const scopes = await tokenizer();
   const line = 'operation fit(waves: many Table, policy: Policy) -> Coef @ min(2)';
