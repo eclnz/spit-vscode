@@ -342,7 +342,7 @@ test('shows each output path with its groups resolved and BIDS-style entities wr
     'operation copy(input: Image) -> Image',
     'operation merge(inputs: many Image) -> Image',
     'copied = copy(scan)',
-    'merged = merge(copied @ vary(ses))',
+    'merged = merge(copied @vary(ses))',
     ''
   ].join('\n'));
   const extension = load(mockVscode(document, new Map(), () => {}, hints));
@@ -366,8 +366,8 @@ test('shows the entities spelling for each shape and drops the group of a produc
     'operation copy(input)',
     'operation merge(inputs: many)',
     'copied = copy(scan)',
-    'merged = merge(copied @ vary(ses))',
-    'all = merge(merged @ vary(sub))',
+    'merged = merge(copied @vary(ses))',
+    'all = merge(merged @vary(sub))',
     ''
   ].join('\n'));
   const extension = load(mockVscode(document, new Map(), () => {}, hints));
@@ -905,7 +905,7 @@ child.on('close', code => { process.exitCode = code ?? 1; });
 
 test('hovering shows SPIT\'s explanation of a word or a name, and nothing in a comment', { skip: !fs.existsSync(binary) }, async () => {
   const hints = {};
-  const text = 'source raw [id, run]\noperation mean(items: many) -> .txt\ncommand mean: cat {items} > {@output}  # vary\ntotal = mean(raw @ vary(run))\n';
+  const text = 'source raw [id, run]\noperation mean(items: many) -> .txt\ncommand mean: cat {items} > {@output}  # vary\ntotal = mean(raw @vary(run))\n';
   const document = fakeDocument(path.join(__dirname, 'hover.spit'), text);
   const extension = load(mockVscode(document, new Map(), () => {}, hints));
   extension.activate({ extensionPath: __dirname, subscriptions: [] });
@@ -915,8 +915,8 @@ test('hovering shows SPIT\'s explanation of a word or a name, and nothing in a c
   };
 
   const vary = await at(3, 'vary');
-  assert.deepEqual(span(vary), [3, 19, 23]);
-  assert.match(vary.contents.value, /^```spit\naverage = mean\(processed @ vary\(run\)\)\n```\n\nCollects a `many` input/);
+  assert.deepEqual(span(vary), [3, 18, 22]);
+  assert.match(vary.contents.value, /^```spit\naverage = mean\(processed @vary\(run\)\)\n```\n\nCollects a `many` input/);
   assert.match(vary.contents.value, /\[Language reference\]\(https:\/\/github\.com\/eclnz\/spit\/blob\/main\/docs\/language-reference\.md#operations-and-commands\)$/);
 
   const total = await at(3, 'total');
