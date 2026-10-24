@@ -46,3 +46,5 @@ This extension was developed with the help of generative AI tools. I am not a Ja
 ## License
 
 Released under the [MIT License](LICENSE).
+
+Validation diagnostics remain available when `spit check --json` returns exit status 1 for errors. Editor fixtures use explicit output paths and entity formatting, matching the current compiler.

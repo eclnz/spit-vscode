@@ -473,7 +473,8 @@ function finishCheck(document, key, code, timedOut, output, errors) {
     diagnostics.set(document.uri, [issue(document, null, `SPIT check did not finish within ${CHECK_TIMEOUT_MS / 1000} seconds and was stopped`)]);
     return null;
   }
-  if (code !== 0) {
+  // SPIT returns 1 with a complete JSON result when diagnostics contain errors.
+  if (code !== 0 && (code !== 1 || !output.trim())) {
     showPaths(document, null);
     clearRelated(key);
     diagnostics.set(document.uri, [issue(document, null, `SPIT check failed: ${errors.trim() || `exit ${code}`}`)]);
