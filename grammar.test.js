@@ -243,6 +243,29 @@ test('a command marks the < and > that connect its stdin and stdout', { skip }, 
   assert.doesNotMatch(scopes('verify count: test -s {table} > x', '>'), /redirect/);
 });
 
+test('a resources line marks its operation, its cores and its memory, and {@cores} is a built-in', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'resources align: cores=8, memory=16G  # one sample';
+  assert.match(scopes(line, 'resources'), /keyword\.control\.spit/);
+  assert.match(scopes(line, 'align'), /entity\.name\.function\.spit/);
+  for (const key of ['cores', 'memory']) {
+    assert.match(scopes(line, key), /variable\.parameter\.resource\.spit/, key);
+  }
+  assert.match(scopes(line, '8'), /constant\.numeric\.spit/);
+  assert.match(scopes(line, '16G'), /constant\.numeric\.spit/);
+  assert.match(scopes(line, 'one sample'), /comment/);
+  // Each entry of a `resources:` block reads as the line would.
+  const block = ['resources:', '    L::align: memory=512M', 'source raw [id]'];
+  assert.match(scopes.inFile(block, 0, 'resources'), /keyword\.control\.spit/);
+  assert.match(scopes.inFile(block, 1, 'L::align'), /entity\.name\.function\.spit/);
+  assert.match(scopes.inFile(block, 1, '512M'), /constant\.numeric\.spit/);
+  assert.match(scopes.inFile(block, 2, 'source'), /keyword\.control\.spit/);
+  // The command takes the cores with `{@cores}`, against a named port.
+  const command = 'command align: bwa mem -t {@cores} {reads} > {@output}';
+  assert.match(scopes(command, '@cores'), /variable\.language\.placeholder\.spit/);
+  assert.match(scopes(command, 'reads'), /variable\.parameter\.placeholder\.spit/);
+});
+
 test('a dimensions line marks the pipeline order', { skip }, async () => {
   const scopes = await tokenizer();
   const line = 'dimensions [model, config, seed]';
