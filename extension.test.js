@@ -983,6 +983,29 @@ test('hovering shows SPIT\'s explanation of a shape on a source placeholder', { 
   }
 });
 
+test('hovering a command\'s < or > shows SPIT\'s explanation of its stdin or stdout', { skip: !fs.existsSync(binary) }, async () => {
+  const hints = {};
+  const text = 'source table : Table [sheet]\noperation count(lines: Table) -> Count\ncommand count: wc -l < {lines} > {@output}\n';
+  const document = fakeDocument(path.join(__dirname, 'streams.spit'), text);
+  const results = new Map();
+  const extension = load(mockVscode(document, results, () => {}, hints));
+  try {
+    extension.activate({ extensionPath: __dirname, subscriptions: [] });
+    await until(() => results.get(document.uri.toString())?.length === 0);
+    const line = text.split('\n')[2];
+    for (const [sign, summary] of [['<', /^Connects the command's stdin to one input's file/], ['>', /^Writes the command's stdout to one output's file/]]) {
+      const at = line.indexOf(` ${sign} `) + 1;
+      const hover = await hints.hover.provideHover(document, { line: 2, character: at });
+      assert.deepEqual(span(hover), [2, at, at + 1], sign);
+      const body = hover.contents.value.split('\n\n')[1];
+      assert.match(body, summary, sign);
+      assert.match(hover.contents.value, /language-reference\.md#standard-input-and-output\)$/, sign);
+    }
+  } finally {
+    extension.deactivate();
+  }
+});
+
 test('multiline signatures preserve diagnostic and hover ranges in unsaved edits', { skip: !fs.existsSync(binary) }, async () => {
   const document = fakeDocument(path.join(__dirname, 'multiline.spit'), 'operation broken(\n    first: Image,\n    second: Image<Bad]>\n) -> Image\noperation later(\n    x: Image\n) -> Image\n');
   const results = new Map();

@@ -223,6 +223,26 @@ test('command templates mark {@output} apart from the ports they name', { skip }
   }
 });
 
+test('a command marks the < and > that connect its stdin and stdout', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'command count: wc -l < {table} > {@output}';
+  for (const sign of ['<', '>']) {
+    assert.match(scopes(line, sign), /keyword\.operator\.redirect\.spit/, sign);
+  }
+  assert.match(scopes(line, 'command'), /keyword\.control\.spit/);
+  assert.match(scopes(line, 'table'), /variable\.parameter\.placeholder\.spit/);
+  assert.match(scopes(line, '@output'), /variable\.language\.placeholder\.spit/);
+  // Quoted, or against another word, a sign is an argument.
+  const quoted = "command count: tool '>' --x=>{table} {@output}";
+  assert.doesNotMatch(scopes(quoted, '>'), /redirect/);
+  assert.doesNotMatch(scopes(quoted, '>', quoted.indexOf('=>')), /redirect/);
+  // Each entry of a `command:` block, and only a command.
+  const block = ['command:', '    count: wc -l < {table} > {@output}'];
+  assert.match(scopes.inFile(block, 1, '>'), /keyword\.operator\.redirect\.spit/);
+  assert.match(scopes.inFile(block, 1, 'count'), /entity\.name\.function\.spit/);
+  assert.doesNotMatch(scopes('verify count: test -s {table} > x', '>'), /redirect/);
+});
+
 test('a dimensions line marks the pipeline order', { skip }, async () => {
   const scopes = await tokenizer();
   const line = 'dimensions [model, config, seed]';
