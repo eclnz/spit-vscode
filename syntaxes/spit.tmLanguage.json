@@ -413,6 +413,9 @@
               }
             },
             {
+              "include": "#command-redirect"
+            },
+            {
               "include": "#placeholder"
             },
             {
@@ -682,8 +685,14 @@
           }
         },
         {
-          "match": "^(\\s*)(command)\\s+",
-          "captures": { "2": { "name": "keyword.control.spit" } }
+          "comment": "`command name: program ...`: the rest of the line is read as any other, apart from a `<` or `>` that connects the command's stdin or stdout.",
+          "begin": "^(\\s*)(command)\\s+",
+          "beginCaptures": { "2": { "name": "keyword.control.spit" } },
+          "end": "$",
+          "patterns": [
+            { "include": "#command-redirect" },
+            { "include": "$self" }
+          ]
         },
         {
           "comment": "`sidecars name [dimensions]:`; an indented `path:` line beneath it gives the stem its sources share.",
@@ -1260,6 +1269,11 @@
           }
         }
       ]
+    },
+    "command-redirect": {
+      "comment": "A `<` or `>` that is a word of its own in an operation's command: `< {input}` reads an input on the command's stdin, and `> {output}` writes its stdout to an output. Quoted, either is an argument, and a string takes it first.",
+      "name": "keyword.operator.redirect.spit",
+      "match": "(?<=\\s)[<>](?=\\s|$)"
     },
     "placeholder": {
       "patterns": [
