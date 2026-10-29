@@ -355,6 +355,26 @@ test('shows each output path with its groups resolved and BIDS-style entities wr
   extension.deactivate();
 });
 
+test('shows the path of an output written beside an input, beside that input\'s file', { skip: !fs.existsSync(binary) }, async () => {
+  const hints = {};
+  const document = fakeDocument(path.join(__dirname, 'faidx.spit'), [
+    'source reference : Fasta .fasta',
+    'path reference: reference/genome',
+    'operation faidx(fasta: Fasta) -> Fai +.fai beside fasta',
+    'command faidx: samtools faidx {fasta}',
+    'genome_fai = faidx(reference)',
+    ''
+  ].join('\n'));
+  const diagnostics = new Map();
+  const extension = load(mockVscode(document, diagnostics, () => {}, hints));
+  extension.activate({ extensionPath: __dirname, subscriptions: [] });
+  const shown = () => hints.provider.provideInlayHints(document, new Range(0, 0, document.lineCount, 0));
+  await until(() => shown().length === 2);
+  assert.deepEqual(shown().map(hint => hint.label), ['→ reference/genome.fasta', '→ reference/genome.fasta.fai']);
+  assert.deepEqual([...diagnostics.values()].flat(), []);
+  extension.deactivate();
+});
+
 test('shows the entities spelling for each shape and drops the group of a product with no dimensions', { skip: !fs.existsSync(binary) }, async () => {
   const hints = {};
   const document = fakeDocument(path.join(__dirname, 'entities.spit'), [

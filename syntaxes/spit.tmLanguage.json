@@ -301,6 +301,11 @@
                           "match": "\"[^\"]*\""
                         },
                         {
+                          "comment": "A `+` that appends a `beside` suffix to the whole file name: `bai: Bai +.bai beside bam`, `+\"_index.txt\"`.",
+                          "name": "keyword.operator.append.spit",
+                          "match": "\\+(?=\\.|\")"
+                        },
+                        {
                           "name": "keyword.other.beside.spit",
                           "match": "\\bbeside\\b"
                         },
@@ -345,6 +350,11 @@
                     {
                       "name": "string.quoted.double.spit",
                       "match": "\"[^\"]*\""
+                    },
+                    {
+                      "comment": "A `+` that appends a `beside` suffix to the whole file name: `bai: Bai +.bai beside bam`, `+\"_index.txt\"`.",
+                      "name": "keyword.operator.append.spit",
+                      "match": "\\+(?=\\.|\")"
                     },
                     {
                       "name": "keyword.other.beside.spit",
@@ -1131,6 +1141,11 @@
                   "match": "\"[^\"]*\""
                 },
                 {
+                  "comment": "A `+` that appends a `beside` suffix to the whole file name: `bai: Bai +.bai beside bam`, `+\"_index.txt\"`.",
+                  "name": "keyword.operator.append.spit",
+                  "match": "\\+(?=\\.|\")"
+                },
+                {
                   "name": "keyword.other.beside.spit",
                   "match": "\\bbeside\\b"
                 },
@@ -1175,6 +1190,11 @@
             {
               "name": "string.quoted.double.spit",
               "match": "\"[^\"]*\""
+            },
+            {
+              "comment": "A `+` that appends a `beside` suffix to the whole file name: `bai: Bai +.bai beside bam`, `+\"_index.txt\"`.",
+              "name": "keyword.operator.append.spit",
+              "match": "\\+(?=\\.|\")"
             },
             {
               "name": "keyword.other.beside.spit",
@@ -1405,6 +1425,24 @@
     },
     "expression": {
       "patterns": [
+        {
+          "comment": "A source companion's suffix and `beside`, an extension with an optional `+` that appends it to the whole name: `source gps : Track .gpx beside raw`, `source fai : Fai +.fai beside reference`.",
+          "match": "(?<=\\s)(\\+)?((?:\\.[A-Za-z0-9_-]+)+)(\\s+)(beside)\\b",
+          "captures": {
+            "1": { "name": "keyword.operator.append.spit" },
+            "2": { "name": "constant.other.extension.spit" },
+            "4": { "name": "keyword.other.beside.spit" }
+          }
+        },
+        {
+          "comment": "A source companion's quoted suffix and `beside`: `source mask \"_mask.nii.gz\" beside image`, `source dict +\"_dict.txt\" beside reference`.",
+          "match": "(?<=\\s)(\\+)?(\"[^\"]*\")(\\s+)(beside)\\b",
+          "captures": {
+            "1": { "name": "keyword.operator.append.spit" },
+            "2": { "name": "string.quoted.double.spit" },
+            "4": { "name": "keyword.other.beside.spit" }
+          }
+        },
         {
           "comment": "A `/` that makes a source a folder, alone or after its extension: `source dicom : Dicom / [sub]`, `source store .zarr/`.",
           "name": "constant.other.extension.folder.spit",
