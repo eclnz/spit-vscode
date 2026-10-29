@@ -389,7 +389,7 @@
           ]
         },
         {
-          "comment": "`command:`: an operation's command on each line beneath it, `name: program ...`, which may go on over lines indented further.",
+          "comment": "`command:`: an operation's command on each line beneath it, `name: program ...`, which may go on over lines indented further; an entry `name:` alone holds its lines beneath it, run in order.",
           "begin": "^(\\s*)(command)\\s*(:)\\s*(?=#|$)",
           "beginCaptures": {
             "2": {
@@ -411,6 +411,36 @@
                   "name": "entity.name.function.spit"
                 }
               }
+            },
+            {
+              "include": "#command-redirect"
+            },
+            {
+              "include": "#placeholder"
+            },
+            {
+              "include": "$self"
+            }
+          ]
+        },
+        {
+          "comment": "`command name:` with nothing after its `:`: a command on each line beneath it, run in order; a line indented further goes on with the line above.",
+          "begin": "^(\\s*)(command)\\s+([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s*(:)\\s*(?=#|$)",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.spit"
+            },
+            "3": {
+              "name": "entity.name.function.spit"
+            },
+            "4": {
+              "name": "punctuation.separator.colon.spit"
+            }
+          },
+          "end": "^(?!\\1[ \\t]+\\S)(?=[ \\t]*[^\\s#])",
+          "patterns": [
+            {
+              "include": "#comments"
             },
             {
               "include": "#command-redirect"
