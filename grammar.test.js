@@ -630,3 +630,34 @@ test('an unclosed @check( does not colour the lines after it', { skip }, async (
   assert.doesNotMatch(scopes.inFile(lines, 1, 't1w'), /entity\.name\.function/);
   assert.match(scopes.inFile(lines, 1, 'source'), /keyword\.control\.spit/);
 });
+
+test('a command block marks each line beneath it as a command', { skip }, async () => {
+  const scopes = await tokenizer();
+  const lines = [
+    'command sort:  # sort, then index',
+    '    samtools sort --threads {@cores} -o {bam} {sam}',
+    '    # the index is written beside the BAM',
+    '    samtools index {bam}',
+    '        > {log}',
+    'command:',
+    '    view:',
+    '        samtools view -b {sam} > {@output}',
+    'bam = view(sam)'
+  ];
+  assert.match(scopes.inFile(lines, 0, 'command'), /keyword\.control\.spit/);
+  assert.match(scopes.inFile(lines, 0, 'sort'), /entity\.name\.function\.spit/);
+  assert.match(scopes.inFile(lines, 0, ':'), /punctuation\.separator\.colon\.spit/);
+  assert.match(scopes.inFile(lines, 0, '# sort'), /comment\.line/);
+  assert.match(scopes.inFile(lines, 1, '{bam}'), /variable\.parameter\.placeholder\.spit/);
+  assert.match(scopes.inFile(lines, 2, '# the'), /comment\.line/);
+  assert.match(scopes.inFile(lines, 3, '{bam}'), /variable\.parameter\.placeholder\.spit/);
+  // A line indented further goes on with the one above, `>` included.
+  assert.match(scopes.inFile(lines, 4, '>'), /keyword\.operator\.redirect\.spit/);
+  // A `command:` block's entry holds its lines too.
+  assert.match(scopes.inFile(lines, 6, 'view'), /entity\.name\.function\.spit/);
+  assert.match(scopes.inFile(lines, 7, '>'), /keyword\.operator\.redirect\.spit/);
+  assert.match(scopes.inFile(lines, 7, '@output'), /variable\.language\.placeholder\.spit/);
+  // The block ends at the next line that is not indented beneath it.
+  assert.match(scopes.inFile(lines, 8, '='), /keyword\.operator\.assignment\.spit/);
+  assert.doesNotMatch(scopes.inFile(lines, 8, 'bam'), /placeholder/);
+});
