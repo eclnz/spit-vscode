@@ -1006,23 +1006,28 @@ test('hovering a command\'s < or > shows SPIT\'s explanation of its stdin or std
   }
 });
 
-test('a command block marks an error on the line it is in, and explains each line\'s words', { skip: !fs.existsSync(binary) }, async () => {
+test('hovering resources or {@cores} shows SPIT\'s explanation of what a job needs', { skip: !fs.existsSync(binary) }, async () => {
   const hints = {};
-  const text = 'source sam : Sam [sample]\noperation sort(sam: Sam) -> (bam: Bam, log: Log)\ncommand sort:\n    samtools sort -o {bam} {sam}\n    samtools index {bam} {nope} > {log}\nbam, log = sort(sam)\npath bam: out/{sample}.bam\npath log: out/{sample}.log\n';
-  const document = fakeDocument(path.join(__dirname, 'sequence.spit'), text);
+  const text = 'source table : Table [sheet]\noperation count(lines: Table) -> Count\ncommand count: wc -l {lines} --threads {@cores} > {@output}\nresources count: cores=2, memory=1G\n';
+  const document = fakeDocument(path.join(__dirname, 'resources.spit'), text);
   const results = new Map();
   const extension = load(mockVscode(document, results, () => {}, hints));
   try {
     extension.activate({ extensionPath: __dirname, subscriptions: [] });
-    await until(() => results.get(document.uri.toString())?.length === 1);
-    const [error] = results.get(document.uri.toString());
-    const line = text.split('\n')[4];
-    assert.deepEqual(span(error), [4, line.indexOf('{nope}'), line.indexOf('{nope}') + 6]);
-    assert.match(error.message, /unknown placeholder `\{nope\}`/);
-    // The `>` on the block's second line is the command's, as on a line of its own.
-    const at = line.indexOf(' > ') + 1;
-    const hover = await hints.hover.provideHover(document, { line: 4, character: at });
-    assert.match(hover.contents.value.split('\n\n')[1], /^Writes the command's stdout to one output's file/);
+    await until(() => results.get(document.uri.toString())?.length === 0);
+    const lines = text.split('\n');
+    for (const [index, word, summary] of [[3, 'resources', /^What each job of an operation needs to run/], [2, '@cores', /^The cores the operation's `resources` line gives each job/]]) {
+      const at = lines[index].indexOf(word);
+      const hover = await hints.hover.provideHover(document, { line: index, character: at });
+      assert.deepEqual(span(hover), [index, at, at + word.length], word);
+      assert.match(hover.contents.value.split('\n\n')[1], summary, word);
+      assert.match(hover.contents.value, /language-reference\.md#cores-and-memory\)$/, word);
+    }
+    // The operation a resources line names explains the operation, with what its jobs need.
+    const at = lines[3].indexOf('count');
+    const hover = await hints.hover.provideHover(document, { line: 3, character: at });
+    assert.match(hover.contents.value, /operation count\(lines: Table\) -> Count/);
+    assert.match(hover.contents.value, /Resources: cores=2, memory=1G/);
   } finally {
     extension.deactivate();
   }
@@ -1048,6 +1053,28 @@ test('multiline signatures preserve diagnostic and hover ranges in unsaved edits
     await until(() => results.get(document.uri.toString())?.length === 0);
     const fixed = await provider.provideHover(document, { line: 0, character: 11 });
     assert.match(fixed.contents.value, /operation broken/);
+  } finally {
+    extension.deactivate();
+  }
+});
+
+test('a command block marks an error on the line it is in, and explains each line\'s words', { skip: !fs.existsSync(binary) }, async () => {
+  const hints = {};
+  const text = 'source sam : Sam [sample]\noperation sort(sam: Sam) -> (bam: Bam, log: Log)\ncommand sort:\n    samtools sort -o {bam} {sam}\n    samtools index {bam} {nope} > {log}\nbam, log = sort(sam)\npath bam: out/{sample}.bam\npath log: out/{sample}.log\n';
+  const document = fakeDocument(path.join(__dirname, 'sequence.spit'), text);
+  const results = new Map();
+  const extension = load(mockVscode(document, results, () => {}, hints));
+  try {
+    extension.activate({ extensionPath: __dirname, subscriptions: [] });
+    await until(() => results.get(document.uri.toString())?.length === 1);
+    const [error] = results.get(document.uri.toString());
+    const line = text.split('\n')[4];
+    assert.deepEqual(span(error), [4, line.indexOf('{nope}'), line.indexOf('{nope}') + 6]);
+    assert.match(error.message, /unknown placeholder `\{nope\}`/);
+    // The `>` on the block's second line is the command's, as on a line of its own.
+    const at = line.indexOf(' > ') + 1;
+    const hover = await hints.hover.provideHover(document, { line: 4, character: at });
+    assert.match(hover.contents.value.split('\n\n')[1], /^Writes the command's stdout to one output's file/);
   } finally {
     extension.deactivate();
   }

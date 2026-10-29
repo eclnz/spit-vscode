@@ -255,35 +255,27 @@ test('a command marks the < and > that connect its stdin and stdout', { skip }, 
   assert.doesNotMatch(scopes('verify count: test -s {table} > x', '>'), /redirect/);
 });
 
-test('a command block marks each line beneath it as a command', { skip }, async () => {
+test('a resources line marks its operation, its cores and its memory, and {@cores} is a built-in', { skip }, async () => {
   const scopes = await tokenizer();
-  const lines = [
-    'command sort:  # sort, then index',
-    '    samtools sort --threads {@cores} -o {bam} {sam}',
-    '    # the index is written beside the BAM',
-    '    samtools index {bam}',
-    '        > {log}',
-    'command:',
-    '    view:',
-    '        samtools view -b {sam} > {@output}',
-    'bam = view(sam)'
-  ];
-  assert.match(scopes.inFile(lines, 0, 'command'), /keyword\.control\.spit/);
-  assert.match(scopes.inFile(lines, 0, 'sort'), /entity\.name\.function\.spit/);
-  assert.match(scopes.inFile(lines, 0, ':'), /punctuation\.separator\.colon\.spit/);
-  assert.match(scopes.inFile(lines, 0, '# sort'), /comment\.line/);
-  assert.match(scopes.inFile(lines, 1, '{bam}'), /variable\.parameter\.placeholder\.spit/);
-  assert.match(scopes.inFile(lines, 2, '# the'), /comment\.line/);
-  assert.match(scopes.inFile(lines, 3, '{bam}'), /variable\.parameter\.placeholder\.spit/);
-  // A line indented further goes on with the one above, `>` included.
-  assert.match(scopes.inFile(lines, 4, '>'), /keyword\.operator\.redirect\.spit/);
-  // A `command:` block's entry holds its lines too.
-  assert.match(scopes.inFile(lines, 6, 'view'), /entity\.name\.function\.spit/);
-  assert.match(scopes.inFile(lines, 7, '>'), /keyword\.operator\.redirect\.spit/);
-  assert.match(scopes.inFile(lines, 7, '@output'), /variable\.language\.placeholder\.spit/);
-  // The block ends at the next line that is not indented beneath it.
-  assert.match(scopes.inFile(lines, 8, '='), /keyword\.operator\.assignment\.spit/);
-  assert.doesNotMatch(scopes.inFile(lines, 8, 'bam'), /placeholder/);
+  const line = 'resources align: cores=8, memory=16G  # one sample';
+  assert.match(scopes(line, 'resources'), /keyword\.control\.spit/);
+  assert.match(scopes(line, 'align'), /entity\.name\.function\.spit/);
+  for (const key of ['cores', 'memory']) {
+    assert.match(scopes(line, key), /variable\.parameter\.resource\.spit/, key);
+  }
+  assert.match(scopes(line, '8'), /constant\.numeric\.spit/);
+  assert.match(scopes(line, '16G'), /constant\.numeric\.spit/);
+  assert.match(scopes(line, 'one sample'), /comment/);
+  // Each entry of a `resources:` block reads as the line would.
+  const block = ['resources:', '    L::align: memory=512M', 'source raw [id]'];
+  assert.match(scopes.inFile(block, 0, 'resources'), /keyword\.control\.spit/);
+  assert.match(scopes.inFile(block, 1, 'L::align'), /entity\.name\.function\.spit/);
+  assert.match(scopes.inFile(block, 1, '512M'), /constant\.numeric\.spit/);
+  assert.match(scopes.inFile(block, 2, 'source'), /keyword\.control\.spit/);
+  // The command takes the cores with `{@cores}`, against a named port.
+  const command = 'command align: bwa mem -t {@cores} {reads} > {@output}';
+  assert.match(scopes(command, '@cores'), /variable\.language\.placeholder\.spit/);
+  assert.match(scopes(command, 'reads'), /variable\.parameter\.placeholder\.spit/);
 });
 
 test('a dimensions line marks the pipeline order', { skip }, async () => {
@@ -637,4 +629,35 @@ test('an unclosed @check( does not colour the lines after it', { skip }, async (
   const lines = ['source dwi : DWI [sub] @check(ndim(4)', 'source t1w : T1 [sub]'];
   assert.doesNotMatch(scopes.inFile(lines, 1, 't1w'), /entity\.name\.function/);
   assert.match(scopes.inFile(lines, 1, 'source'), /keyword\.control\.spit/);
+});
+
+test('a command block marks each line beneath it as a command', { skip }, async () => {
+  const scopes = await tokenizer();
+  const lines = [
+    'command sort:  # sort, then index',
+    '    samtools sort --threads {@cores} -o {bam} {sam}',
+    '    # the index is written beside the BAM',
+    '    samtools index {bam}',
+    '        > {log}',
+    'command:',
+    '    view:',
+    '        samtools view -b {sam} > {@output}',
+    'bam = view(sam)'
+  ];
+  assert.match(scopes.inFile(lines, 0, 'command'), /keyword\.control\.spit/);
+  assert.match(scopes.inFile(lines, 0, 'sort'), /entity\.name\.function\.spit/);
+  assert.match(scopes.inFile(lines, 0, ':'), /punctuation\.separator\.colon\.spit/);
+  assert.match(scopes.inFile(lines, 0, '# sort'), /comment\.line/);
+  assert.match(scopes.inFile(lines, 1, '{bam}'), /variable\.parameter\.placeholder\.spit/);
+  assert.match(scopes.inFile(lines, 2, '# the'), /comment\.line/);
+  assert.match(scopes.inFile(lines, 3, '{bam}'), /variable\.parameter\.placeholder\.spit/);
+  // A line indented further goes on with the one above, `>` included.
+  assert.match(scopes.inFile(lines, 4, '>'), /keyword\.operator\.redirect\.spit/);
+  // A `command:` block's entry holds its lines too.
+  assert.match(scopes.inFile(lines, 6, 'view'), /entity\.name\.function\.spit/);
+  assert.match(scopes.inFile(lines, 7, '>'), /keyword\.operator\.redirect\.spit/);
+  assert.match(scopes.inFile(lines, 7, '@output'), /variable\.language\.placeholder\.spit/);
+  // The block ends at the next line that is not indented beneath it.
+  assert.match(scopes.inFile(lines, 8, '='), /keyword\.operator\.assignment\.spit/);
+  assert.doesNotMatch(scopes.inFile(lines, 8, 'bam'), /placeholder/);
 });
