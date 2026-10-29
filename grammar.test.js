@@ -188,6 +188,18 @@ test('stage headers are keywords with a section name', { skip }, async () => {
   assert.doesNotMatch(scopes('stage = copy(raw)', 'stage'), /keyword\.control\.stage/);
 });
 
+test('command templates mark the dimension an input\'s values are read from', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'command table: table --digits {durations.digit} --files {durations} > {@output}';
+  const at = line.indexOf('{durations.digit');
+  assert.match(scopes(line, 'durations', at), /variable\.parameter\.placeholder\.spit/);
+  assert.doesNotMatch(scopes(line, 'durations', at), /dimension/);
+  assert.match(scopes(line, '.', at), /punctuation\.accessor\.spit/);
+  assert.match(scopes(line, 'digit', at), /variable\.parameter\.placeholder\.dimension\.spit/);
+  // `.dir` and `.stem` stay an output's folder and name.
+  assert.match(scopes('command c: tool {x} {image.dir}', 'dir'), /variable\.other\.property\.spit/);
+});
+
 test('command templates mark an output\'s folder and name', { skip }, async () => {
   const scopes = await tokenizer();
   const line = 'command convert: dcm2niix -o {image.dir} -f {image.stem} {dicom} --log {@output.dir} --name {@output.stem}';
