@@ -134,7 +134,7 @@ test('require and drop rules highlight comparisons and groups', { skip }, async 
   assert.match(scopes(line, 'ses', line.indexOf('has')), /variable\.parameter\.dimension/);
   const values = 'require [sub, ses] where bold has run=1,2';
   assert.match(scopes(values, 'has'), /keyword\.control\.constraint/);
-  // `per` belonged to the old order and is no longer a keyword.
+  // `per` is no keyword.
   assert.doesNotMatch(scopes('require sessions count>=2 per [sub]', 'per'), /keyword\.control/);
   for (const comparison of ['=', '!=', '>=', '<=', '>', '<']) {
     const rule = `drop [sub] where sessions count${comparison}2`;
@@ -292,7 +292,7 @@ test('an operation signature marks many and min', { skip }, async () => {
   assert.match(scopes(line, 'fit'), /entity\.name\.function\.spit/);
   assert.match(scopes(line, 'many'), /storage\.modifier\.cardinality\.spit/);
   assert.match(scopes(line, 'min'), /keyword\.other\.selector\.spit/);
-  // `drop` and `one` are no longer operation keywords.
+  // `drop` and `one` are no operation keywords.
   assert.doesNotMatch(scopes('operation f(x: one Image) -> Image', 'one'), /cardinality/);
 });
 
