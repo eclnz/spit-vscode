@@ -6,8 +6,7 @@ Operation input and named output lists can span lines. The grammar keeps port,
 type, check and extension highlighting through each list's closing `)`, including
 nested generic types. Indent ports beneath the declaration; closing parentheses
 may align with it. The compiler supplies diagnostic and hover ranges for the
-original source lines. This layout requires SPIT with
-[eclnz/spit#104](https://github.com/eclnz/spit/issues/104).
+original source lines.
 
 Hovering shows what SPIT says about the text under the pointer. On one of SPIT's own words, such as `source`, `@vary(...)`, `beside`, `where`, `{@entities}`, `{image.stem}`, a command's `<` or `>`, a shape such as `{date:date}` or a `.spitout`'s `sources:`, it shows an example, a summary from the [language reference](https://github.com/eclnz/spit/blob/main/docs/language-reference.md), and a link to the section. On a pipeline's product or operation, it shows what the compiler knows: its signature, inferred type and dimensions, the steps that make and use it, its command, and its path rule. Both come from the same `spit check --hovers` run as the diagnostics, so SPIT decides what each word is: a product called `each` is not the selector, and nothing in a comment is explained.
 
