@@ -1351,6 +1351,17 @@
           }
         },
         {
+          "comment": "`{durations.digit}`: each of an input's artifacts' value of a dimension. Any name after the `.` but `dir` and `stem`, which the pattern before takes.",
+          "match": "(\\{)([A-Za-z_][A-Za-z0-9_]*)(\\.)([A-Za-z_][A-Za-z0-9_-]*)(\\})",
+          "captures": {
+            "1": { "name": "punctuation.definition.template-expression.begin.spit" },
+            "2": { "name": "variable.parameter.placeholder.spit" },
+            "3": { "name": "punctuation.accessor.spit" },
+            "4": { "name": "variable.parameter.placeholder.dimension.spit" },
+            "5": { "name": "punctuation.definition.template-expression.end.spit" }
+          }
+        },
+        {
           "comment": "`{@output}`, the path of an operation's single unnamed output, and `{@cores}`, the cores its `resources` line gives each job; the `@` marks a placeholder SPIT supplies.",
           "match": "(\\{)(@output|@cores)(\\})",
           "captures": {
