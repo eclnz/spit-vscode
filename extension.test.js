@@ -1053,6 +1053,24 @@ test('hovering resources or {@cores} shows SPIT\'s explanation of what a job nee
   }
 });
 
+test('hovering {@here} shows SPIT\'s explanation of the pipeline\'s folder', { skip: !fs.existsSync(binary) }, async () => {
+  const hints = {};
+  const text = 'source table : Table [sheet]\noperation count(lines: Table) -> Count\ncommand count: python3 {@here}/count.py {lines} > {@output}\n';
+  const document = fakeDocument(path.join(__dirname, 'here.spit'), text);
+  const results = new Map();
+  const extension = load(mockVscode(document, results, () => {}, hints));
+  try {
+    extension.activate({ extensionPath: __dirname, subscriptions: [] });
+    await until(() => results.get(document.uri.toString())?.length === 0);
+    const at = text.split('\n')[2].indexOf('@here');
+    const hover = await hints.hover.provideHover(document, { line: 2, character: at });
+    assert.deepEqual(span(hover), [2, at, at + '@here'.length]);
+    assert.match(hover.contents.value.split('\n\n')[1], /^The folder of the `\.spit` file that declares the operation/);
+  } finally {
+    extension.deactivate();
+  }
+});
+
 test('multiline signatures preserve diagnostic and hover ranges in unsaved edits', { skip: !fs.existsSync(binary) }, async () => {
   const document = fakeDocument(path.join(__dirname, 'multiline.spit'), 'operation broken(\n    first: Image,\n    second: Image<Bad]>\n) -> Image\noperation later(\n    x: Image\n) -> Image\n');
   const results = new Map();

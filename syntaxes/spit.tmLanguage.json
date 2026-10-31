@@ -1412,8 +1412,8 @@
           }
         },
         {
-          "comment": "`{@output}`, the path of an operation's single unnamed output, and `{@cores}`, the cores its `resources` line gives each job; the `@` marks a placeholder SPIT supplies.",
-          "match": "(\\{)(@output|@cores)(\\})",
+          "comment": "`{@output}`, the path of an operation's single unnamed output, `{@cores}`, the cores its `resources` line gives each job, and `{@here}`, the folder of the file declaring it; the `@` marks a placeholder SPIT supplies.",
+          "match": "(\\{)(@output|@cores|@here)(\\})",
           "captures": {
             "1": { "name": "punctuation.definition.template-expression.begin.spit" },
             "2": { "name": "variable.language.placeholder.spit" },
