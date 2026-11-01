@@ -278,6 +278,13 @@ test('a resources line marks its operation, its cores and its memory, and {@core
   assert.match(scopes(command, 'reads'), /variable\.parameter\.placeholder\.spit/);
 });
 
+test('{@here} in a command is a built-in placeholder', { skip }, async () => {
+  const scopes = await tokenizer();
+  const command = 'command table: python3 {@here}/scripts/table.py {durations} > {@output}';
+  assert.match(scopes(command, '@here'), /variable\.language\.placeholder\.spit/);
+  assert.match(scopes(command, 'durations'), /variable\.parameter\.placeholder\.spit/);
+});
+
 test('a dimensions line marks the pipeline order', { skip }, async () => {
   const scopes = await tokenizer();
   const line = 'dimensions [model, config, seed]';
