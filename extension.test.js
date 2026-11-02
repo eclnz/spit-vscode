@@ -778,3 +778,32 @@ test('a recipe and a .spitout explain SPIT\'s words, and a .spitout\'s records a
     fs.rmSync(folder, { recursive: true, force: true });
   }
 });
+
+test('a recipe\'s review line is checked against the pipeline and explained on hover', { skip: !fs.existsSync(binary) }, async () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-review-'));
+  fs.writeFileSync(path.join(folder, 'analysis.spit'), 'review looked_at\nsource raw [id] @review(looked_at)\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\n\ndefault path: out/{@product}/{@entities}\ndefault entities: {@key}={@value} separated "__"\n');
+  const hints = {};
+  const results = new Map();
+  let onChange;
+  const recipe = fakeDocument(path.join(folder, 'cohort.spitin'), 'pipeline analysis.spit\nroot .\nreview looked_at from qc/looked_at.csv\n');
+  const extension = load(mockVscode(recipe, results, callback => { onChange = callback; }, hints));
+  try {
+    extension.activate({ extensionPath: __dirname, subscriptions: [] });
+    await until(() => results.get(recipe.uri.toString())?.length === 0);
+    const keyword = await hints.hover.provideHover(recipe, { line: 2, character: 2 });
+    assert.match(keyword.contents.value, /Declares a review/);
+    const from = await hints.hover.provideHover(recipe, { line: 2, character: 20 });
+    assert.match(from.contents.value, /names the CSV file a review's verdicts are in/);
+
+    recipe.text = 'pipeline analysis.spit\nroot .\nreview nobody from qc/looked_at.csv\n';
+    recipe.version++;
+    onChange({ document: recipe });
+    await until(() => results.get(recipe.uri.toString())?.length === 1);
+    const [error] = results.get(recipe.uri.toString());
+    assert.equal(error.range.start.line, 2);
+    assert.match(error.message, /declares no review `nobody`/);
+  } finally {
+    extension.deactivate();
+    fs.rmSync(folder, { recursive: true, force: true });
+  }
+});

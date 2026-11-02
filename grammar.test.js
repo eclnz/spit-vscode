@@ -109,13 +109,12 @@ test('require and conditional exclude rules highlight comparisons and groups', {
   }
 });
 
-test('exclude rules highlight a product or an external file', { skip }, async () => {
+test('exclude rules highlight a product, and exclude from is no rule', { skip }, async () => {
   const scopes = await tokenizer();
   const named = 'exclude bold[sub=02,ses=01,run=3]';
   assert.match(scopes(named, 'exclude'), /keyword\.control\.constraint/);
   assert.match(scopes(named, 'bold'), /variable\.other\.product/);
-  assert.match(scopes('exclude from qc/excluded.csv', 'from'), /keyword\.control\.constraint/);
-  assert.match(scopes('exclude from qc/excluded.csv', 'qc/excluded.csv'), /string\.unquoted\.file/);
+  assert.doesNotMatch(scopes('exclude from qc/excluded.csv', 'qc/excluded.csv'), /string\.unquoted\.file/);
   assert.doesNotMatch(scopes('skip sessions count>=2 per [sub]', 'skip'), /keyword\.control/);
   assert.doesNotMatch(scopes('drop [sub] where sessions count<2', 'drop'), /keyword\.control\.constraint/);
 });
@@ -400,7 +399,44 @@ test('records mark the product and its dimensions', { skip }, async () => {
   assert.match(scopes(line, 'image'), /variable\.other\.product\.spit/);
   assert.match(scopes(line, 'sub'), /variable\.parameter/);
   assert.match(scopes('    testset', 'testset'), /variable\.other\.product\.spit/);
-  for (const header of ['sources:', 'source_paths:', 'contexts:', 'removed:']) {
+  for (const header of ['sources:', 'source_paths:', 'contexts:', 'removed:', 'verdicts:']) {
     assert.match(scopes(header, header.slice(0, -1)), /keyword\.other\.section\.spit/, header);
   }
+});
+
+test('a review is declared once, attached like a check, and named by a recipe', { skip }, async () => {
+  const scopes = await tokenizer();
+  const declared = 'review looked_at';
+  assert.match(scopes(declared, 'review'), /keyword\.control\.spit/);
+  assert.match(scopes(declared, 'looked_at'), /entity\.name\.function\.review\.spit/);
+  // A step's output named `review` is assigned, not declared.
+  assert.doesNotMatch(scopes('review = copy(raw)', 'review'), /keyword\.control/);
+  assert.doesNotMatch(scopes('review: Report [sub] = summarise(raw)', 'review'), /keyword\.control/);
+
+  const source = 'source t1w : Image .nii.gz [sub] @ check(nonempty) @ review(looked_at, lib::other)';
+  assert.match(scopes(source, 'review'), /keyword\.other\.selector\.spit/);
+  assert.match(scopes(source, 'looked_at'), /entity\.name\.function\.review\.spit/);
+  assert.match(scopes(source, 'lib::other'), /entity\.name\.function\.review\.spit/);
+
+  const operation = 'operation summarise(t1: Image @ review(looked_at), mask: Mask) -> Json .json @ review(checked)';
+  assert.match(scopes(operation, 'review'), /keyword\.other\.selector\.spit/);
+  assert.match(scopes(operation, 'looked_at'), /entity\.name\.function\.review\.spit/);
+  assert.match(scopes(operation, 'review', operation.indexOf('->')), /keyword\.other\.selector\.spit/);
+  assert.match(scopes(operation, 'checked'), /entity\.name\.function\.review\.spit/);
+  const several = 'operation split(table: Table) -> (left: Table @ review(!looked_at), right: Table)';
+  assert.match(scopes(several, '!'), /keyword\.operator\.negation\.spit/);
+  assert.match(scopes(several, 'looked_at'), /entity\.name\.function\.review\.spit/);
+
+  const defaults = '    review: looked_at, !other  # in this stage';
+  assert.match(scopes(defaults, 'review'), /keyword\.control\.spit/);
+  assert.match(scopes(defaults, 'looked_at'), /entity\.name\.function\.review\.spit/);
+  assert.match(scopes(defaults, '!'), /keyword\.operator\.negation\.spit/);
+  assert.match(scopes(defaults, '# in this'), /comment\.line/);
+
+  const file = 'review looked_at from qc/looked_at.csv  # the verdicts';
+  assert.match(scopes(file, 'review'), /keyword\.control\.spit/);
+  assert.match(scopes(file, 'looked_at'), /entity\.name\.function\.review\.spit/);
+  assert.match(scopes(file, 'from'), /keyword\.control\.spit/);
+  assert.match(scopes(file, 'qc/looked_at.csv'), /string\.unquoted\.file/);
+  assert.match(scopes(file, '# the verdicts'), /comment\.line/);
 });

@@ -11,6 +11,9 @@
     { "include": "#use-line" },
     { "include": "#check-declaration" },
     { "include": "#check-default" },
+    { "include": "#review-file" },
+    { "include": "#review-declaration" },
+    { "include": "#review-default" },
     { "include": "#flow-declaration" },
     { "include": "#conditional-exclude-rule" },
     { "include": "#exclude-rule" },
@@ -36,7 +39,7 @@
       "patterns": [
         {
           "name": "entity.name.section.spit keyword.other.section.spit",
-          "match": "^\\s*(sources|source_paths|contexts|removed)\\s*:\\s*$"
+          "match": "^\\s*(sources|source_paths|contexts|removed|verdicts)\\s*:\\s*$"
         }
       ]
     },
@@ -208,14 +211,6 @@
     "exclude-rule": {
       "patterns": [
         {
-          "match": "^(\\s*)(exclude)\\s+(from)\\s+([^#]+)",
-          "captures": {
-            "2": { "name": "keyword.control.constraint.spit" },
-            "3": { "name": "keyword.control.constraint.spit" },
-            "4": { "name": "string.unquoted.file.spit" }
-          }
-        },
-        {
           "match": "^(\\s*)(exclude)\\s+(?:([A-Za-z_][A-Za-z0-9_]*)?)(\\[[^\\]]*\\])?",
           "captures": {
             "2": { "name": "keyword.control.constraint.spit" },
@@ -278,6 +273,55 @@
       "end": "$",
       "patterns": [{ "include": "#word-comment" }, { "include": "#check-items" }]
     },
+    "review-file": {
+      "comment": "`review looked_at from qc/looked_at.csv`, in a recipe: the file a review's verdicts are in.",
+      "match": "^(\\s*)(review)\\s+([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s+(from)\\s+([^#\\s]+)",
+      "captures": {
+        "2": { "name": "keyword.control.spit" },
+        "3": { "name": "entity.name.function.review.spit" },
+        "4": { "name": "keyword.control.spit" },
+        "5": { "name": "string.unquoted.file.spit" }
+      }
+    },
+    "review-declaration": {
+      "comment": "`review name`: a judgement a person makes, with no parameters and no command. A step's product named `review` takes `=`, so it is not one.",
+      "match": "^(\\s*)(review)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(?=#|$)",
+      "captures": {
+        "2": { "name": "keyword.control.spit" },
+        "3": { "name": "entity.name.function.review.spit" }
+      }
+    },
+    "review-items": {
+      "comment": "Reviews, each a name; `!` before one drops it from the defaults of a wider scope.",
+      "patterns": [
+        { "name": "keyword.operator.negation.spit", "match": "!" },
+        { "name": "entity.name.function.review.spit", "match": "[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*" },
+        { "name": "punctuation.separator.comma.spit", "match": "," }
+      ]
+    },
+    "review-default": {
+      "comment": "`review: looked_at, !other`: the reviews that judge every output of a file or stage. A step's product named `review` takes `=` outside parentheses, so it is not one.",
+      "begin": "^(\\s*)(review)\\s*(:)(?!(?:[^#=()]|\\([^()]*\\))*=)",
+      "beginCaptures": {
+        "2": { "name": "keyword.control.spit" },
+        "3": { "name": "punctuation.separator.colon.spit" }
+      },
+      "end": "$",
+      "patterns": [{ "include": "#word-comment" }, { "include": "#review-items" }]
+    },
+    "review-clause": {
+      "comment": "`review(looked_at)` after `@`: the reviews a port or a source attaches.",
+      "begin": "\\b(review)\\s*(\\()",
+      "beginCaptures": {
+        "1": { "name": "keyword.other.selector.spit" },
+        "2": { "name": "punctuation.section.parens.spit" }
+      },
+      "end": "\\)",
+      "endCaptures": {
+        "0": { "name": "punctuation.section.parens.spit" }
+      },
+      "patterns": [{ "include": "#review-items" }]
+    },
     "check-clause": {
       "comment": "`check(nonempty, ndim(3))` after `@`: the checks a port or a source attaches, each a name with its arguments.",
       "begin": "\\b(check)\\s*(\\()",
@@ -298,13 +342,14 @@
         "3": { "name": "entity.name.function.spit" },
         "4": { "name": "punctuation.definition.parameters.begin.spit" }
       },
-      "end": "\\)\\s*(->)\\s*((?:[^@#]|@\\s*check\\s*\\((?:[^()]|\\([^()]*\\))*\\))*)|\\)",
+      "end": "\\)\\s*(->)\\s*((?:[^@#]|@\\s*check\\s*\\((?:[^()]|\\([^()]*\\))*\\)|@\\s*review\\s*\\([^()]*\\))*)|\\)",
       "endCaptures": {
         "1": { "name": "keyword.operator.arrow.spit" },
         "2": {
           "name": "meta.operation.output.spit",
           "patterns": [
             { "include": "#check-clause" },
+            { "include": "#review-clause" },
             { "name": "keyword.operator.at.spit", "match": "@" },
             { "name": "string.quoted.double.spit", "match": "\"[^\"]*\"" },
             { "name": "keyword.other.beside.spit", "match": "\\bbeside\\b" },
@@ -328,6 +373,7 @@
       },
       "patterns": [
         { "include": "#check-clause" },
+        { "include": "#review-clause" },
         {
           "comment": "A many input's minimum, `items: many Image @ min(2)`, matched whole so the `)` of `min(2)` does not end the inputs.",
           "match": "(@)\\s*(min)\\s*(\\()\\s*(\\d+)\\s*(\\))",
@@ -514,6 +560,7 @@
           "match": "(?<=\\s)(?:\\.[A-Za-z0-9_-]+)+(?=\\s*(?:#|$|\\[|@|beside\\b))"
         },
         { "include": "#check-clause" },
+        { "include": "#review-clause" },
         {
           "match": "\\b(beside)\\s+([A-Za-z_][A-Za-z0-9_]*)",
           "captures": {
@@ -521,7 +568,7 @@
             "2": { "name": "variable.other.product.spit" }
           }
         },
-        { "name": "keyword.control.spit", "match": "\\b(?:require|exclude|per|verify|use|from|as|source|dimensions|operation|command|path|check(?!\\s*:))\\b" },
+        { "name": "keyword.control.spit", "match": "\\b(?:require|exclude|per|verify|use|from|as|source|dimensions|operation|command|path|(?:check|review)(?!\\s*:))\\b" },
         { "name": "storage.modifier.cardinality.spit", "match": "\\bmany\\b" },
         { "name": "keyword.other.selector.spit", "match": "\\b(vary|where|same|each|min)\\b" },
         { "include": "#strings" },
