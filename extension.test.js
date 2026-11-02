@@ -119,7 +119,7 @@ test('shows each output path with its groups resolved and labels written out', {
     'operation copy(input: Image) -> Image',
     'operation merge(inputs: many Image) -> Image',
     'copied = copy(scan)',
-    'merged = merge(copied @ vary(ses))',
+    'merged = merge(copied @vary(ses))',
     'default entities: {@key}-{@value} separated "_"',
     ''
   ].join('\n'));
@@ -678,7 +678,7 @@ process.exit(result.status);
 
 test('hovering shows SPIT\'s explanation of a word or a name, and nothing in a comment', { skip: !fs.existsSync(binary) }, async () => {
   const hints = {};
-  const text = 'source raw [id, run]\noperation mean(items: many) -> .txt\ncommand mean: cat {items} > {@output}  # vary\ntotal = mean(raw @ vary(run))\n\ndefault path: out/{@product}/{@entities}\n\ndefault entities: {@key}={@value} separated "__"\n';
+  const text = 'source raw [id, run]\noperation mean(items: many) -> .txt\ncommand mean: cat {items} > {@output}  # vary\ntotal = mean(raw @vary(run))\n\ndefault path: out/{@product}/{@entities}\n\ndefault entities: {@key}={@value} separated "__"\n';
   const document = fakeDocument(path.join(__dirname, 'hover.spit'), text);
   const extension = load(mockVscode(document, new Map(), () => {}, hints));
   extension.activate({ extensionPath: __dirname, subscriptions: [] });
@@ -688,8 +688,8 @@ test('hovering shows SPIT\'s explanation of a word or a name, and nothing in a c
   };
 
   const vary = await at(3, 'vary');
-  assert.deepEqual(span(vary), [3, 19, 23]);
-  assert.match(vary.contents.value, /^```spit\naverage = mean\(processed @ vary\(run\)\)\n```\n\nCollects a `many` input/);
+  assert.deepEqual(span(vary), [3, 18, 22]);
+  assert.match(vary.contents.value, /^```spit\naverage = mean\(processed @vary\(run\)\)\n```\n\nCollects a `many` input/);
   assert.match(vary.contents.value, /\[Language reference\]\(https:\/\/github\.com\/eclnz\/spit\/blob\/main\/docs\/language-reference\.md#operations-and-commands\)$/);
 
   const total = await at(3, 'total');
@@ -701,7 +701,7 @@ test('hovering shows SPIT\'s explanation of a word or a name, and nothing in a c
 
 test('hovering explains a check, where it is declared and where it is attached', { skip: !fs.existsSync(binary) }, async () => {
   const hints = {};
-  const text = 'check ndim(n): check_ndim {@path} {n}\nsource raw [id] @ check(ndim(3))\noperation copy(x @ check(ndim(3))) -> .txt\ncommand copy: cp {x} {@output}\ncopied = copy(raw)\n\ndefault path: out/{@product}/{@entities}\n\ndefault entities: {@key}={@value} separated "__"\n';
+  const text = 'check ndim(n): check_ndim {@path} {n}\nsource raw [id] @check(ndim(3))\noperation copy(x @check(ndim(3))) -> .txt\ncommand copy: cp {x} {@output}\ncopied = copy(raw)\n\ndefault path: out/{@product}/{@entities}\n\ndefault entities: {@key}={@value} separated "__"\n';
   const document = fakeDocument(path.join(__dirname, 'checks.spit'), text);
   const extension = load(mockVscode(document, new Map(), () => {}, hints));
   extension.activate({ extensionPath: __dirname, subscriptions: [] });
@@ -719,9 +719,9 @@ test('hovering explains a check, where it is declared and where it is attached',
   const clause = await at(1, 'check');
   assert.match(clause.contents.value, /Attaches checks to a port or a source/);
   const source = await at(1, 'raw');
-  assert.match(source.contents.value, /^```spit\nraw: Unknown \[id\] @ check\(ndim\(3\)\)\n```/);
+  assert.match(source.contents.value, /^```spit\nraw: Unknown \[id\] @check\(ndim\(3\)\)\n```/);
   const operation = await at(2, 'copy');
-  assert.match(operation.contents.value, /operation copy\(x: Unknown @ check\(ndim\(3\)\)\) -> Unknown \.txt/);
+  assert.match(operation.contents.value, /operation copy\(x: Unknown @check\(ndim\(3\)\)\) -> Unknown \.txt/);
   extension.deactivate();
 });
 
@@ -736,7 +736,7 @@ test('hovering explains an output beside another', { skip: !fs.existsSync(binary
     return hints.hover.provideHover(document, { line, character });
   };
   const beside = await at(2, 'beside');
-  assert.match(beside.contents.value, /an output is written by the same job/);
+  assert.match(beside.contents.value, /whose file lies beside another file/);
   extension.deactivate();
 });
 
