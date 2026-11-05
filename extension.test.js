@@ -646,7 +646,7 @@ test('hovers reuse one compiler analysis per document version', { skip: !fs.exis
 const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
 fs.appendFileSync(${JSON.stringify(calls)}, JSON.stringify(process.argv.slice(2)) + '\\n');
-const result = spawnSync(${JSON.stringify(binary)}, process.argv.slice(2), { input: fs.readFileSync(0) });
+const result = spawnSync(${JSON.stringify(binary)}, process.argv.slice(2), { input: process.argv[2] === '--version' ? undefined : fs.readFileSync(0) });
 process.stdout.write(result.stdout);
 process.stderr.write(result.stderr);
 process.exit(result.status);
@@ -661,7 +661,7 @@ process.exit(result.status);
   extension.activate(context);
   const provider = context.subscriptions.find(item => item.hoverProvider).hoverProvider;
   const hover = () => provider.provideHover(document, { line: 2, character: 1 });
-  const recorded = () => fs.readFileSync(calls, 'utf8').trim().split('\n').map(line => JSON.parse(line));
+  const recorded = () => fs.readFileSync(calls, 'utf8').trim().split('\n').map(line => JSON.parse(line)).filter(args => args[0] === 'check');
   try {
     assert.match((await hover()).contents.value, /out: Unknown \[id\]/);
     assert.deepEqual(results.get(document.uri.toString()), []);
