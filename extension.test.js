@@ -233,6 +233,13 @@ function mockVscode(document, results, onChange, hints = {}) {
     DiagnosticSeverity: { Error: 0, Warning: 1 },
     SemanticTokensLegend: class {},
     SemanticTokensBuilder: class {},
+    window: {
+      createOutputChannel(name) {
+        const lines = [];
+        hints.compilerOutput = { name, lines };
+        return { ...disposable, appendLine(line) { lines.push(line); } };
+      }
+    },
     languages: {
       registerHoverProvider(_selector, provider) { hints.hover = provider; return { ...disposable, hoverProvider: provider }; },
       createDiagnosticCollection() {
@@ -302,6 +309,9 @@ test('highlights a .spitout\'s products, dimensions and values by role', () => {
       constructor() { this.entries = []; }
       push(line, char, length, tokenType, tokenModifiers) { this.entries.push({ line, char, length, tokenType, tokenModifiers }); }
       build() { return this.entries; }
+    },
+    window: {
+      createOutputChannel() { return { appendLine() {}, dispose() {} }; }
     },
     languages: {
       registerHoverProvider() { return { dispose() {} }; },
