@@ -33,6 +33,8 @@ Rebuild the sibling SPIT compiler with `cargo build`: hovers require its `check 
 
 The extension uses a build at `../spit/target/debug/spit` if present, then tries `spit` on PATH. Set `spit.executablePath` in your user settings to use a build elsewhere; workspace settings cannot change it. It is the only setting. The extension stays off in folders VS Code does not trust. The SPIT executable needs `check <file> --json --stdin --hovers`, including for a `.spitin` and a `.spitout`.
 
+The extension verifies the executable with `--version` before checking a file. View the selected binary path and version under **Output → SPIT Compiler**. The extension requires the descriptive version format introduced by SPIT PR #214. If a sibling debug build is selected, rebuild it when the compiler source changes; two different builds can report the same package version.
+
 A recipe groups dataset-specific source paths in `inputs:`. Indented `source: path`, `default: path`, and repeated `contexts: directory-pattern` entries highlight their names and path captures. Requirements count sources or exact context domains, as `require [sub] where contexts[sub,ses] count>=2`; `require [] where lut count=1` checks a global lookup. Inventories use unnamed `contexts:` sections.
 
 ## Test

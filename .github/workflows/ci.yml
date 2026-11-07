@@ -9,6 +9,7 @@ permissions:
 
 jobs:
   test:
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
       - name: Check out extension
@@ -26,7 +27,7 @@ jobs:
           BRANCH: ${{ github.head_ref || github.ref_name }}
         run: |
           ref=dev
-          if [ "$BRANCH" != main ] && [ "$BRANCH" != dev ] &&
+          if [ "$BRANCH" != main ] && [ "$BRANCH" != dev ] &&\
               git ls-remote --exit-code --heads https://github.com/eclnz/spit "refs/heads/$BRANCH" > /dev/null; then
             ref=$BRANCH
           fi
@@ -62,3 +63,4 @@ jobs:
         run: |
           test -x ../spit/target/debug/spit
           npm test
+

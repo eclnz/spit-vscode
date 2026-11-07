@@ -1,7 +1,9 @@
 const vscode = require('vscode');
 const fs = require('node:fs');
 const path = require('node:path');
-const { spawn } = require('node:child_process');
+const { spawn, execFile } = require('node:child_process');
+const { resolveCommand, parseCompilerIdentity } = require('./compiler-identity');
+const { version: EXTENSION_VERSION } = require('./package.json');
 
 const CHECK_TIMEOUT_MS = 15000;
 
@@ -10,6 +12,9 @@ const timers = new Map();
 const relatedFiles = new Map();
 let diagnostics;
 let relatedDiagnostics;
+let compilerOutput;
+const compilerChecks = new Map();
+const reportedCompilers = new Set();
 // Where SPIT writes each product whose path no line spells out in full, from
 // the last clean check of each pipeline: a label per line, by document.
 const shownPaths = new Map();
@@ -156,6 +161,46 @@ function executablePath(context, document) {
   return fs.existsSync(built) ? built : 'spit';
 }
 
+function compilerIdentity(executable, modified) {
+  const cacheKey = `${executable}:${modified ?? 'unknown'}`;
+  if (compilerChecks.has(cacheKey)) return compilerChecks.get(cacheKey);
+  const checked = new Promise(resolve => {
+    const fullPath = resolveCommand(executable);
+    if (!fullPath) {
+      resolve({ error: `Cannot find SPIT executable ${executable}. Set spit.executablePath in user settings.` });
+      return;
+    }
+    execFile(fullPath, ['--version'], { timeout: 4000, windowsHide: true }, (error, stdout, stderr) => {
+      if (error) {
+        resolve({ error: `Could not identify ${fullPath}: ${stderr.trim() || error.message}` });
+        return;
+      }
+      const identity = parseCompilerIdentity(stdout, EXTENSION_VERSION);
+      if (!identity) {
+        resolve({ error: `Executable ${fullPath} is not the expected SPIT pipeline compiler (reported: ${stdout.trim() || '(empty)'}). Set spit.executablePath to the correct build.` });
+        return;
+      }
+      if (identity.incompatible) {
+        resolve({ error: `SPIT compiler at ${fullPath} is version ${identity.version}, older than extension ${EXTENSION_VERSION}. Rebuild or select a newer compiler.` });
+        return;
+      }
+      resolve({ path: fullPath, ...identity });
+    });
+  });
+  compilerChecks.set(cacheKey, checked);
+  return checked;
+}
+
+function reportCompiler(executable, modified, identity) {
+  const cacheKey = `${executable}:${modified ?? 'unknown'}`;
+  if (reportedCompilers.has(cacheKey)) return;
+  reportedCompilers.add(cacheKey);
+  const source = executable.includes(`${path.sep}target${path.sep}debug${path.sep}`)
+    ? ' (sibling debug build; rebuild it after changing SPIT source)'
+    : '';
+  compilerOutput.appendLine(identity.error || `Using SPIT compiler ${identity.version}: ${identity.path}${source}`);
+}
+
 // `column` and `end_column` are 1-based UTF-16 offsets, as SPIT reports them;
 // without them the whole line is marked.
 function issue(document, line, message, severity = 'error', column, endColumn) {
@@ -181,6 +226,7 @@ function stop(uri) {
   timers.delete(key);
   pending.get(key)?.kill();
   pending.delete(key);
+  analyses.get(key)?.settle(null);
   analyses.delete(key);
 }
 
@@ -427,41 +473,61 @@ function lint(context, document) {
   timers.delete(key);
   let settle;
   const analysis = { version, executable, executableModified, promise: new Promise(resolve => { settle = resolve; }) };
+  analysis.settle = settle;
   analyses.set(key, analysis);
 
-  const args = ['check', document.uri.fsPath, '--json', '--stdin', '--hovers'];
-  const child = spawn(executable, args, {
-    cwd: path.dirname(document.uri.fsPath),
-    stdio: ['pipe', 'pipe', 'pipe']
-  });
-  pending.set(key, child);
-  let timedOut = false;
-  const timeout = setTimeout(() => {
-    timedOut = true;
-    child.kill();
-  }, CHECK_TIMEOUT_MS);
-  let output = '';
-  let errors = '';
-  child.stdout.setEncoding('utf8').on('data', chunk => { output += chunk; });
-  child.stderr.setEncoding('utf8').on('data', chunk => { errors += chunk; });
-  child.on('error', error => { errors += error.message; });
-  child.on('close', code => {
-    clearTimeout(timeout);
-    let items = null;
-    try {
-      if (pending.get(key) !== child || analyses.get(key) !== analysis) return;
-      pending.delete(key);
-      if (document.isClosed || document.version !== version || vscode.workspace.isTrusted === false) {
-        analyses.delete(key);
-        return;
-      }
-      items = finishCheck(document, key, code, timedOut, output, errors);
-    } finally {
-      settle(items);
+  compilerIdentity(executable, executableModified).then(identity => {
+    if (analyses.get(key) !== analysis) return;
+    reportCompiler(executable, executableModified, identity);
+    if (identity.error) {
+      showPaths(document, null);
+      clearRelated(key);
+      diagnostics.set(document.uri, [issue(document, null, identity.error)]);
+      settle(null);
+      return;
     }
+    runCompilerCheck(identity);
+  }).catch(error => {
+    if (analyses.get(key) !== analysis) return;
+    diagnostics.set(document.uri, [issue(document, null, `SPIT compiler identification failed: ${error.message}`)]);
+    settle(null);
   });
-  child.stdin.on('error', () => {});
-  child.stdin.end(document.getText());
+
+  function runCompilerCheck(identity) {
+    const args = ['check', document.uri.fsPath, '--json', '--stdin', '--hovers'];
+    const child = spawn(identity.path, args, {
+      cwd: path.dirname(document.uri.fsPath),
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+    pending.set(key, child);
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      child.kill();
+    }, CHECK_TIMEOUT_MS);
+    let output = '';
+    let errors = '';
+    child.stdout.setEncoding('utf8').on('data', chunk => { output += chunk; });
+    child.stderr.setEncoding('utf8').on('data', chunk => { errors += chunk; });
+    child.on('error', error => { errors += error.message; });
+    child.on('close', code => {
+      clearTimeout(timeout);
+      let items = null;
+      try {
+        if (pending.get(key) !== child || analyses.get(key) !== analysis) return;
+        pending.delete(key);
+        if (document.isClosed || document.version !== version || vscode.workspace.isTrusted === false) {
+          analyses.delete(key);
+          return;
+        }
+        items = finishCheck(document, key, code, timedOut, output, errors);
+      } finally {
+        settle(items);
+      }
+    });
+    child.stdin.on('error', () => {});
+    child.stdin.end(document.getText());
+  }
   return analysis.promise;
 }
 
@@ -499,6 +565,8 @@ function activate(context) {
   context.subscriptions.push(diagnostics);
   relatedDiagnostics = vscode.languages.createDiagnosticCollection('SPIT recipe pipelines');
   context.subscriptions.push(relatedDiagnostics);
+  compilerOutput = vscode.window.createOutputChannel('SPIT Compiler');
+  context.subscriptions.push(compilerOutput);
   context.subscriptions.push(vscode.languages.registerDocumentSemanticTokensProvider(
     { language: 'spit' },
     { provideDocumentSemanticTokens: provideSpitSemanticTokens },
@@ -547,3 +615,4 @@ function deactivate() {
 // stripComment is exported for the tests that check it against SPIT's own,
 // and pathHintLabels for the tests of the labels it makes.
 module.exports = { activate, deactivate, stripComment, pathHintLabels };
+

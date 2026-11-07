@@ -233,6 +233,13 @@ function mockVscode(document, results, onChange, hints = {}) {
     DiagnosticSeverity: { Error: 0, Warning: 1 },
     SemanticTokensLegend: class {},
     SemanticTokensBuilder: class {},
+    window: {
+      createOutputChannel(name) {
+        const lines = [];
+        hints.compilerOutput = { name, lines };
+        return { ...disposable, appendLine(line) { lines.push(line); } };
+      }
+    },
     languages: {
       registerHoverProvider(_selector, provider) { hints.hover = provider; return { ...disposable, hoverProvider: provider }; },
       createDiagnosticCollection() {
@@ -302,6 +309,9 @@ test('highlights a .spitout\'s products, dimensions and values by role', () => {
       constructor() { this.entries = []; }
       push(line, char, length, tokenType, tokenModifiers) { this.entries.push({ line, char, length, tokenType, tokenModifiers }); }
       build() { return this.entries; }
+    },
+    window: {
+      createOutputChannel() { return { appendLine() {}, dispose() {} }; }
     },
     languages: {
       registerHoverProvider() { return { dispose() {} }; },
@@ -635,8 +645,8 @@ test('hovers reuse one compiler analysis per document version', { skip: !fs.exis
   fs.writeFileSync(wrapper, `#!/usr/bin/env node
 const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
-fs.appendFileSync(${JSON.stringify(calls)}, JSON.stringify(process.argv.slice(2)) + '\\n');
-const result = spawnSync(${JSON.stringify(binary)}, process.argv.slice(2), { input: fs.readFileSync(0) });
+fs.appendFileSync(${JSON.stringify(calls)}, JSON.stringify(process.argv.slice(2)) + String.fromCharCode(10));
+const result = spawnSync(${JSON.stringify(binary)}, process.argv.slice(2), { input: process.argv[2] === '--version' ? undefined : fs.readFileSync(0) });
 process.stdout.write(result.stdout);
 process.stderr.write(result.stderr);
 process.exit(result.status);
@@ -651,7 +661,7 @@ process.exit(result.status);
   extension.activate(context);
   const provider = context.subscriptions.find(item => item.hoverProvider).hoverProvider;
   const hover = () => provider.provideHover(document, { line: 2, character: 1 });
-  const recorded = () => fs.readFileSync(calls, 'utf8').trim().split('\n').map(line => JSON.parse(line));
+  const recorded = () => fs.readFileSync(calls, 'utf8').trim().split('\n').map(line => JSON.parse(line)).filter(args => args[0] === 'check');
   try {
     assert.match((await hover()).contents.value, /out: Unknown \[id\]/);
     assert.deepEqual(results.get(document.uri.toString()), []);
@@ -807,3 +817,4 @@ test('a recipe\'s review line is checked against the pipeline and explained on h
     fs.rmSync(folder, { recursive: true, force: true });
   }
 });
+
