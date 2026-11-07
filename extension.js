@@ -226,6 +226,7 @@ function stop(uri) {
   timers.delete(key);
   pending.get(key)?.kill();
   pending.delete(key);
+  analyses.get(key)?.settle(null);
   analyses.delete(key);
 }
 
@@ -472,6 +473,7 @@ function lint(context, document) {
   timers.delete(key);
   let settle;
   const analysis = { version, executable, executableModified, promise: new Promise(resolve => { settle = resolve; }) };
+  analysis.settle = settle;
   analyses.set(key, analysis);
 
   compilerIdentity(executable, executableModified).then(identity => {
@@ -613,3 +615,4 @@ function deactivate() {
 // stripComment is exported for the tests that check it against SPIT's own,
 // and pathHintLabels for the tests of the labels it makes.
 module.exports = { activate, deactivate, stripComment, pathHintLabels };
+

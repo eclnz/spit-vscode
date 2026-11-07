@@ -645,7 +645,7 @@ test('hovers reuse one compiler analysis per document version', { skip: !fs.exis
   fs.writeFileSync(wrapper, `#!/usr/bin/env node
 const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
-fs.appendFileSync(${JSON.stringify(calls)}, JSON.stringify(process.argv.slice(2)) + '\\n');
+fs.appendFileSync(${JSON.stringify(calls)}, JSON.stringify(process.argv.slice(2)) + String.fromCharCode(10));
 const result = spawnSync(${JSON.stringify(binary)}, process.argv.slice(2), { input: process.argv[2] === '--version' ? undefined : fs.readFileSync(0) });
 process.stdout.write(result.stdout);
 process.stderr.write(result.stderr);
@@ -817,3 +817,4 @@ test('a recipe\'s review line is checked against the pipeline and explained on h
     fs.rmSync(folder, { recursive: true, force: true });
   }
 });
+

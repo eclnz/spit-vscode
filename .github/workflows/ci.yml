@@ -26,11 +26,7 @@ jobs:
           BRANCH: ${{ github.head_ref || github.ref_name }}
         run: |
           ref=dev
-          # This extension PR requires the distinctive --version output from SPIT #214.
-          # Test them together until the compiler change reaches dev.
-          if [ "$BRANCH" = "fix/compiler-identity-56" ]; then
-            ref=fix/distinctive-version-identification-211
-          elif [ "$BRANCH" != main ] && [ "$BRANCH" != dev ] &&
+          if [ "$BRANCH" != main ] && [ "$BRANCH" != dev ] &&\
               git ls-remote --exit-code --heads https://github.com/eclnz/spit "refs/heads/$BRANCH" > /dev/null; then
             ref=$BRANCH
           fi
@@ -66,3 +62,4 @@ jobs:
         run: |
           test -x ../spit/target/debug/spit
           npm test
+
