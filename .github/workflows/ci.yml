@@ -9,6 +9,7 @@ permissions:
 
 jobs:
   test:
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
       - name: Check out extension
