@@ -31,4 +31,37 @@ function parseCompilerIdentity(output, requiredVersion) {
   return { version, incompatible };
 }
 
-module.exports = { resolveCommand, parseCompilerIdentity };
+// The newest file of SPIT's source in `repository`, relative to it, that
+// changed after `binary` was built, or null. A build older than its source
+// gives the version the source has, so the version alone cannot show that it
+// misses syntax the source has since gained.
+function newerSource(binary, repository) {
+  let built;
+  try { built = fs.statSync(binary).mtimeMs; } catch { return null; }
+  let newest = null;
+  let newestTime = built;
+  const consider = file => {
+    let modified;
+    try { modified = fs.statSync(file).mtimeMs; } catch { return; }
+    if (modified > newestTime) {
+      newest = file;
+      newestTime = modified;
+    }
+  };
+  consider(path.join(repository, 'Cargo.toml'));
+  consider(path.join(repository, 'Cargo.lock'));
+  const folders = [path.join(repository, 'src')];
+  while (folders.length) {
+    const folder = folders.pop();
+    let entries;
+    try { entries = fs.readdirSync(folder, { withFileTypes: true }); } catch { continue; }
+    for (const entry of entries) {
+      const file = path.join(folder, entry.name);
+      if (entry.isDirectory()) folders.push(file);
+      else if (entry.name.endsWith('.rs')) consider(file);
+    }
+  }
+  return newest && path.relative(repository, newest);
+}
+
+module.exports = { resolveCommand, parseCompilerIdentity, newerSource };

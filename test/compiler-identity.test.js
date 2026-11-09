@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { parseCompilerIdentity, resolveCommand } = require('../compiler-identity');
+const { newerSource, parseCompilerIdentity, resolveCommand } = require('../compiler-identity');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
@@ -27,4 +27,28 @@ test('reports the exact executable found on PATH', t => {
   assert.equal(resolveCommand(name, { PATH: folder, PATHEXT: '' }), file);
   assert.equal(resolveCommand(file), file);
   assert.equal(resolveCommand('missing-spit-compiler', { PATH: folder }), null);
+});
+
+test('names the newest source file changed after a build, and nothing when the build is newer', t => {
+  const repository = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-source-test-'));
+  t.after(() => fs.rmSync(repository, { recursive: true, force: true }));
+  const build = path.join(repository, 'target', 'debug', 'spit');
+  fs.mkdirSync(path.dirname(build), { recursive: true });
+  fs.mkdirSync(path.join(repository, 'src', 'parser'), { recursive: true });
+  const at = (file, seconds) => {
+    fs.writeFileSync(file, '');
+    const time = new Date(1_700_000_000_000 + seconds * 1000);
+    fs.utimesSync(file, time, time);
+  };
+  at(build, 10);
+  at(path.join(repository, 'Cargo.toml'), 5);
+  at(path.join(repository, 'src', 'lib.rs'), 5);
+  assert.equal(newerSource(build, repository), null);
+  at(path.join(repository, 'src', 'lib.rs'), 20);
+  at(path.join(repository, 'src', 'parser', 'keyword.rs'), 30);
+  at(path.join(repository, 'src', 'parser', 'notes.md'), 40);
+  assert.equal(newerSource(build, repository), path.join('src', 'parser', 'keyword.rs'));
+  at(path.join(repository, 'Cargo.lock'), 50);
+  assert.equal(newerSource(build, repository), 'Cargo.lock');
+  assert.equal(newerSource(path.join(repository, 'missing'), repository), null);
 });
