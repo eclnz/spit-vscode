@@ -505,14 +505,21 @@ function mockVscode(document, results, onChange, hints = {}) {
       constructor(uri, range) { Object.assign(this, { uri, range }); }
     },
     DiagnosticSeverity: { Error: 0, Warning: 1 },
+    StatusBarAlignment: { Left: 1, Right: 2 },
     SemanticTokensLegend: class {},
     SemanticTokensBuilder: class {},
     window: {
+      activeTextEditor: { document },
       createOutputChannel(name) {
         const lines = [];
         hints.compilerOutput = { name, lines };
         return { ...disposable, appendLine(line) { lines.push(line); } };
-      }
+      },
+      createStatusBarItem() {
+        hints.status = { ...disposable, visible: false, show() { this.visible = true; }, hide() { this.visible = false; } };
+        return hints.status;
+      },
+      onDidChangeActiveTextEditor() { return disposable; }
     },
     languages: {
       registerHoverProvider(_selector, provider) { hints.hover = provider; return { ...disposable, hoverProvider: provider }; },
@@ -584,8 +591,11 @@ test('highlights a .spitout\'s products, dimensions and values by role', () => {
       push(line, char, length, tokenType, tokenModifiers) { this.entries.push({ line, char, length, tokenType, tokenModifiers }); }
       build() { return this.entries; }
     },
+    StatusBarAlignment: { Right: 2 },
     window: {
-      createOutputChannel() { return { appendLine() {}, dispose() {} }; }
+      createOutputChannel() { return { appendLine() {}, dispose() {} }; },
+      createStatusBarItem() { return { show() {}, hide() {}, dispose() {} }; },
+      onDidChangeActiveTextEditor() { return { dispose() {} }; }
     },
     languages: {
       registerHoverProvider() { return { dispose() {} }; },
@@ -1280,5 +1290,59 @@ test('a command block marks an error on the line it is in, and explains each lin
     assert.match(hover.contents.value.split('\n\n')[1], /^Writes the command's stdout to one output's file/);
   } finally {
     extension.deactivate();
+  }
+});
+
+test('a sibling build older than its source is named once, first, and in the status bar', { skip: !fs.existsSync(binary) }, async () => {
+  // The layout the extension looks for: SPIT's repository beside its own.
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-stale-'));
+  const extensionPath = path.join(folder, 'spit-vscode');
+  const build = path.join(folder, 'spit', 'target', 'debug', process.platform === 'win32' ? 'spit.exe' : 'spit');
+  fs.mkdirSync(extensionPath);
+  fs.mkdirSync(path.dirname(build), { recursive: true });
+  fs.mkdirSync(path.join(folder, 'spit', 'src'));
+  fs.writeFileSync(build, `#!/usr/bin/env node
+const fs = require('node:fs');
+const { spawnSync } = require('node:child_process');
+const result = spawnSync(${JSON.stringify(binary)}, process.argv.slice(2), { input: process.argv[2] === '--version' ? undefined : fs.readFileSync(0) });
+process.stdout.write(result.stdout);
+process.stderr.write(result.stderr);
+process.exit(result.status);
+`, { mode: 0o755 });
+  const source = path.join(folder, 'spit', 'src', 'lib.rs');
+  fs.writeFileSync(source, '');
+  const built = new Date(Date.now() - 60000);
+  fs.utimesSync(build, built, built);
+  const document = fakeDocument(path.join(folder, 'stale.spit'), 'source raw [id]\n');
+  const results = new Map();
+  const hints = {};
+  let onChange;
+  const vscode = mockVscode(document, results, callback => { onChange = callback; }, hints);
+  vscode.workspace.getConfiguration = () => ({ get: () => '' });
+  const extension = load(vscode);
+  const context = { extensionPath, subscriptions: [] };
+  extension.activate(context);
+  const provider = context.subscriptions.find(item => item.hoverProvider).hoverProvider;
+  try {
+    await provider.provideHover(document, { line: 0, character: 1 });
+    const [first, ...rest] = results.get(document.uri.toString());
+    assert.equal(first.severity, 1);
+    assert.match(first.message, /is older than its source: src.lib\.rs changed after it was built/);
+    assert.ok(rest.every(item => !/older than its source/.test(item.message)));
+    assert.match(hints.status.text, /^\$\(warning\) SPIT \d+\.\d+\.\d+$/);
+    assert.match(hints.status.tooltip, new RegExp(`SPIT compiler \\S+: ${build.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+    assert.ok(hints.status.visible);
+    assert.equal(hints.compilerOutput.lines.filter(line => /older than its source/.test(line)).length, 1);
+    // Rebuilt: the warning goes, and the status bar shows the version alone.
+    const rebuilt = new Date(Date.now() + 60000);
+    fs.utimesSync(build, rebuilt, rebuilt);
+    document.version++;
+    onChange({ document });
+    await provider.provideHover(document, { line: 0, character: 1 });
+    assert.ok(results.get(document.uri.toString()).every(item => !/older than its source/.test(item.message)));
+    assert.match(hints.status.text, /^SPIT \d+\.\d+\.\d+$/);
+  } finally {
+    extension.deactivate();
+    fs.rmSync(folder, { recursive: true, force: true });
   }
 });

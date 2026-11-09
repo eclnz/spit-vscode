@@ -2,7 +2,7 @@ const vscode = require('vscode');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn, execFile } = require('node:child_process');
-const { resolveCommand, parseCompilerIdentity } = require('./compiler-identity');
+const { resolveCommand, parseCompilerIdentity, newerSource } = require('./compiler-identity');
 const { version: EXTENSION_VERSION } = require('./package.json');
 
 const CHECK_TIMEOUT_MS = 15000;
@@ -13,6 +13,9 @@ const relatedFiles = new Map();
 let diagnostics;
 let relatedDiagnostics;
 let compilerOutput;
+// The compiler that checked each document, by document, for the status bar.
+const compilerStatus = new Map();
+let statusItem;
 const compilerChecks = new Map();
 const reportedCompilers = new Set();
 // Where SPIT writes each product whose path no line spells out in full, from
@@ -157,8 +160,51 @@ function executablePath(context, document) {
   if (configured) {
     return path.isAbsolute(configured) ? configured : path.resolve(path.dirname(document.uri.fsPath), configured);
   }
-  const built = path.resolve(context.extensionPath, '..', 'spit', 'target', 'debug', process.platform === 'win32' ? 'spit.exe' : 'spit');
+  const built = siblingBuild(context);
   return fs.existsSync(built) ? built : 'spit';
+}
+
+// SPIT's repository beside the extension's, whose debug build is used when
+// `spit.executablePath` is empty.
+function siblingRepository(context) {
+  return path.resolve(context.extensionPath, '..', 'spit');
+}
+
+function siblingBuild(context) {
+  return path.join(siblingRepository(context), 'target', 'debug', process.platform === 'win32' ? 'spit.exe' : 'spit');
+}
+
+// A warning that the sibling build is older than its source, or null.
+function staleBuild(context, executable) {
+  if (executable !== siblingBuild(context)) return null;
+  const repository = siblingRepository(context);
+  const changed = newerSource(executable, repository);
+  return changed && `The SPIT build ${executable} is older than its source: ${changed} changed after it was built, so it may not read what this file uses. Run \`cargo build\` in ${repository}, or set spit.executablePath.`;
+}
+
+// Show the compiler that checked `key` in the status bar: its version and
+// path, or why it could not be used.
+function setCompilerStatus(key, identity, stale) {
+  const status = identity.error
+    ? { text: '$(error) SPIT', tooltip: identity.error }
+    : {
+      text: `${stale ? '$(warning) ' : ''}SPIT ${identity.version}`,
+      tooltip: `SPIT compiler ${identity.version}: ${identity.path}${stale ? `\n\n${stale}` : ''}`
+    };
+  compilerStatus.set(key, status);
+  showCompilerStatus(vscode.window.activeTextEditor);
+}
+
+function showCompilerStatus(editor) {
+  const status = editor && compilerStatus.get(editor.document.uri.toString());
+  if (!statusItem) return;
+  if (!status) {
+    statusItem.hide();
+    return;
+  }
+  statusItem.text = status.text;
+  statusItem.tooltip = status.tooltip;
+  statusItem.show();
 }
 
 function compilerIdentity(executable, modified) {
@@ -199,6 +245,14 @@ function reportCompiler(executable, modified, identity) {
     ? ' (sibling debug build; rebuild it after changing SPIT source)'
     : '';
   compilerOutput.appendLine(identity.error || `Using SPIT compiler ${identity.version}: ${identity.path}${source}`);
+}
+
+// Write `stale` to the output once for each build of the compiler.
+function reportStale(executable, modified, stale) {
+  const cacheKey = `stale:${executable}:${modified ?? 'unknown'}`;
+  if (reportedCompilers.has(cacheKey)) return;
+  reportedCompilers.add(cacheKey);
+  compilerOutput.appendLine(stale);
 }
 
 // `column` and `end_column` are 1-based UTF-16 offsets, as SPIT reports them;
@@ -291,10 +345,11 @@ function issueFor(document, item) {
 // library's are in the library, and a recipe's pipeline's in the pipeline.
 // Those go to a collection of their own, rebuilt from every check, so a
 // file whose problems are gone loses its marks.
-function publishIssues(document, items) {
+// `notice`, when given, is a diagnostic about the compiler, shown first.
+function publishIssues(document, items, notice) {
   const key = document.uri.toString();
   clearRelated(key);
-  const local = [];
+  const local = notice ? [notice] : [];
   const external = new Map();
   const own = path.resolve(document.uri.fsPath);
   for (const item of items) {
@@ -508,6 +563,10 @@ function lint(context, document) {
   compilerIdentity(executable, executableModified).then(identity => {
     if (analyses.get(key) !== analysis) return;
     reportCompiler(executable, executableModified, identity);
+    const stale = identity.error ? null : staleBuild(context, executable);
+    if (stale) reportStale(executable, executableModified, stale);
+    setCompilerStatus(key, identity, stale);
+    analysis.notice = stale && issue(document, null, stale, 'warning');
     if (identity.error) {
       showPaths(document, null);
       clearRelated(key);
@@ -549,7 +608,7 @@ function lint(context, document) {
           analyses.delete(key);
           return;
         }
-        items = finishCheck(document, key, code, timedOut, output, errors);
+        items = finishCheck(document, key, code, timedOut, output, errors, analysis.notice);
       } finally {
         settle(items);
       }
@@ -561,18 +620,20 @@ function lint(context, document) {
 }
 
 // Show what a finished check found, and return its hover items, or null.
-function finishCheck(document, key, code, timedOut, output, errors) {
+// `notice`, when given, is a diagnostic about the compiler, shown first.
+function finishCheck(document, key, code, timedOut, output, errors, notice) {
+  const failed = message => [...(notice ? [notice] : []), issue(document, null, message)];
   if (timedOut) {
     showPaths(document, null);
     clearRelated(key);
-    diagnostics.set(document.uri, [issue(document, null, `SPIT check did not finish within ${CHECK_TIMEOUT_MS / 1000} seconds and was stopped`)]);
+    diagnostics.set(document.uri, failed(`SPIT check did not finish within ${CHECK_TIMEOUT_MS / 1000} seconds and was stopped`));
     return null;
   }
   // SPIT returns 1 with a complete JSON result when diagnostics contain errors.
   if (code !== 0 && (code !== 1 || !output.trim())) {
     showPaths(document, null);
     clearRelated(key);
-    diagnostics.set(document.uri, [issue(document, null, `SPIT check failed: ${errors.trim() || `exit ${code}`}`)]);
+    diagnostics.set(document.uri, failed(`SPIT check failed: ${errors.trim() || `exit ${code}`}`));
     return null;
   }
   try {
@@ -580,7 +641,7 @@ function finishCheck(document, key, code, timedOut, output, errors) {
     if (!Array.isArray(result.diagnostics) || (code === 1 && !result.diagnostics.some(item => item.severity === 'error'))) {
       throw new Error('missing error diagnostics');
     }
-    publishIssues(document, result.diagnostics);
+    publishIssues(document, result.diagnostics, notice);
     // Only a pipeline that checks clean has `paths`.
     showPaths(document, result.paths);
     return hoverItems(result);
@@ -590,7 +651,7 @@ function finishCheck(document, key, code, timedOut, output, errors) {
     const message = code === 0
       ? `SPIT returned invalid diagnostics: ${error.message}`
       : `SPIT check failed: ${errors.trim() || `exit ${code}`} (invalid diagnostics: ${error.message})`;
-    diagnostics.set(document.uri, [issue(document, null, message)]);
+    diagnostics.set(document.uri, failed(message));
     return null;
   }
 }
@@ -602,6 +663,10 @@ function activate(context) {
   context.subscriptions.push(relatedDiagnostics);
   compilerOutput = vscode.window.createOutputChannel('SPIT Compiler');
   context.subscriptions.push(compilerOutput);
+  statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
+  statusItem.name = 'SPIT Compiler';
+  context.subscriptions.push(statusItem);
+  context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(showCompilerStatus));
   context.subscriptions.push(vscode.languages.registerDocumentSemanticTokensProvider(
     { language: 'spit' },
     { provideDocumentSemanticTokens: provideSpitSemanticTokens },
@@ -622,6 +687,8 @@ function activate(context) {
     stop(document.uri);
     shownPaths.delete(document.uri.toString());
     analyses.delete(document.uri.toString());
+    compilerStatus.delete(document.uri.toString());
+    showCompilerStatus(vscode.window.activeTextEditor);
     diagnostics.delete(document.uri);
     clearRelated(document.uri.toString());
   }));
