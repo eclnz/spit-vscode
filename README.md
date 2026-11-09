@@ -49,7 +49,7 @@ A recipe groups dataset-specific source paths in `inputs:`. Indented `source: pa
 
 ## Test
 
-Run `npm install`, then `npm test` with a sibling SPIT build. The grammar tests tokenize SPIT text with `vscode-textmate`, the engine VS Code uses, and are skipped until it is installed. Set `SPIT_TEST_EXECUTABLE` to another SPIT binary path if the repositories are elsewhere.
+Run `npm install`, then `npm test` with a sibling SPIT build. The grammar tests tokenize SPIT text with `vscode-textmate`, the engine VS Code uses, and are skipped until it is installed. Set `SPIT_TEST_EXECUTABLE` to another SPIT binary path if the repositories are elsewhere. A grammar test reads SPIT's keywords from `spit keywords` and fails when SPIT has a keyword the grammar does not colour, or the test lists one SPIT no longer has.
 
 ## Disclaimer
 

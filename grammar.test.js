@@ -821,3 +821,62 @@ test('a command block marks each line beneath it as a command', { skip }, async 
   assert.match(scopes.inFile(lines, 8, '='), /keyword\.operator\.assignment\.spit/);
   assert.doesNotMatch(scopes.inFile(lines, 8, 'bam'), /placeholder/);
 });
+
+// SPIT prints its keyword table with `spit keywords`. Each word needs a line
+// here that starts a statement with it, and that line must colour it as a
+// keyword. A word SPIT reads only to say what to write instead has `null`:
+// the grammar leaves it uncoloured, so it does not look like current syntax.
+const keywordLines = {
+  source: 'source raw : Raw [sub]',
+  dimensions: 'dimensions [sub, ses]',
+  types: 'types strict',
+  operation: 'operation clean(input: Raw) -> Raw',
+  command: 'command clean: cp {input} {@output}',
+  verify: 'verify clean: test -s {input}',
+  resources: 'resources clean: cores=8, memory=16G',
+  check: 'check nonempty: test -s {@path}',
+  review: 'review quality',
+  path: 'path raw: raw/{sub}.txt',
+  default: 'default path: out/{@product}/{@entities}.txt',
+  stage: 'stage prep:',
+  use: 'use clean from lib.spit',
+  root: 'root data',
+  output: 'output ../results',
+  require: 'require [sub] where raw count>=1',
+  exclude: 'exclude [sub] where raw count<1',
+  ext: 'ext: .txt',
+  entities: 'entities: {@key}-{@value}',
+  type: 'type Image<Space>',
+  drop: null,
+  skip: null,
+  sidecars: null,
+  'shell-source': null
+};
+
+const spitBinary = process.env.SPIT_TEST_EXECUTABLE
+  || path.resolve(__dirname, '..', 'spit', 'target', 'debug', process.platform === 'win32' ? 'spit.exe' : 'spit');
+
+test('every keyword SPIT has is coloured as one, and no other word is listed', {
+  skip: skip || (!fs.existsSync(spitBinary) && 'build SPIT to check the grammar against its keywords')
+}, async () => {
+  const result = require('node:child_process').spawnSync(spitBinary, ['keywords'], { encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
+  const keywords = JSON.parse(result.stdout).keywords;
+  const words = keywords.map(keyword => keyword.word);
+  assert.deepEqual(
+    words.filter(word => !(word in keywordLines)), [],
+    'SPIT has keywords this test has no line for: add one, and colour the word in the grammar'
+  );
+  assert.deepEqual(
+    Object.keys(keywordLines).filter(word => !words.includes(word)), [],
+    'this test lists words that are no longer SPIT keywords: remove them, and their colouring'
+  );
+  const scopes = await tokenizer();
+  for (const { word, file } of keywords) {
+    const line = keywordLines[word];
+    if (file === 'replaced') {
+      assert.equal(line, null, `\`${word}\` is only read to say what to write instead, so it gets no line`);
+    }
+    if (line !== null) assert.match(scopes(line, word), /keyword\.control/, line);
+  }
+});
