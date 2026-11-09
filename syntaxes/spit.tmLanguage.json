@@ -7,14 +7,15 @@
     { "include": "#section-headers" },
     { "include": "#stage-header" },
     { "include": "#input-block" },
-    { "include": "#recipe-header" },
+    { "include": "#input-header" },
     { "include": "#use-line" },
     { "include": "#check-declaration" },
-    { "include": "#check-default" },
     { "include": "#review-file" },
     { "include": "#review-declaration" },
     { "include": "#review-default" },
+    { "include": "#keyword-blocks" },
     { "include": "#flow-declaration" },
+    { "include": "#entities-declaration" },
     { "include": "#conditional-exclude-rule" },
     { "include": "#exclude-rule" },
     { "include": "#constraint-rule" },
@@ -27,30 +28,48 @@
     { "include": "#expression" }
   ],
   "repository": {
-    "comments": {
+    "check-items": {
+      "comment": "Checks, each a name with its arguments; `!` before one drops it from the defaults of a wider scope.",
       "patterns": [
         {
-          "name": "comment.line.number-sign.spit",
-          "match": "#.*$"
-        }
-      ]
-    },
-    "section-headers": {
-      "patterns": [
+          "name": "keyword.operator.negation.spit",
+          "match": "!"
+        },
         {
-          "name": "entity.name.section.spit keyword.other.section.spit",
-          "match": "^\\s*(sources|source_paths|contexts|removed|verdicts)\\s*:\\s*$"
+          "match": "([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s*(\\()([^()]*)(\\))",
+          "captures": {
+            "1": {
+              "name": "entity.name.function.check.spit"
+            },
+            "2": {
+              "name": "punctuation.section.parens.spit"
+            },
+            "3": {
+              "patterns": [
+                {
+                  "name": "punctuation.separator.comma.spit",
+                  "match": ","
+                },
+                {
+                  "name": "constant.other.argument.spit",
+                  "match": "[^,\\s]+"
+                }
+              ]
+            },
+            "4": {
+              "name": "punctuation.section.parens.spit"
+            }
+          }
+        },
+        {
+          "name": "entity.name.function.check.spit",
+          "match": "[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*"
+        },
+        {
+          "name": "punctuation.separator.comma.spit",
+          "match": ","
         }
       ]
-    },
-    "stage-header": {
-      "comment": "`stage name:` opens a stage; its lines are indented beneath it.",
-      "match": "^\\s*(stage)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(:)(?=\\s*(?:#.*)?$)",
-      "captures": {
-        "1": { "name": "keyword.control.stage.spit" },
-        "2": { "name": "entity.name.section.stage.spit" },
-        "3": { "name": "punctuation.separator.colon.spit" }
-      }
     },
     "input-block": {
       "begin": "^([ \\t]*)(inputs)(:)\\s*(?:#.*)?$",
@@ -95,6 +114,189 @@
         }
       ]
     },
+    "check-declaration": {
+      "comment": "`check name(params): command`: a test of one artifact, which reads `{@path}` and each `{param}`. A step's product named `check` takes `=`, so it is not one.",
+      "begin": "^(\\s*)(check)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(?:(\\()([^()]*)(\\)))?\\s*(:)",
+      "beginCaptures": {
+        "2": {
+          "name": "keyword.control.spit"
+        },
+        "3": {
+          "name": "entity.name.function.check.spit"
+        },
+        "4": {
+          "name": "punctuation.section.parens.spit"
+        },
+        "5": {
+          "patterns": [
+            {
+              "name": "variable.parameter.spit",
+              "match": "[A-Za-z_][A-Za-z0-9_]*"
+            },
+            {
+              "name": "punctuation.separator.comma.spit",
+              "match": ","
+            }
+          ]
+        },
+        "6": {
+          "name": "punctuation.section.parens.spit"
+        },
+        "7": {
+          "name": "punctuation.separator.colon.spit"
+        }
+      },
+      "end": "$",
+      "patterns": [
+        {
+          "include": "#placeholder"
+        }
+      ]
+    },
+    "review-declaration": {
+      "comment": "`review name`: a judgement a person makes, with no parameters and no command. A step's product named `review` takes `=`, so it is not one.",
+      "match": "^(\\s*)(review)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(?=#|$)",
+      "captures": {
+        "2": {
+          "name": "keyword.control.spit"
+        },
+        "3": {
+          "name": "entity.name.function.review.spit"
+        }
+      }
+    },
+    "review-default": {
+      "comment": "`default review: looked_at, !other`, or `review:` in a `default:` block: the reviews that judge every output of a file or stage. A step's product named `review` takes `=` outside parentheses, so it is not one.",
+      "begin": "^(\\s*)(?:(default)\\s+)?(review)\\s*(:)(?!(?:[^#=()]|\\([^()]*\\))*=)",
+      "beginCaptures": {
+        "2": {
+          "name": "keyword.control.spit"
+        },
+        "3": {
+          "name": "keyword.control.spit"
+        },
+        "4": {
+          "name": "punctuation.separator.colon.spit"
+        }
+      },
+      "end": "$",
+      "patterns": [
+        {
+          "include": "#word-comment"
+        },
+        {
+          "include": "#review-items"
+        }
+      ]
+    },
+    "review-file": {
+      "comment": "`review looked_at from qc/looked_at.csv`, in a recipe: the file a review's verdicts are in.",
+      "match": "^(\\s*)(review)\\s+([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s+(from)\\s+([^#\\s]+)",
+      "captures": {
+        "2": {
+          "name": "keyword.control.spit"
+        },
+        "3": {
+          "name": "entity.name.function.review.spit"
+        },
+        "4": {
+          "name": "keyword.control.spit"
+        },
+        "5": {
+          "name": "string.unquoted.file.spit"
+        }
+      }
+    },
+    "review-clause": {
+      "comment": "`@review(looked_at)` on a source, a port or an output, with its keyword directly after the `@` as SPIT reads it.",
+      "begin": "(@)(review)(\\()",
+      "beginCaptures": {
+        "1": {
+          "name": "keyword.operator.at.spit"
+        },
+        "2": {
+          "name": "keyword.other.selector.spit"
+        },
+        "3": {
+          "name": "punctuation.section.parens.spit"
+        }
+      },
+      "end": "\\)|$",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.parens.spit"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#review-items"
+        }
+      ]
+    },
+    "review-items": {
+      "comment": "Reviews, each a name; `!` before one drops it from the defaults of a wider scope.",
+      "patterns": [
+        {
+          "name": "keyword.operator.negation.spit",
+          "match": "!"
+        },
+        {
+          "name": "entity.name.function.review.spit",
+          "match": "[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*"
+        },
+        {
+          "name": "punctuation.separator.comma.spit",
+          "match": ","
+        }
+      ]
+    },
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.number-sign.spit",
+          "match": "#.*$"
+        }
+      ]
+    },
+    "section-headers": {
+      "patterns": [
+        {
+          "comment": "`source_paths:` in a .spitout: each indented `source: path` line is a source path rule, which may hold shapes.",
+          "begin": "^\\s*(source_paths)\\s*(:)\\s*$",
+          "beginCaptures": {
+            "0": { "name": "entity.name.section.spit" },
+            "1": { "name": "keyword.other.section.spit" },
+            "2": { "name": "punctuation.separator.colon.spit" }
+          },
+          "end": "^(?=\\S)",
+          "patterns": [
+            { "include": "#comments" },
+            {
+              "begin": "^(\\s+)([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s*(:)\\s*",
+              "beginCaptures": {
+                "2": { "name": "variable.other.product.spit" },
+                "3": { "name": "punctuation.separator.colon.spit" }
+              },
+              "end": "$",
+              "patterns": [{ "include": "#word-comment" }, { "include": "#brace-escape" }, { "include": "#path-group" }, { "include": "#path-placeholder" }]
+            }
+          ]
+        },
+        {
+          "name": "entity.name.section.spit keyword.other.section.spit",
+          "match": "^\\s*(sources|contexts|removed|verdicts)\\s*:\\s*$"
+        }
+      ]
+    },
+    "stage-header": {
+      "comment": "`stage name:` opens a stage; its lines are indented beneath it.",
+      "match": "^\\s*(stage)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(:)(?=\\s*(?:#.*)?$)",
+      "captures": {
+        "1": { "name": "keyword.control.stage.spit" },
+        "2": { "name": "entity.name.section.stage.spit" },
+        "3": { "name": "punctuation.separator.colon.spit" }
+      }
+    },
     "strings": {
       "patterns": [
         {
@@ -112,9 +314,9 @@
         }
       ]
     },
-    "recipe-header": {
-      "comment": "A .spitin names the pipeline it serves, `pipeline analysis.spit`, and may name its dataset root, `root data`, which a .spitout also records.",
-      "match": "^(\\s*)(pipeline|root)\\s+([^\\s=:#][^#]*?)\\s*(?=#|$)",
+    "input-header": {
+      "comment": "A .spitin names its pipeline; pipelines, recipes and saved inventories can name a dataset root. `root` is reserved, so a line starting with it is this keyword, though a .spitout record may still be called `root[...]`; `pipeline` is no keyword of a pipeline, so a product may take its name.",
+      "match": "^(\\s*)(pipeline(?=\\s+[^\\s=:#])|root(?=\\s|$))(?:\\s+([^\\s=:#][^#]*?)\\s*(?=#|$))?",
       "captures": {
         "2": { "name": "keyword.control.import.spit" },
         "3": { "name": "string.unquoted.file.spit" }
@@ -131,6 +333,600 @@
         { "include": "#strings" },
         { "name": "punctuation.separator.comma.spit", "match": "," },
         { "name": "variable.other.spit", "match": "[A-Za-z_][A-Za-z0-9_]*" }
+      ]
+    },
+    "keyword-blocks": {
+      "comment": "A keyword alone with its `:` opens a block of its statements, each written on a line indented beneath it without the keyword. The block ends at the first line with code that is indented no further than the keyword.",
+      "patterns": [
+        {
+          "comment": "`source:`: a source on each line beneath it, written without `source`.",
+          "begin": "^(\\s*)(source)\\s*(:)\\s*(?=#|$)",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.spit"
+            },
+            "3": {
+              "name": "punctuation.separator.colon.spit"
+            }
+          },
+          "end": "^(?!\\1[ \\t]+\\S)(?=[ \\t]*[^\\s#])",
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "match": "^(\\s*)()([A-Za-z_][A-Za-z0-9_]*)",
+              "captures": {
+                "2": {
+                  "name": "keyword.control.spit"
+                },
+                "3": {
+                  "name": "variable.other.product.spit"
+                }
+              }
+            },
+            {
+              "include": "$self"
+            }
+          ]
+        },
+        {
+          "comment": "`operation:`: an operation on each line beneath it, written without `operation`; one ending in `:` holds its body.",
+          "begin": "^(\\s*)(operation)\\s*(:)\\s*(?=#|$)",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.spit"
+            },
+            "3": {
+              "name": "punctuation.separator.colon.spit"
+            }
+          },
+          "end": "^(?!\\1[ \\t]+\\S)(?=[ \\t]*[^\\s#])",
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "begin": "^(\\s*)()([A-Za-z_][A-Za-z0-9_]*)(?=\\()",
+              "beginCaptures": {
+                "2": {
+                  "name": "keyword.control.spit"
+                },
+                "3": {
+                  "name": "entity.name.function.spit"
+                }
+              },
+              "end": "$",
+              "patterns": [
+                {
+                  "begin": "\\(",
+                  "beginCaptures": {
+                    "0": {
+                      "name": "punctuation.definition.parameters.begin.spit"
+                    }
+                  },
+                  "end": "\\)",
+                  "endCaptures": {
+                    "0": {
+                      "name": "punctuation.section.parens.spit"
+                    }
+                  },
+                  "patterns": [
+                    {
+                      "include": "#comments"
+                    },
+                    {
+                      "include": "#check-clause"
+                    },
+                    { "include": "#review-clause" },
+                    {
+                      "comment": "A many input's minimum, `items: many Image @min(2)`, matched whole so the `)` of `min(2)` does not end the inputs.",
+                      "match": "(@)(min)\\s*(\\()\\s*(\\d+)\\s*(\\))",
+                      "captures": {
+                        "1": {
+                          "name": "keyword.operator.at.spit"
+                        },
+                        "2": {
+                          "name": "keyword.other.selector.spit"
+                        },
+                        "3": {
+                          "name": "punctuation.section.parens.spit"
+                        },
+                        "4": {
+                          "name": "constant.numeric.spit"
+                        },
+                        "5": {
+                          "name": "punctuation.section.parens.spit"
+                        }
+                      }
+                    },
+                    {
+                      "name": "storage.modifier.cardinality.spit",
+                      "match": "\\bmany\\b"
+                    },
+                    {
+                      "name": "keyword.other.selector.spit",
+                      "match": "(?<=@)min\\b"
+                    },
+                    {
+                      "name": "keyword.operator.at.spit",
+                      "match": "@"
+                    },
+                    {
+                      "name": "punctuation.separator.comma.spit",
+                      "match": ","
+                    },
+                    {
+                      "include": "#type-reference"
+                    }
+                  ]
+                },
+                {
+                  "begin": "->",
+                  "beginCaptures": {
+                    "0": {
+                      "name": "keyword.operator.arrow.spit"
+                    }
+                  },
+                  "end": "$",
+                  "name": "meta.operation.output.spit",
+                  "patterns": [
+                    {
+                      "name": "keyword.other.selector.spit",
+                      "match": "(?<=@)min\\b"
+                    },
+                    {
+                      "begin": "\\(",
+                      "end": "\\)",
+                      "beginCaptures": {
+                        "0": {
+                          "name": "punctuation.section.parens.spit"
+                        }
+                      },
+                      "endCaptures": {
+                        "0": {
+                          "name": "punctuation.section.parens.spit"
+                        }
+                      },
+                      "patterns": [
+                        {
+                          "include": "#comments"
+                        },
+                        {
+                          "include": "#check-clause"
+                        },
+                        { "include": "#review-clause" },
+                        {
+                          "name": "keyword.operator.at.spit",
+                          "match": "@"
+                        },
+                        {
+                          "name": "string.quoted.double.spit",
+                          "match": "\"[^\"]*\""
+                        },
+                        {
+                          "comment": "A `+` that appends a `beside` suffix to the whole file name: `bai: Bai +.bai beside bam`, `+\"_index.txt\"`.",
+                          "name": "keyword.operator.append.spit",
+                          "match": "\\+(?=\\.|\")"
+                        },
+                        {
+                          "name": "keyword.other.beside.spit",
+                          "match": "\\bbeside\\b"
+                        },
+                        {
+                          "comment": "A `/` that makes the output a folder, alone or after its extension: `-> (subject: FsSubject /)`, `-> Zarr .zarr/`.",
+                          "name": "constant.other.extension.folder.spit",
+                          "match": "(?<![A-Za-z0-9_])(?:(?:\\.[A-Za-z0-9_-]+)+)?/"
+                        },
+                        {
+                          "comment": "The extension the tool gives an output's file: `-> Transform .mat`.",
+                          "name": "constant.other.extension.spit",
+                          "match": "(?<![A-Za-z0-9_])(?:\\.[A-Za-z0-9_-]+)+"
+                        },
+                        {
+                          "include": "#type-reference"
+                        },
+                        {
+                          "name": "variable.parameter.port.spit",
+                          "match": "\\b[a-z_][A-Za-z0-9_]*\\b"
+                        },
+                        {
+                          "name": "punctuation.separator.comma.spit",
+                          "match": ","
+                        },
+                        {
+                          "name": "punctuation.separator.colon.spit",
+                          "match": ":"
+                        },
+                        {
+                          "name": "punctuation.section.parens.spit",
+                          "match": "[()]"
+                        }
+                      ]
+                    },
+                    {
+                      "include": "#check-clause"
+                    },
+                    { "include": "#review-clause" },
+                    {
+                      "name": "keyword.operator.at.spit",
+                      "match": "@"
+                    },
+                    {
+                      "name": "string.quoted.double.spit",
+                      "match": "\"[^\"]*\""
+                    },
+                    {
+                      "comment": "A `+` that appends a `beside` suffix to the whole file name: `bai: Bai +.bai beside bam`, `+\"_index.txt\"`.",
+                      "name": "keyword.operator.append.spit",
+                      "match": "\\+(?=\\.|\")"
+                    },
+                    {
+                      "name": "keyword.other.beside.spit",
+                      "match": "\\bbeside\\b"
+                    },
+                    {
+                      "comment": "A `/` that makes the output a folder, alone or after its extension: `-> (subject: FsSubject /)`, `-> Zarr .zarr/`.",
+                      "name": "constant.other.extension.folder.spit",
+                      "match": "(?<![A-Za-z0-9_])(?:(?:\\.[A-Za-z0-9_-]+)+)?/"
+                    },
+                    {
+                      "comment": "The extension the tool gives an output's file: `-> Transform .mat`.",
+                      "name": "constant.other.extension.spit",
+                      "match": "(?<![A-Za-z0-9_])(?:\\.[A-Za-z0-9_-]+)+"
+                    },
+                    {
+                      "include": "#type-reference"
+                    },
+                    {
+                      "name": "variable.parameter.port.spit",
+                      "match": "\\b[a-z_][A-Za-z0-9_]*\\b"
+                    },
+                    {
+                      "name": "punctuation.separator.comma.spit",
+                      "match": ","
+                    },
+                    {
+                      "name": "punctuation.separator.colon.spit",
+                      "match": ":"
+                    },
+                    {
+                      "name": "punctuation.section.parens.spit",
+                      "match": "[()]"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "include": "$self"
+            }
+          ]
+        },
+        {
+          "comment": "`command:`: an operation's command on each line beneath it, `name: program ...`, which may go on over lines indented further; an entry `name:` alone holds its lines beneath it, run in order.",
+          "begin": "^(\\s*)(command)\\s*(:)\\s*(?=#|$)",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.spit"
+            },
+            "3": {
+              "name": "punctuation.separator.colon.spit"
+            }
+          },
+          "end": "^(?!\\1[ \\t]+\\S)(?=[ \\t]*[^\\s#])",
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "match": "^(\\s*)([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s*(?=[:(]|$)",
+              "captures": {
+                "2": {
+                  "name": "entity.name.function.spit"
+                }
+              }
+            },
+            {
+              "include": "#command-redirect"
+            },
+            {
+              "include": "#placeholder"
+            },
+            {
+              "include": "$self"
+            }
+          ]
+        },
+        {
+          "comment": "`command name:` with nothing after its `:`: a command on each line beneath it, run in order; a line indented further goes on with the line above.",
+          "begin": "^(\\s*)(command)\\s+([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s*(:)\\s*(?=#|$)",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.spit"
+            },
+            "3": {
+              "name": "entity.name.function.spit"
+            },
+            "4": {
+              "name": "punctuation.separator.colon.spit"
+            }
+          },
+          "end": "^(?!\\1[ \\t]+\\S)(?=[ \\t]*[^\\s#])",
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "include": "#command-redirect"
+            },
+            {
+              "include": "#placeholder"
+            },
+            {
+              "include": "$self"
+            }
+          ]
+        },
+        {
+          "comment": "`verify:`: an operation's `verify` command on each line beneath it.",
+          "begin": "^(\\s*)(verify)\\s*(:)\\s*(?=#|$)",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.spit"
+            },
+            "3": {
+              "name": "punctuation.separator.colon.spit"
+            }
+          },
+          "end": "^(?!\\1[ \\t]+\\S)(?=[ \\t]*[^\\s#])",
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "match": "^(\\s*)([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s*(?=[:(]|$)",
+              "captures": {
+                "2": {
+                  "name": "entity.name.function.spit"
+                }
+              }
+            },
+            {
+              "include": "#placeholder"
+            },
+            {
+              "include": "$self"
+            }
+          ]
+        },
+        {
+          "comment": "`resources:`: what each job of an operation needs on each line beneath it, `name: cores=8, memory=16G`.",
+          "begin": "^(\\s*)(resources)\\s*(:)\\s*(?=#|$)",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.spit"
+            },
+            "3": {
+              "name": "punctuation.separator.colon.spit"
+            }
+          },
+          "end": "^(?!\\1[ \\t]+\\S)(?=[ \\t]*[^\\s#])",
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "match": "^(\\s*)([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s*(:)",
+              "captures": {
+                "2": {
+                  "name": "entity.name.function.spit"
+                },
+                "3": {
+                  "name": "punctuation.separator.colon.spit"
+                }
+              }
+            },
+            {
+              "include": "#resource-settings"
+            }
+          ]
+        },
+        {
+          "comment": "`check:`: a check on each line beneath it, `name(params): command`.",
+          "begin": "^(\\s*)(check)\\s*(:)\\s*(?=#|$)",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.spit"
+            },
+            "3": {
+              "name": "punctuation.separator.colon.spit"
+            }
+          },
+          "end": "^(?!\\1[ \\t]+\\S)(?=[ \\t]*[^\\s#])",
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "match": "^(\\s*)([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s*(?=[:(]|$)",
+              "captures": {
+                "2": {
+                  "name": "entity.name.function.spit"
+                }
+              }
+            },
+            {
+              "include": "#placeholder"
+            },
+            {
+              "include": "$self"
+            }
+          ]
+        },
+        {
+          "comment": "`path:`: a product's path rule on each line beneath it, `product: template`.",
+          "begin": "^(\\s*)(path)\\s*(:)\\s*(?=#|$)",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.spit"
+            },
+            "3": {
+              "name": "punctuation.separator.colon.spit"
+            }
+          },
+          "end": "^(?!\\1[ \\t]+\\S)(?=[ \\t]*[^\\s#])",
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "begin": "^(\\s*)()()([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s*(:)",
+              "beginCaptures": {
+                "2": {
+                  "name": "keyword.control.spit"
+                },
+                "3": {
+                  "name": "keyword.control.spit"
+                },
+                "4": {
+                  "name": "variable.other.product.spit"
+                },
+                "5": {
+                  "name": "punctuation.separator.colon.spit"
+                }
+              },
+              "end": "$",
+              "patterns": [
+                {
+                  "include": "#word-comment"
+                },
+                {
+                  "include": "#brace-escape"
+                },
+                {
+                  "include": "#path-group"
+                },
+                {
+                  "include": "#path-placeholder"
+                }
+              ]
+            },
+            {
+              "include": "$self"
+            }
+          ]
+        },
+        {
+          "comment": "`require:` in a recipe: a coverage rule on each line beneath it, written without `require`.",
+          "begin": "^(\\s*)(require)\\s*(:)\\s*(?=#|$)",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.spit"
+            },
+            "3": {
+              "name": "punctuation.separator.colon.spit"
+            }
+          },
+          "end": "^(?!\\1[ \\t]+\\S)(?=[ \\t]*[^\\s#])",
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "match": "^(\\s*)()(\\[[^\\]]*\\])\\s+(where)\\s+([A-Za-z_][A-Za-z0-9_]*(?:\\[[^\\]]*\\])?)(?:\\s+(count)(!=|>=|<=|=|>|<)(\\d+))?(?:\\s+(has)\\s+([A-Za-z_][A-Za-z0-9_]*)(=))?",
+              "captures": {
+                "2": {
+                  "name": "keyword.control.constraint.spit"
+                },
+                "3": {
+                  "name": "meta.dimension-list.spit"
+                },
+                "4": {
+                  "name": "keyword.control.constraint.spit"
+                },
+                "5": {
+                  "name": "variable.other.product.spit"
+                },
+                "6": {
+                  "name": "keyword.other.count.spit"
+                },
+                "7": {
+                  "name": "keyword.operator.comparison.spit"
+                },
+                "8": {
+                  "name": "constant.numeric.spit"
+                },
+                "9": {
+                  "name": "keyword.control.constraint.spit"
+                },
+                "10": {
+                  "name": "variable.parameter.dimension.spit"
+                },
+                "11": {
+                  "name": "keyword.operator.comparison.spit"
+                }
+              },
+              "patterns": [
+                {
+                  "include": "#dimension-list-inner"
+                }
+              ]
+            },
+            {
+              "include": "$self"
+            }
+          ]
+        },
+        {
+          "comment": "`exclude:` in a recipe: an exclusion on each line beneath it, written without `exclude`.",
+          "begin": "^(\\s*)(exclude)\\s*(:)\\s*(?=#|$)",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.spit"
+            },
+            "3": {
+              "name": "punctuation.separator.colon.spit"
+            }
+          },
+          "end": "^(?!\\1[ \\t]+\\S)(?=[ \\t]*[^\\s#])",
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "match": "^(\\s*)()(from)\\s+([^#]+)",
+              "captures": {
+                "2": {
+                  "name": "keyword.control.constraint.spit"
+                },
+                "3": {
+                  "name": "keyword.control.constraint.spit"
+                },
+                "4": {
+                  "name": "string.unquoted.file.spit"
+                }
+              }
+            },
+            {
+              "match": "^(\\s*)()(?:([A-Za-z_][A-Za-z0-9_]*)?)(\\[[^\\]]*\\])?",
+              "captures": {
+                "2": {
+                  "name": "keyword.control.constraint.spit"
+                },
+                "3": {
+                  "name": "variable.other.product.spit"
+                },
+                "4": {
+                  "name": "meta.dimension-list.spit"
+                }
+              }
+            },
+            {
+              "include": "$self"
+            }
+          ]
+        }
       ]
     },
     "flow-declaration": {
@@ -151,33 +947,233 @@
           }
         },
         {
-          "match": "^(\\s*)(command)\\s+",
-          "captures": { "2": { "name": "keyword.control.spit" } }
+          "comment": "`type Name<Param, ...>`: declares a parameterized type and names its parameters.",
+          "begin": "^(\\s*)(type)\\s+(?=[A-Z])",
+          "beginCaptures": { "2": { "name": "keyword.control.spit" } },
+          "end": "(?=#)|$",
+          "patterns": [{ "include": "#type-reference" }]
         },
         {
-          "comment": "`ext:`, the extension a default path is completed with.",
-          "match": "^(\\s*)(ext)\\s*(:)(?![^#]*=)\\s*((?:\\.[A-Za-z0-9_-]+)+)?",
+          "comment": "`types strict` or `types standard`: how much of the pipeline must be typed.",
+          "match": "^(\\s*)(types)\\s+(strict|standard)\\s*(?=#|$)",
           "captures": {
             "2": { "name": "keyword.control.spit" },
-            "3": { "name": "punctuation.separator.colon.spit" },
-            "4": { "name": "constant.other.extension.spit" }
+            "3": { "name": "constant.language.type-checking.spit" }
           }
         },
         {
-          "comment": "`path:` or `path product:`, then a template.",
-          "begin": "^(\\s*)(path)(?:\\s+([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*))?\\s*(:)",
+          "comment": "`command name: program ...`: the rest of the line is read as any other, apart from a `<` or `>` that connects the command's stdin or stdout.",
+          "begin": "^(\\s*)(command)\\s+",
+          "beginCaptures": { "2": { "name": "keyword.control.spit" } },
+          "end": "$",
+          "patterns": [
+            { "include": "#command-redirect" },
+            { "include": "$self" }
+          ]
+        },
+        {
+          "comment": "`resources name: cores=8, memory=16G`: what each job of an operation needs.",
+          "begin": "^(\\s*)(resources)\\s+([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s*(:)",
           "beginCaptures": {
             "2": { "name": "keyword.control.spit" },
-            "3": { "name": "variable.other.product.spit" },
+            "3": { "name": "entity.name.function.spit" },
             "4": { "name": "punctuation.separator.colon.spit" }
+          },
+          "end": "$",
+          "patterns": [
+            { "include": "#comments" },
+            { "include": "#resource-settings" }
+          ]
+        },
+        {
+          "comment": "`default:`, which opens a block of defaults.",
+          "match": "^(\\s*)(default)\\s*(:)\\s*(?=#|$)",
+          "captures": {
+            "2": { "name": "keyword.control.spit" },
+            "3": { "name": "punctuation.separator.colon.spit" }
+          }
+        },
+        {
+          "comment": "`default ext:`, or `ext:` in a `default:` block: the extension a default path is completed with.",
+          "match": "^(\\s*)(?:(default)\\s+)?(ext)\\s*(:)\\s*((?:\\.[A-Za-z0-9_-]+)+)?",
+          "captures": {
+            "2": { "name": "keyword.control.spit" },
+            "3": { "name": "keyword.control.spit" },
+            "4": { "name": "punctuation.separator.colon.spit" },
+            "5": { "name": "constant.other.extension.spit" }
+          }
+        },
+        {
+          "comment": "`default check:`, or `check:` in a `default:` block: the checks every output in a file or stage runs.",
+          "begin": "^(\\s*)(?:(default)\\s+)?(check)\\s*(:)",
+          "beginCaptures": {
+            "2": { "name": "keyword.control.spit" },
+            "3": { "name": "keyword.control.spit" },
+            "4": { "name": "punctuation.separator.colon.spit" }
+          },
+          "end": "$",
+          "patterns": [{ "include": "#word-comment" }, { "include": "#check-items" }]
+        },
+        {
+          "comment": "`path product:`, or `default path:` and `path:` in a `default:` block, then a template.",
+          "begin": "^(\\s*)(?:(default)\\s+)?(path)(?:\\s+([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*))?\\s*(:)",
+          "beginCaptures": {
+            "2": { "name": "keyword.control.spit" },
+            "3": { "name": "keyword.control.spit" },
+            "4": { "name": "variable.other.product.spit" },
+            "5": { "name": "punctuation.separator.colon.spit" }
           },
           "end": "$",
           "patterns": [{ "include": "#word-comment" }, { "include": "#brace-escape" }, { "include": "#path-group" }, { "include": "#path-placeholder" }]
         }
       ]
     },
+    "check-clause": {
+      "comment": "`@check(nonempty, ndim(3))` on a source or a port, ended at the end of the line so an unclosed one does not colour what follows, with its keyword directly after the `@` as SPIT reads it. An output may opt out of a default check with `!name`.",
+      "begin": "(@)(check)(\\()",
+      "beginCaptures": {
+        "1": { "name": "keyword.operator.at.spit" },
+        "2": { "name": "keyword.other.selector.spit" },
+        "3": { "name": "punctuation.section.parens.spit" }
+      },
+      "end": "\\)|$",
+      "endCaptures": { "0": { "name": "punctuation.section.parens.spit" } },
+      "patterns": [
+        {
+          "match": "(!)?([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)",
+          "captures": {
+            "1": { "name": "keyword.operator.negation.spit" },
+            "2": { "name": "entity.name.function.check.spit" }
+          }
+        },
+        { "name": "punctuation.separator.comma.spit", "match": "," },
+        { "include": "#check-arguments" }
+      ]
+    },
+    "check-arguments": {
+      "comment": "The parameters of one check, such as the `3` of `ndim(3)`; they may nest.",
+      "begin": "\\(",
+      "beginCaptures": { "0": { "name": "punctuation.section.parens.spit" } },
+      "end": "\\)|$",
+      "endCaptures": { "0": { "name": "punctuation.section.parens.spit" } },
+      "patterns": [
+        { "include": "#strings" },
+        { "name": "constant.numeric.spit", "match": "-?\\d+(?:\\.\\d+)?" },
+        { "include": "#check-arguments" }
+      ]
+    },
+    "entities-declaration": {
+      "patterns": [
+        {
+          "comment": "`default entities:`, or `entities:` in a `default:` block: the spelling of `{@entities}`, `{@key}` and `{@value}` joined by the text `separated` names.",
+          "begin": "^(\\s*)(?:(default)\\s+)?(entities)(:)",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.spit"
+            },
+            "3": {
+              "name": "keyword.control.spit"
+            },
+            "4": {
+              "name": "punctuation.separator.colon.spit"
+            }
+          },
+          "end": "$",
+          "patterns": [
+            {
+              "include": "#word-comment"
+            },
+            {
+              "name": "keyword.control.spit",
+              "match": "\\bseparated\\b"
+            },
+            {
+              "match": "(\\{)(@key|@value)(\\})",
+              "captures": {
+                "1": {
+                  "name": "punctuation.definition.template-expression.begin.spit"
+                },
+                "2": {
+                  "name": "variable.language.placeholder.spit"
+                },
+                "3": {
+                  "name": "punctuation.definition.template-expression.end.spit"
+                }
+              }
+            },
+            {
+              "patterns": [
+                {
+                  "name": "string.quoted.double.spit",
+                  "begin": "\"",
+                  "end": "\"",
+                  "patterns": [
+                    {
+                      "match": "(\\{)(@key|@value)(\\})",
+                      "captures": {
+                        "1": {
+                          "name": "punctuation.definition.template-expression.begin.spit"
+                        },
+                        "2": {
+                          "name": "variable.language.placeholder.spit"
+                        },
+                        "3": {
+                          "name": "punctuation.definition.template-expression.end.spit"
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "string.quoted.single.spit",
+                  "begin": "'",
+                  "end": "'",
+                  "patterns": [
+                    {
+                      "match": "(\\{)(@key|@value)(\\})",
+                      "captures": {
+                        "1": {
+                          "name": "punctuation.definition.template-expression.begin.spit"
+                        },
+                        "2": {
+                          "name": "variable.language.placeholder.spit"
+                        },
+                        "3": {
+                          "name": "punctuation.definition.template-expression.end.spit"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "comment": "`default entities sub: subject`: the label a dimension takes in that spelling.",
+          "match": "^(\\s*)(?:(default)\\s+)?(entities)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(:)\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*(?=#|$)",
+          "captures": {
+            "2": {
+              "name": "keyword.control.spit"
+            },
+            "3": {
+              "name": "keyword.control.spit"
+            },
+            "4": {
+              "name": "variable.parameter.dimension.spit"
+            },
+            "5": {
+              "name": "punctuation.separator.colon.spit"
+            },
+            "6": {
+              "name": "constant.other.entity-label.spit"
+            }
+          }
+        }
+      ]
+    },
     "constraint-rule": {
-      "match": "^(\\s*)(require)\\s+(\\[[^\\]]*\\])\\s+(where)\\s+([A-Za-z_][A-Za-z0-9_]*(?:\\[[^\\]]*\\])?)(?:\\s+(count)(!=|>=|<=|=|>|<)(\\d+)|\\s+(has)\\s+([A-Za-z_][A-Za-z0-9_]*)(=))",
+      "match": "^(\\s*)(require)\\s+(\\[[^\\]]*\\])\\s+(where)\\s+([A-Za-z_][A-Za-z0-9_]*(?:\\[[^\\]]*\\])?)(?:\\s+(count)(!=|>=|<=|=|>|<)(\\d+))?(?:\\s+(has)\\s+([A-Za-z_][A-Za-z0-9_]*)(=))?",
       "captures": {
         "2": { "name": "keyword.control.constraint.spit" },
         "3": { "name": "meta.dimension-list.spit" },
@@ -220,139 +1216,182 @@
         }
       ]
     },
-    "check-declaration": {
-      "comment": "`check name(params): command`: a test of one artifact, which reads `{@path}` and each `{param}`. A step's product named `check` takes `=`, so it is not one.",
-      "begin": "^(\\s*)(check)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(?:(\\()([^()]*)(\\)))?\\s*(:)",
+    "operation-signature": {
+      "begin": "^(\\s*)(operation)\\s+([A-Za-z_][A-Za-z0-9_]*)(?=\\()",
       "beginCaptures": {
-        "2": { "name": "keyword.control.spit" },
-        "3": { "name": "entity.name.function.check.spit" },
-        "4": { "name": "punctuation.section.parens.spit" },
-        "5": {
+        "2": {
+          "name": "keyword.control.spit"
+        },
+        "3": {
+          "name": "entity.name.function.spit"
+        }
+      },
+      "end": "$",
+      "patterns": [
+        {
+          "begin": "\\(",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.parameters.begin.spit"
+            }
+          },
+          "end": "\\)",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.section.parens.spit"
+            }
+          },
           "patterns": [
-            { "name": "variable.parameter.spit", "match": "[A-Za-z_][A-Za-z0-9_]*" },
-            { "name": "punctuation.separator.comma.spit", "match": "," }
+            {
+              "include": "#comments"
+            },
+            {
+              "include": "#check-clause"
+            },
+            { "include": "#review-clause" },
+            {
+              "comment": "A many input's minimum, `items: many Image @min(2)`, matched whole so the `)` of `min(2)` does not end the inputs.",
+              "match": "(@)(min)\\s*(\\()\\s*(\\d+)\\s*(\\))",
+              "captures": {
+                "1": {
+                  "name": "keyword.operator.at.spit"
+                },
+                "2": {
+                  "name": "keyword.other.selector.spit"
+                },
+                "3": {
+                  "name": "punctuation.section.parens.spit"
+                },
+                "4": {
+                  "name": "constant.numeric.spit"
+                },
+                "5": {
+                  "name": "punctuation.section.parens.spit"
+                }
+              }
+            },
+            {
+              "name": "storage.modifier.cardinality.spit",
+              "match": "\\bmany\\b"
+            },
+            {
+              "name": "keyword.other.selector.spit",
+              "match": "(?<=@)min\\b"
+            },
+            {
+              "name": "keyword.operator.at.spit",
+              "match": "@"
+            },
+            {
+              "name": "punctuation.separator.comma.spit",
+              "match": ","
+            },
+            {
+              "include": "#type-reference"
+            }
           ]
         },
-        "6": { "name": "punctuation.section.parens.spit" },
-        "7": { "name": "punctuation.separator.colon.spit" }
-      },
-      "end": "$",
-      "patterns": [
-        { "include": "#placeholder" }
-      ]
-    },
-    "check-items": {
-      "comment": "Checks, each a name with its arguments; `!` before one drops it from the defaults of a wider scope.",
-      "patterns": [
-        { "name": "keyword.operator.negation.spit", "match": "!" },
         {
-          "match": "([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s*(\\()([^()]*)(\\))",
-          "captures": {
-            "1": { "name": "entity.name.function.check.spit" },
-            "2": { "name": "punctuation.section.parens.spit" },
-            "3": {
-              "patterns": [
-                { "name": "punctuation.separator.comma.spit", "match": "," },
-                { "name": "constant.other.argument.spit", "match": "[^,\\s]+" }
-              ]
-            },
-            "4": { "name": "punctuation.section.parens.spit" }
-          }
-        },
-        { "name": "entity.name.function.check.spit", "match": "[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*" },
-        { "name": "punctuation.separator.comma.spit", "match": "," }
-      ]
-    },
-    "check-default": {
-      "comment": "`check: nonempty, ndim(3), !lines(2)`: the checks every output of a file or stage runs. A step's product named `check` takes `=` outside parentheses, so it is not one.",
-      "begin": "^(\\s*)(check)\\s*(:)(?!(?:[^#=()]|\\([^()]*\\))*=)",
-      "beginCaptures": {
-        "2": { "name": "keyword.control.spit" },
-        "3": { "name": "punctuation.separator.colon.spit" }
-      },
-      "end": "$",
-      "patterns": [{ "include": "#word-comment" }, { "include": "#check-items" }]
-    },
-    "review-file": {
-      "comment": "`review looked_at from qc/looked_at.csv`, in a recipe: the file a review's verdicts are in.",
-      "match": "^(\\s*)(review)\\s+([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s+(from)\\s+([^#\\s]+)",
-      "captures": {
-        "2": { "name": "keyword.control.spit" },
-        "3": { "name": "entity.name.function.review.spit" },
-        "4": { "name": "keyword.control.spit" },
-        "5": { "name": "string.unquoted.file.spit" }
-      }
-    },
-    "review-declaration": {
-      "comment": "`review name`: a judgement a person makes, with no parameters and no command. A step's product named `review` takes `=`, so it is not one.",
-      "match": "^(\\s*)(review)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(?=#|$)",
-      "captures": {
-        "2": { "name": "keyword.control.spit" },
-        "3": { "name": "entity.name.function.review.spit" }
-      }
-    },
-    "review-items": {
-      "comment": "Reviews, each a name; `!` before one drops it from the defaults of a wider scope.",
-      "patterns": [
-        { "name": "keyword.operator.negation.spit", "match": "!" },
-        { "name": "entity.name.function.review.spit", "match": "[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*" },
-        { "name": "punctuation.separator.comma.spit", "match": "," }
-      ]
-    },
-    "review-default": {
-      "comment": "`review: looked_at, !other`: the reviews that judge every output of a file or stage. A step's product named `review` takes `=` outside parentheses, so it is not one.",
-      "begin": "^(\\s*)(review)\\s*(:)(?!(?:[^#=()]|\\([^()]*\\))*=)",
-      "beginCaptures": {
-        "2": { "name": "keyword.control.spit" },
-        "3": { "name": "punctuation.separator.colon.spit" }
-      },
-      "end": "$",
-      "patterns": [{ "include": "#word-comment" }, { "include": "#review-items" }]
-    },
-    "review-clause": {
-      "comment": "`review(looked_at)` after `@`: the reviews a port or a source attaches.",
-      "begin": "\\b(review)\\s*(\\()",
-      "beginCaptures": {
-        "1": { "name": "keyword.other.selector.spit" },
-        "2": { "name": "punctuation.section.parens.spit" }
-      },
-      "end": "\\)",
-      "endCaptures": {
-        "0": { "name": "punctuation.section.parens.spit" }
-      },
-      "patterns": [{ "include": "#review-items" }]
-    },
-    "check-clause": {
-      "comment": "`check(nonempty, ndim(3))` after `@`: the checks a port or a source attaches, each a name with its arguments.",
-      "begin": "\\b(check)\\s*(\\()",
-      "beginCaptures": {
-        "1": { "name": "keyword.other.selector.spit" },
-        "2": { "name": "punctuation.section.parens.spit" }
-      },
-      "end": "\\)",
-      "endCaptures": {
-        "0": { "name": "punctuation.section.parens.spit" }
-      },
-      "patterns": [{ "include": "#check-items" }]
-    },
-    "operation-signature": {
-      "begin": "^(\\s*)(operation)\\s+([A-Za-z_][A-Za-z0-9_]*)(\\()",
-      "beginCaptures": {
-        "2": { "name": "keyword.control.spit" },
-        "3": { "name": "entity.name.function.spit" },
-        "4": { "name": "punctuation.definition.parameters.begin.spit" }
-      },
-      "end": "\\)\\s*(->)\\s*((?:[^@#]|@\\s*check\\s*\\((?:[^()]|\\([^()]*\\))*\\)|@\\s*review\\s*\\([^()]*\\))*)|\\)",
-      "endCaptures": {
-        "1": { "name": "keyword.operator.arrow.spit" },
-        "2": {
+          "begin": "->",
+          "beginCaptures": {
+            "0": {
+              "name": "keyword.operator.arrow.spit"
+            }
+          },
+          "end": "$",
           "name": "meta.operation.output.spit",
           "patterns": [
-            { "include": "#check-clause" },
+            { "name": "keyword.other.selector.spit", "match": "(?<=@)min\\b" },
+            {
+              "begin": "\\(",
+              "end": "\\)",
+              "beginCaptures": {
+                "0": {
+                  "name": "punctuation.section.parens.spit"
+                }
+              },
+              "endCaptures": {
+                "0": {
+                  "name": "punctuation.section.parens.spit"
+                }
+              },
+              "patterns": [
+                {
+                  "include": "#comments"
+                },
+                {
+                  "include": "#check-clause"
+                },
+                { "include": "#review-clause" },
+                {
+                  "name": "keyword.operator.at.spit",
+                  "match": "@"
+                },
+                {
+                  "name": "string.quoted.double.spit",
+                  "match": "\"[^\"]*\""
+                },
+                {
+                  "comment": "A `+` that appends a `beside` suffix to the whole file name: `bai: Bai +.bai beside bam`, `+\"_index.txt\"`.",
+                  "name": "keyword.operator.append.spit",
+                  "match": "\\+(?=\\.|\")"
+                },
+                {
+                  "name": "keyword.other.beside.spit",
+                  "match": "\\bbeside\\b"
+                },
+                {
+                  "comment": "A `/` that makes the output a folder, alone or after its extension: `-> (subject: FsSubject /)`, `-> Zarr .zarr/`.",
+                  "name": "constant.other.extension.folder.spit",
+                  "match": "(?<![A-Za-z0-9_])(?:(?:\\.[A-Za-z0-9_-]+)+)?/"
+                },
+                {
+                  "comment": "The extension the tool gives an output's file: `-> Transform .mat`.",
+                  "name": "constant.other.extension.spit",
+                  "match": "(?<![A-Za-z0-9_])(?:\\.[A-Za-z0-9_-]+)+"
+                },
+                {
+                  "include": "#type-reference"
+                },
+                {
+                  "name": "variable.parameter.port.spit",
+                  "match": "\\b[a-z_][A-Za-z0-9_]*\\b"
+                },
+                {
+                  "name": "punctuation.separator.comma.spit",
+                  "match": ","
+                },
+                {
+                  "name": "punctuation.separator.colon.spit",
+                  "match": ":"
+                },
+                {
+                  "name": "punctuation.section.parens.spit",
+                  "match": "[()]"
+                }
+              ]
+            },
+            {
+              "include": "#check-clause"
+            },
             { "include": "#review-clause" },
-            { "name": "keyword.operator.at.spit", "match": "@" },
-            { "name": "string.quoted.double.spit", "match": "\"[^\"]*\"" },
-            { "name": "keyword.other.beside.spit", "match": "\\bbeside\\b" },
+            {
+              "name": "keyword.operator.at.spit",
+              "match": "@"
+            },
+            {
+              "name": "string.quoted.double.spit",
+              "match": "\"[^\"]*\""
+            },
+            {
+              "comment": "A `+` that appends a `beside` suffix to the whole file name: `bai: Bai +.bai beside bam`, `+\"_index.txt\"`.",
+              "name": "keyword.operator.append.spit",
+              "match": "\\+(?=\\.|\")"
+            },
+            {
+              "name": "keyword.other.beside.spit",
+              "match": "\\bbeside\\b"
+            },
             {
               "comment": "A `/` that makes the output a folder, alone or after its extension: `-> (subject: FsSubject /)`, `-> Zarr .zarr/`.",
               "name": "constant.other.extension.folder.spit",
@@ -363,33 +1402,27 @@
               "name": "constant.other.extension.spit",
               "match": "(?<![A-Za-z0-9_])(?:\\.[A-Za-z0-9_-]+)+"
             },
-            { "include": "#type-reference" },
-            { "name": "variable.parameter.port.spit", "match": "\\b[a-z_][A-Za-z0-9_]*\\b" },
-            { "name": "punctuation.separator.comma.spit", "match": "," },
-            { "name": "punctuation.separator.colon.spit", "match": ":" },
-            { "name": "punctuation.section.parens.spit", "match": "[()]" }
+            {
+              "include": "#type-reference"
+            },
+            {
+              "name": "variable.parameter.port.spit",
+              "match": "\\b[a-z_][A-Za-z0-9_]*\\b"
+            },
+            {
+              "name": "punctuation.separator.comma.spit",
+              "match": ","
+            },
+            {
+              "name": "punctuation.separator.colon.spit",
+              "match": ":"
+            },
+            {
+              "name": "punctuation.section.parens.spit",
+              "match": "[()]"
+            }
           ]
         }
-      },
-      "patterns": [
-        { "include": "#check-clause" },
-        { "include": "#review-clause" },
-        {
-          "comment": "A many input's minimum, `items: many Image @ min(2)`, matched whole so the `)` of `min(2)` does not end the inputs.",
-          "match": "(@)\\s*(min)\\s*(\\()\\s*(\\d+)\\s*(\\))",
-          "captures": {
-            "1": { "name": "keyword.operator.at.spit" },
-            "2": { "name": "keyword.other.selector.spit" },
-            "3": { "name": "punctuation.section.parens.spit" },
-            "4": { "name": "constant.numeric.spit" },
-            "5": { "name": "punctuation.section.parens.spit" }
-          }
-        },
-        { "name": "storage.modifier.cardinality.spit", "match": "\\bmany\\b" },
-        { "name": "keyword.other.selector.spit", "match": "\\bmin\\b" },
-        { "name": "keyword.operator.at.spit", "match": "@" },
-        { "name": "punctuation.separator.comma.spit", "match": "," },
-        { "include": "#type-reference" }
       ]
     },
     "product-declaration": {
@@ -405,13 +1438,25 @@
       "captures": {
         "2": {
           "patterns": [
-            { "name": "variable.other.product.spit", "match": "[A-Za-z_][A-Za-z0-9_]*" },
-            { "name": "punctuation.separator.comma.spit", "match": "," }
+            {
+              "name": "variable.other.product.spit",
+              "match": "[A-Za-z_][A-Za-z0-9_]*"
+            },
+            {
+              "name": "punctuation.separator.comma.spit",
+              "match": ","
+            }
           ]
         },
-        "3": { "name": "keyword.operator.assignment.spit" },
-        "4": { "name": "entity.name.function.spit" },
-        "5": { "name": "punctuation.definition.arguments.begin.spit" }
+        "3": {
+          "name": "keyword.operator.assignment.spit"
+        },
+        "4": {
+          "name": "entity.name.function.spit"
+        },
+        "5": {
+          "name": "punctuation.definition.arguments.begin.spit"
+        }
       }
     },
     "inventory-entry": {
@@ -502,11 +1547,22 @@
       "patterns": [
         {
           "comment": "SPIT's own placeholders, which take `@` to tell them from dimensions.",
-          "match": "(\\{)(@(?:product|entities|labels|stage))(\\})",
+          "match": "(\\{)(@(?:product|entities|stage))(\\})",
           "captures": {
             "1": { "name": "punctuation.definition.template-expression.begin.spit" },
             "2": { "name": "variable.language.placeholder.spit" },
             "3": { "name": "punctuation.definition.template-expression.end.spit" }
+          }
+        },
+        {
+          "comment": "A dimension with a shape, `{date:date}`, `{run:digits}`, `{year:year}`: it narrows what a source's placeholder matches. Shapes belong to path rules and `discover` patterns only; a `command` line's `{x:date}` is something else, and takes the generic placeholder.",
+          "match": "(\\{)([A-Za-z_][A-Za-z0-9_]*)(:)(digits|year|date)(\\})",
+          "captures": {
+            "1": { "name": "punctuation.definition.template-expression.begin.spit" },
+            "2": { "name": "variable.parameter.placeholder.dimension.spit" },
+            "3": { "name": "punctuation.separator.colon.spit" },
+            "4": { "name": "constant.language.shape.spit" },
+            "5": { "name": "punctuation.definition.template-expression.end.spit" }
           }
         },
         {
@@ -519,6 +1575,25 @@
           }
         }
       ]
+    },
+    "resource-settings": {
+      "comment": "`cores=8` and `memory=16G` on a `resources` line: a job's cores, and its memory with a unit, K, M, G or T.",
+      "patterns": [
+        {
+          "match": "\\b(cores|memory)\\s*(=)\\s*(\\d+[KMGT]?)?",
+          "captures": {
+            "1": { "name": "variable.parameter.resource.spit" },
+            "2": { "name": "keyword.operator.assignment.spit" },
+            "3": { "name": "constant.numeric.spit" }
+          }
+        },
+        { "name": "punctuation.separator.comma.spit", "match": "," }
+      ]
+    },
+    "command-redirect": {
+      "comment": "A `<` or `>` that is a word of its own in an operation's command: `< {input}` reads an input on the command's stdin, and `> {output}` writes its stdout to an output. Quoted, either is an argument, and a string takes it first.",
+      "name": "keyword.operator.redirect.spit",
+      "match": "(?<=\\s)[<>](?=\\s|$)"
     },
     "placeholder": {
       "patterns": [
@@ -536,8 +1611,19 @@
           }
         },
         {
-          "comment": "`{@output}`, the path of an operation's single unnamed output; its `@` marks a placeholder SPIT supplies.",
-          "match": "(\\{)(@output|@path)(\\})",
+          "comment": "`{durations.digit}`: each of an input's artifacts' value of a dimension. Any name after the `.` but `dir` and `stem`, which the pattern before takes.",
+          "match": "(\\{)([A-Za-z_][A-Za-z0-9_]*)(\\.)([A-Za-z_][A-Za-z0-9_-]*)(\\})",
+          "captures": {
+            "1": { "name": "punctuation.definition.template-expression.begin.spit" },
+            "2": { "name": "variable.parameter.placeholder.spit" },
+            "3": { "name": "punctuation.accessor.spit" },
+            "4": { "name": "variable.parameter.placeholder.dimension.spit" },
+            "5": { "name": "punctuation.definition.template-expression.end.spit" }
+          }
+        },
+        {
+          "comment": "`{@output}`, the path of an operation's single unnamed output, `{@cores}`, the cores its `resources` line gives each job, and `{@here}`, the folder of the file declaring it, and `{@path}`, the artifact a `check` tests; the `@` marks a placeholder SPIT supplies.",
+          "match": "(\\{)(@output|@cores|@here|@path)(\\})",
           "captures": {
             "1": { "name": "punctuation.definition.template-expression.begin.spit" },
             "2": { "name": "variable.language.placeholder.spit" },
@@ -550,27 +1636,41 @@
     "expression": {
       "patterns": [
         {
+          "comment": "A source companion's suffix and `beside`, an extension with an optional `+` that appends it to the whole name: `source gps : Track .gpx beside raw`, `source fai : Fai +.fai beside reference`.",
+          "match": "(?<=\\s)(\\+)?((?:\\.[A-Za-z0-9_-]+)+)(\\s+)(beside)\\b(?:\\s+([A-Za-z_][A-Za-z0-9_]*))?",
+          "captures": {
+            "1": { "name": "keyword.operator.append.spit" },
+            "2": { "name": "constant.other.extension.spit" },
+            "4": { "name": "keyword.other.beside.spit" },
+            "5": { "name": "variable.other.product.spit" }
+          }
+        },
+        {
+          "comment": "A source companion's quoted suffix and `beside`: `source mask \"_mask.nii.gz\" beside image`, `source dict +\"_dict.txt\" beside reference`.",
+          "match": "(?<=\\s)(\\+)?(\"[^\"]*\")(\\s+)(beside)\\b(?:\\s+([A-Za-z_][A-Za-z0-9_]*))?",
+          "captures": {
+            "1": { "name": "keyword.operator.append.spit" },
+            "2": { "name": "string.quoted.double.spit" },
+            "4": { "name": "keyword.other.beside.spit" },
+            "5": { "name": "variable.other.product.spit" }
+          }
+        },
+        {
           "comment": "A `/` that makes a source a folder, alone or after its extension: `source dicom : Dicom / [sub]`, `source store .zarr/`.",
           "name": "constant.other.extension.folder.spit",
-          "match": "(?<=\\s)(?:(?:\\.[A-Za-z0-9_-]+)+)?/(?=\\s*(?:#|$|\\[|@))"
+          "match": "(?<=\\s)(?:(?:\\.[A-Za-z0-9_-]+)+)?/(?=\\s*(?:#|$|\\[|@|beside\\b))"
         },
         {
           "comment": "The extension a source declares, before its dimensions or at the end of its line: `source events : Events .tsv [sub]`, `source gps : Track .gpx`.",
           "name": "constant.other.extension.spit",
           "match": "(?<=\\s)(?:\\.[A-Za-z0-9_-]+)+(?=\\s*(?:#|$|\\[|@|beside\\b))"
         },
+        { "name": "keyword.control.spit", "match": "\\b(require|exclude|verify|resources|use|from|as|source|dimensions|operation|command|path|(?:check|review)(?!\\s*:))\\b" },
+        { "match": "\\b(beside)\\s+([A-Za-z_][A-Za-z0-9_]*)", "captures": { "1": { "name": "keyword.other.beside.spit" }, "2": { "name": "variable.other.product.spit" } } },
+        { "name": "storage.modifier.cardinality.spit", "match": "\\bmany\\b" },
         { "include": "#check-clause" },
         { "include": "#review-clause" },
-        {
-          "match": "\\b(beside)\\s+([A-Za-z_][A-Za-z0-9_]*)",
-          "captures": {
-            "1": { "name": "keyword.other.beside.spit" },
-            "2": { "name": "variable.other.product.spit" }
-          }
-        },
-        { "name": "keyword.control.spit", "match": "\\b(?:require|exclude|per|verify|use|from|as|source|dimensions|operation|command|path|(?:check|review)(?!\\s*:))\\b" },
-        { "name": "storage.modifier.cardinality.spit", "match": "\\bmany\\b" },
-        { "name": "keyword.other.selector.spit", "match": "\\b(vary|where|same|each|min)\\b" },
+        { "name": "keyword.other.selector.spit", "comment": "A clause keyword directly after its `@`, as SPIT reads it: `@vary(`, not `@ vary(`.", "match": "(?<=@)(vary|where|same|each|min)\\b" },
         { "include": "#strings" },
         { "name": "keyword.operator.at.spit", "match": "@" },
         { "name": "keyword.operator.arrow.spit", "match": "->" },

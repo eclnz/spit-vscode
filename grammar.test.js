@@ -26,7 +26,7 @@ async function tokenizer() {
   });
   const grammar = await registry.loadGrammar('source.spit');
   // The scopes of the token covering `text` on the one line given.
-  return (line, text, from = 0) => {
+  const scopes = (line, text, from = 0) => {
     let state = textmate.INITIAL;
     let tokens;
     for (const part of line.split('\n')) {
@@ -41,9 +41,45 @@ async function tokenizer() {
     const token = tokens.find(token => token.startIndex <= start && start < token.endIndex);
     return token.scopes.join(' ');
   };
+  // The scopes of `text` on line number `index` of a multi-line `lines`.
+  scopes.inFile = (lines, index, text, from = 0) => {
+    let state = textmate.INITIAL;
+    for (let i = 0; i < index; i++) state = grammar.tokenizeLine(lines[i], state).ruleStack;
+    const { tokens } = grammar.tokenizeLine(lines[index], state);
+    const start = lines[index].indexOf(text, from);
+    assert.notEqual(start, -1, `\`${text}\` not in \`${lines[index]}\``);
+    return tokens.find(token => token.startIndex <= start && start < token.endIndex).scopes.join(' ');
+  };
+  return scopes;
 }
 
 const skip = !textmate && 'run npm install to test the grammar';
+
+test('entities spellings and labels highlight their roles, as a default or in a default block', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'default entities: {@key}_{@value} separated "-"';
+  for (const keyword of ['default', 'entities', 'separated']) {
+    assert.match(scopes(line, keyword), /keyword\.control\.spit/);
+  }
+  for (const name of ['@key', '@value']) {
+    assert.match(scopes(line, name), /variable\.language\.placeholder\.spit/);
+    for (const quote of ['"', "'"]) {
+      const quoted = `default entities: ${quote}{@key}_{@value}${quote} separated "-"`;
+      assert.match(scopes(quoted, name), /variable\.language\.placeholder\.spit/);
+    }
+  }
+  assert.match(scopes(line, '-'), /string\.quoted\.double\.spit/);
+  const block = '    entities: {@key}-{@value} separated "_"';
+  assert.match(scopes(block, 'entities'), /keyword\.control\.spit/);
+  assert.match(scopes(block, '@key'), /variable\.language\.placeholder\.spit/);
+  const alias = 'default entities sub: subject';
+  assert.match(scopes(alias, 'default'), /keyword\.control\.spit/);
+  assert.match(scopes(alias, 'entities'), /keyword\.control\.spit/);
+  assert.match(scopes(alias, 'sub'), /variable\.parameter\.dimension\.spit/);
+  assert.match(scopes(alias, 'subject'), /constant\.other\.entity-label\.spit/);
+  // A product may not be named `entities`, so the word is always the keyword.
+  assert.match(scopes('entities: Image [sub] = copy(raw)', 'entities'), /keyword\.control\.spit/);
+});
 
 test('path templates mark the built-in placeholders apart from dimensions', { skip }, async () => {
   const scopes = await tokenizer();
@@ -59,15 +95,17 @@ test('path templates mark the built-in placeholders apart from dimensions', { sk
   assert.match(scopes(line, '{', line.indexOf('{sub')), /punctuation\.definition\.template-expression\.begin/);
 });
 
-test('path templates mark optional groups, literal brackets and labels', { skip }, async () => {
+test('path templates mark optional groups and literal brackets, and `{@labels}` is no placeholder', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = 'path: derivatives/sub-{sub}[/ses-{ses}][[x]]/{@labels}_{@product}';
+  const line = 'default path: derivatives/sub-{sub}[/ses-{ses}][[x]]/{@entities}_{@product}';
   assert.match(scopes(line, '[', line.indexOf('[/')), /punctuation\.definition\.optional\.spit/);
   assert.match(scopes(line, ']', line.indexOf('}]') + 1), /punctuation\.definition\.optional\.spit/);
   assert.match(scopes(line, '[[', line.indexOf('[[')), /constant\.character\.escape\.bracket\.spit/);
   assert.match(scopes(line, ']]', line.indexOf(']]')), /constant\.character\.escape\.bracket\.spit/);
   assert.match(scopes(line, 'ses', line.indexOf('{ses')), /variable\.parameter\.placeholder\.dimension\.spit/);
-  assert.match(scopes(line, '@labels'), /variable\.language\.placeholder\.spit/);
+  assert.match(scopes(line, '@entities'), /variable\.language\.placeholder\.spit/);
+  const gone = 'default path: out/{@labels}_{@product}';
+  assert.doesNotMatch(scopes(gone, '@labels'), /variable\.language\.placeholder\.spit/);
   const stem = '    path: site-{site}[_{shot}]';
   assert.match(scopes(stem, '[', stem.indexOf('[_')), /punctuation\.definition\.optional\.spit/);
 });
@@ -90,11 +128,19 @@ test('observed contexts have an unnamed section header', { skip }, async () => {
 
 test('require and conditional exclude rules highlight comparisons and groups', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = 'require [sub] where contexts[sub,ses] count!=2';
+  const line = 'require [sub] where sessions count!=2 has ses=1,2';
   assert.match(scopes(line, 'require'), /keyword\.control/);
-  assert.match(scopes(line, 'contexts'), /variable\.other\.product/);
-  assert.match(scopes(line, 'count'), /keyword\.other\.count/);
   assert.match(scopes(line, 'sub'), /meta\.dimension-list/);
+  assert.match(scopes(line, 'where'), /keyword\.control\.constraint/);
+  assert.match(scopes(line, 'sessions'), /variable\.other\.product/);
+  assert.match(scopes('require [sub] where contexts[sub,ses] count!=2', 'contexts'), /variable\.other\.product/);
+  assert.match(scopes(line, 'count'), /keyword\.other\.count/);
+  assert.match(scopes(line, 'has'), /keyword\.control\.constraint/);
+  assert.match(scopes(line, 'ses', line.indexOf('has')), /variable\.parameter\.dimension/);
+  const values = 'require [sub, ses] where bold has run=1,2';
+  assert.match(scopes(values, 'has'), /keyword\.control\.constraint/);
+  // `per` is no keyword.
+  assert.doesNotMatch(scopes('require sessions count>=2 per [sub]', 'per'), /keyword\.control/);
   for (const comparison of ['=', '!=', '>=', '<=', '>', '<']) {
     const rule = `exclude [sub] where sessions count${comparison}2`;
     assert.match(scopes(rule, 'exclude'), /keyword\.control\.constraint/);
@@ -121,14 +167,15 @@ test('exclude rules highlight a product, and exclude from is no rule', { skip },
 
 test('a default path rule, a comment, and escaped braces', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = '    path: out/{{literal}}/{run}.txt # per stage';
+  const line = '    default path: out/{{literal}}/{run}.txt # per stage';
+  assert.match(scopes(line, 'default'), /keyword\.control\.spit/);
   assert.match(scopes(line, 'path'), /keyword\.control\.spit/);
   assert.match(scopes(line, '{{'), /constant\.character\.escape\.brace\.spit/);
   assert.doesNotMatch(scopes(line, 'literal'), /placeholder/);
   assert.match(scopes(line, 'run'), /variable\.parameter\.placeholder\.dimension\.spit/);
   assert.match(scopes(line, '# per stage'), /comment\.line/);
   // As in SPIT, a `#` inside a word is not a comment.
-  assert.doesNotMatch(scopes('path: out/#tag/{@entities}', '#tag'), /comment/);
+  assert.doesNotMatch(scopes('default path: out/#tag/{@entities}', '#tag'), /comment/);
 });
 
 test('a product called `path` is still a step', { skip }, async () => {
@@ -144,6 +191,18 @@ test('stage headers are keywords with a section name', { skip }, async () => {
   }
   // A product called `stage` is assigned, not opened.
   assert.doesNotMatch(scopes('stage = copy(raw)', 'stage'), /keyword\.control\.stage/);
+});
+
+test('command templates mark the dimension an input\'s values are read from', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'command table: table --digits {durations.digit} --files {durations} > {@output}';
+  const at = line.indexOf('{durations.digit');
+  assert.match(scopes(line, 'durations', at), /variable\.parameter\.placeholder\.spit/);
+  assert.doesNotMatch(scopes(line, 'durations', at), /dimension/);
+  assert.match(scopes(line, '.', at), /punctuation\.accessor\.spit/);
+  assert.match(scopes(line, 'digit', at), /variable\.parameter\.placeholder\.dimension\.spit/);
+  // `.dir` and `.stem` stay an output's folder and name.
+  assert.match(scopes('command c: tool {x} {image.dir}', 'dir'), /variable\.other\.property\.spit/);
 });
 
 test('command templates mark an output\'s folder and name', { skip }, async () => {
@@ -181,6 +240,56 @@ test('command templates mark {@output} apart from the ports they name', { skip }
   }
 });
 
+test('a command marks the < and > that connect its stdin and stdout', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'command count: wc -l < {table} > {@output}';
+  for (const sign of ['<', '>']) {
+    assert.match(scopes(line, sign), /keyword\.operator\.redirect\.spit/, sign);
+  }
+  assert.match(scopes(line, 'command'), /keyword\.control\.spit/);
+  assert.match(scopes(line, 'table'), /variable\.parameter\.placeholder\.spit/);
+  assert.match(scopes(line, '@output'), /variable\.language\.placeholder\.spit/);
+  // Quoted, or against another word, a sign is an argument.
+  const quoted = "command count: tool '>' --x=>{table} {@output}";
+  assert.doesNotMatch(scopes(quoted, '>'), /redirect/);
+  assert.doesNotMatch(scopes(quoted, '>', quoted.indexOf('=>')), /redirect/);
+  // Each entry of a `command:` block, and only a command.
+  const block = ['command:', '    count: wc -l < {table} > {@output}'];
+  assert.match(scopes.inFile(block, 1, '>'), /keyword\.operator\.redirect\.spit/);
+  assert.match(scopes.inFile(block, 1, 'count'), /entity\.name\.function\.spit/);
+  assert.doesNotMatch(scopes('verify count: test -s {table} > x', '>'), /redirect/);
+});
+
+test('a resources line marks its operation, its cores and its memory, and {@cores} is a built-in', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'resources align: cores=8, memory=16G  # one sample';
+  assert.match(scopes(line, 'resources'), /keyword\.control\.spit/);
+  assert.match(scopes(line, 'align'), /entity\.name\.function\.spit/);
+  for (const key of ['cores', 'memory']) {
+    assert.match(scopes(line, key), /variable\.parameter\.resource\.spit/, key);
+  }
+  assert.match(scopes(line, '8'), /constant\.numeric\.spit/);
+  assert.match(scopes(line, '16G'), /constant\.numeric\.spit/);
+  assert.match(scopes(line, 'one sample'), /comment/);
+  // Each entry of a `resources:` block reads as the line would.
+  const block = ['resources:', '    L::align: memory=512M', 'source raw [id]'];
+  assert.match(scopes.inFile(block, 0, 'resources'), /keyword\.control\.spit/);
+  assert.match(scopes.inFile(block, 1, 'L::align'), /entity\.name\.function\.spit/);
+  assert.match(scopes.inFile(block, 1, '512M'), /constant\.numeric\.spit/);
+  assert.match(scopes.inFile(block, 2, 'source'), /keyword\.control\.spit/);
+  // The command takes the cores with `{@cores}`, against a named port.
+  const command = 'command align: bwa mem -t {@cores} {reads} > {@output}';
+  assert.match(scopes(command, '@cores'), /variable\.language\.placeholder\.spit/);
+  assert.match(scopes(command, 'reads'), /variable\.parameter\.placeholder\.spit/);
+});
+
+test('{@here} in a command is a built-in placeholder', { skip }, async () => {
+  const scopes = await tokenizer();
+  const command = 'command table: python3 {@here}/scripts/table.py {durations} > {@output}';
+  assert.match(scopes(command, '@here'), /variable\.language\.placeholder\.spit/);
+  assert.match(scopes(command, 'durations'), /variable\.parameter\.placeholder\.spit/);
+});
+
 test('a dimensions line marks the pipeline order', { skip }, async () => {
   const scopes = await tokenizer();
   const line = 'dimensions [model, config, seed]';
@@ -190,9 +299,30 @@ test('a dimensions line marks the pipeline order', { skip }, async () => {
   assert.doesNotMatch(scopes('dimensions = copy(raw)', 'dimensions'), /keyword\.control/);
 });
 
+test('a types line marks how much must be typed', { skip }, async () => {
+  const scopes = await tokenizer();
+  for (const setting of ['strict', 'standard']) {
+    const line = `types ${setting}`;
+    assert.match(scopes(line, 'types'), /keyword\.control\.spit/, line);
+    assert.match(scopes(line, setting), /constant\.language\.type-checking\.spit/, line);
+  }
+  // A product called `types` is assigned, not declared.
+  assert.doesNotMatch(scopes('types = copy(raw)', 'types'), /keyword\.control/);
+});
+
+test('a type line marks the keyword, the type and its parameters', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'type Frame<Kind, Space>';
+  assert.match(scopes(line, 'type'), /keyword\.control\.spit/);
+  assert.match(scopes(line, 'Frame'), /support\.type\.spit/);
+  assert.match(scopes(line, 'Space'), /support\.type\.spit/);
+  // A product called `type` is assigned, not declared.
+  assert.doesNotMatch(scopes('type = copy(raw)', 'type'), /keyword\.control/);
+});
+
 test('an operation signature marks many and the minimum beside it', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = 'operation fit(waves: many Table @ min(2), policy: Policy) -> Coef';
+  const line = 'operation fit(waves: many Table @min(2), policy: Policy) -> Coef';
   assert.match(scopes(line, 'operation'), /keyword\.control\.spit/);
   assert.match(scopes(line, 'fit'), /entity\.name\.function\.spit/);
   assert.match(scopes(line, 'many'), /storage\.modifier\.cardinality\.spit/);
@@ -203,11 +333,11 @@ test('an operation signature marks many and the minimum beside it', { skip }, as
   assert.match(scopes(line, 'Policy'), /support\.type\.spit/);
   assert.match(scopes(line, '->'), /keyword\.operator\.arrow\.spit/);
   assert.match(scopes(line, 'Coef'), /meta\.operation\.output\.spit/);
-  const last = 'operation fit(waves: many @ min(3)) -> Coef .npz';
+  const last = 'operation fit(waves: many @min(3)) -> Coef .npz';
   assert.match(scopes(last, '3'), /constant\.numeric\.spit/);
   assert.match(scopes(last, '->'), /keyword\.operator\.arrow\.spit/);
   assert.match(scopes(last, '.npz'), /constant\.other\.extension\.spit/);
-  // `drop` and `one` are no longer operation keywords.
+  // `drop` and `one` are no operation keywords.
   assert.doesNotMatch(scopes('operation f(x: one Image) -> Image', 'one'), /cardinality/);
 });
 
@@ -219,7 +349,7 @@ test('an operation carried out by steps, and a call with several outputs to an i
   const step = '    cleaned = clean(reads, table)';
   assert.match(scopes(step, 'cleaned'), /variable\.other\.product\.spit/);
   assert.match(scopes(step, 'clean('), /entity\.name\.function\.spit/);
-  const call = 'm, t = L::summarise(raw, cal @ where(revision=2))';
+  const call = 'm, t = L::summarise(raw, cal @where(revision=2))';
   assert.match(scopes(call, 'm'), /variable\.other\.product\.spit/);
   assert.match(scopes(call, 't ='), /variable\.other\.product\.spit/);
   assert.match(scopes(call, '='), /keyword\.operator\.assignment\.spit/);
@@ -239,10 +369,10 @@ test('a check is declared once and attached to ports and sources', { skip }, asy
   // A product named `check` is assigned, not declared.
   assert.doesNotMatch(scopes('check = copy(raw)', 'check'), /keyword\.control/);
 
-  const operation = 'operation denoise(dwi: DWI @ check(ndim(4)), mask: Mask) -> DWI .mif @ check(nonempty, ndim(4))';
+  const operation = 'operation denoise(dwi: DWI @check(ndim(4)), mask: Mask) -> DWI .mif @check(nonempty, ndim(4))';
   assert.match(scopes(operation, 'check'), /keyword\.other\.selector\.spit/);
   assert.match(scopes(operation, 'ndim'), /entity\.name\.function\.check\.spit/);
-  assert.match(scopes(operation, '4'), /constant\.other\.argument\.spit/);
+  assert.match(scopes(operation, '4'), /constant\.numeric\.spit/);
   // The port list goes on past the check's parentheses.
   assert.match(scopes(operation, 'Mask'), /support\.type\.spit/);
   assert.match(scopes(operation, '->'), /keyword\.operator\.arrow\.spit/);
@@ -250,20 +380,20 @@ test('a check is declared once and attached to ports and sources', { skip }, asy
   assert.match(scopes(operation, 'check', operation.indexOf('->')), /keyword\.other\.selector\.spit/);
   assert.match(scopes(operation, 'nonempty'), /entity\.name\.function\.check\.spit/);
 
-  const several = 'operation split(table: Table) -> (left: Table @ check(nonempty), right: Table)';
+  const several = 'operation split(table: Table) -> (left: Table @check(nonempty), right: Table)';
   assert.match(scopes(several, 'nonempty'), /entity\.name\.function\.check\.spit/);
   assert.match(scopes(several, 'right'), /variable\.parameter\.port\.spit/);
 
-  const both = 'operation merge(items: many Table @ min(2) @ check(nonempty), policy: Policy) -> Table';
+  const both = 'operation merge(items: many Table @min(2) @check(nonempty), policy: Policy) -> Table';
   assert.match(scopes(both, 'min'), /keyword\.other\.selector\.spit/);
   assert.match(scopes(both, 'nonempty'), /entity\.name\.function\.check\.spit/);
   assert.match(scopes(both, 'Policy'), /support\.type\.spit/);
   assert.match(scopes(both, '->'), /keyword\.operator\.arrow\.spit/);
 
-  const source = 'source t1w : Image .nii.gz [sub] @ check(img::ndim(3))';
+  const source = 'source t1w : Image .nii.gz [sub] @check(img::ndim(3))';
   assert.match(scopes(source, '.nii.gz'), /constant\.other\.extension\.spit/);
   assert.match(scopes(source, 'img::ndim'), /entity\.name\.function\.check\.spit/);
-  const plain = 'source atlas : Image .nii.gz @ check(nonempty)';
+  const plain = 'source atlas : Image .nii.gz @check(nonempty)';
   assert.match(scopes(plain, '.nii.gz'), /constant\.other\.extension\.spit/);
   assert.match(scopes(plain, 'nonempty'), /entity\.name\.function\.check\.spit/);
 });
@@ -273,7 +403,7 @@ test('an operation output may name the extension its file has', { skip }, async 
   const line = 'operation align(moving: Image<M,S>) -> ToolTransform<S,T> .mat';
   assert.match(scopes(line, 'ToolTransform'), /support\.type\.spit/);
   assert.match(scopes(line, '.mat'), /constant\.other\.extension\.spit/);
-  const several = 'operation fit(runs: many Data @ min(2)) -> (weights: Weights .npz, quality: Metrics .tar.gz)';
+  const several = 'operation fit(runs: many Data @min(2)) -> (weights: Weights .npz, quality: Metrics .tar.gz)';
   assert.match(scopes(several, 'weights', several.indexOf('->')), /variable\.parameter\.port\.spit/);
   assert.match(scopes(several, 'Weights'), /support\.type\.spit/);
   assert.match(scopes(several, '.npz'), /constant\.other\.extension\.spit/);
@@ -308,9 +438,9 @@ test('an output written beside another names its suffix and sibling', { skip }, 
   assert.match(scopes(line, '.txt'), /constant\.other\.extension\.spit/);
 });
 
-test('check: lists the checks every output of a file or stage runs', { skip }, async () => {
+test('default check: lists the checks every output of a file or stage runs', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = '    check: nonempty, ndim(3), !lines(2)  # in this stage';
+  const line = '    default check: nonempty, ndim(3), !lines(2)  # in this stage';
   assert.match(scopes(line, 'check'), /keyword\.control\.spit/);
   assert.match(scopes(line, 'nonempty'), /entity\.name\.function\.check\.spit/);
   assert.match(scopes(line, 'ndim'), /entity\.name\.function\.check\.spit/);
@@ -319,22 +449,115 @@ test('check: lists the checks every output of a file or stage runs', { skip }, a
   assert.match(scopes(line, 'lines'), /entity\.name\.function\.check\.spit/);
   assert.match(scopes(line, '# in this'), /comment\.line/);
   // An output may opt out of a default.
-  const operation = 'operation split(table: Table) -> (left: Table @ check(!nonempty), right: Table)';
+  const operation = 'operation split(table: Table) -> (left: Table @check(!nonempty), right: Table)';
   assert.match(scopes(operation, '!'), /keyword\.operator\.negation\.spit/);
   assert.match(scopes(operation, 'nonempty'), /entity\.name\.function\.check\.spit/);
-  // A step's output named `check` stays a step, typed or not.
-  assert.doesNotMatch(scopes('check: Report [sub] = summarise(raw)', 'check'), /keyword\.control/);
   assert.doesNotMatch(scopes('check = summarise(raw)', 'check'), /keyword\.control/);
 });
 
-test('ext: sets the extension a default path is completed with', { skip }, async () => {
+test('a + suffix appends to the whole name, and beside names an input or a source', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = '    ext: .nii.gz  # images in this stage';
+  const single = 'operation faidx(fasta: Fasta) -> Fai +.fai beside fasta';
+  assert.match(scopes(single, '+'), /keyword\.operator\.append\.spit/);
+  assert.match(scopes(single, '.fai'), /constant\.other\.extension\.spit/);
+  assert.match(scopes(single, 'beside'), /keyword\.other\.beside\.spit/);
+  assert.match(scopes(single, 'fasta', single.indexOf('beside')), /variable\.parameter\.port\.spit/);
+  const several = 'operation sort(sam: Sam) -> (bam: Bam .bam, bai: Bai +.bai beside bam, dict: Dict +"_dict.txt" beside bam)';
+  assert.match(scopes(several, '+.bai'), /keyword\.operator\.append\.spit/);
+  assert.match(scopes(several, '.bai'), /constant\.other\.extension\.spit/);
+  assert.match(scopes(several, '+"'), /keyword\.operator\.append\.spit/);
+  assert.match(scopes(several, '"_dict.txt"'), /string\.quoted\.double\.spit/);
+  for (const [line, suffix, scope] of [
+    ['source fai : Fai +.fai beside reference', '.fai', /constant\.other\.extension\.spit/],
+    ['source gps : Track .gpx beside raw', '.gpx', /constant\.other\.extension\.spit/],
+    ['source dict +"_dict.txt" beside reference', '"_dict.txt"', /string\.quoted\.double\.spit/]
+  ]) {
+    assert.match(scopes(line, suffix), scope);
+    assert.match(scopes(line, 'beside'), /keyword\.other\.beside\.spit/);
+    if (line.includes('+')) assert.match(scopes(line, '+'), /keyword\.operator\.append\.spit/);
+  }
+  // A product called `beside` stays a product.
+  assert.doesNotMatch(scopes('x = f(beside)', 'beside'), /keyword/);
+});
+
+test('default ext: sets the extension a default path is completed with', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = '    default ext: .nii.gz  # images in this stage';
+  assert.match(scopes(line, 'default'), /keyword\.control\.spit/);
   assert.match(scopes(line, 'ext'), /keyword\.control\.spit/);
   assert.match(scopes(line, '.nii.gz'), /constant\.other\.extension\.spit/);
   assert.match(scopes(line, '# images'), /comment\.line/);
-  // A step's output named `ext` stays a step.
-  assert.doesNotMatch(scopes('ext: Image = copy(raw)', 'ext'), /keyword\.control/);
+  // A product may not be named `ext`, so the word is always the keyword.
+  assert.match(scopes('ext: Image = copy(raw)', 'ext'), /keyword\.control\.spit/);
+});
+
+test('a default: block holds path:, ext: and check: lines, and default check: lists checks', { skip }, async () => {
+  const scopes = await tokenizer();
+  const lines = [
+    'stage preprocess:',
+    '    default:  # this stage\'s outputs',
+    '        path: work/{@stage}/{@product}/{@entities}',
+    '        ext: .nii.gz',
+    '        check: nonempty, !ndim(3)',
+    '    cleaned = denoise(raw)'
+  ];
+  assert.match(scopes.inFile(lines, 1, 'default'), /keyword\.control\.spit/);
+  assert.match(scopes.inFile(lines, 1, ':'), /punctuation\.separator\.colon\.spit/);
+  assert.match(scopes.inFile(lines, 1, '# this'), /comment\.line/);
+  assert.match(scopes.inFile(lines, 2, 'path'), /keyword\.control\.spit/);
+  assert.match(scopes.inFile(lines, 2, '@stage'), /variable\.language\.placeholder\.spit/);
+  assert.match(scopes.inFile(lines, 3, '.nii.gz'), /constant\.other\.extension\.spit/);
+  assert.match(scopes.inFile(lines, 4, 'check'), /keyword\.control\.spit/);
+  const list = 'default check: nonempty';
+  assert.match(scopes(list, 'default'), /keyword\.control\.spit/);
+  assert.match(scopes(list, 'check'), /keyword\.control\.spit/);
+  // A product may not be named `check`, so the word is always the keyword.
+  assert.match(scopes('check: Report = copy(raw)', 'check'), /keyword\.control\.spit/);
+});
+
+test('a keyword alone with its colon opens a block of its statements, written without it', { skip }, async () => {
+  const scopes = await tokenizer();
+  const lines = [
+    'source:',
+    '    bold : Bold [sub, run]',
+    '# a comment at the edge does not end the block',
+    '    t1w : T1w [sub]',
+    'operation:',
+    '    twice(x: Bold) -> (out: Bold):',
+    '        out = step(x)',
+    'command:',
+    '    register: flirt -in {bold}',
+    '        -out {@output}',
+    'stage s:',
+    '    path:',
+    '        cleaned: out/{@stage}/{@entities}',
+    '    cleaned = clean(bold)',
+    'require:',
+    '    [sub] where t1w count=1',
+    'exclude:',
+    '    bold[sub=2]'
+  ];
+  assert.match(scopes.inFile(lines, 0, 'source'), /keyword\.control\.spit/);
+  assert.match(scopes.inFile(lines, 1, 'bold'), /variable\.other\.product\.spit/);
+  assert.match(scopes.inFile(lines, 1, 'Bold'), /support\.type\.spit/);
+  assert.match(scopes.inFile(lines, 3, 't1w'), /variable\.other\.product\.spit/);
+  assert.match(scopes.inFile(lines, 4, 'operation'), /keyword\.control\.spit/);
+  assert.match(scopes.inFile(lines, 5, 'twice'), /entity\.name\.function\.spit/);
+  assert.match(scopes.inFile(lines, 5, 'Bold'), /support\.type\.spit/);
+  assert.match(scopes.inFile(lines, 6, '='), /keyword\.operator\.assignment\.spit/);
+  assert.match(scopes.inFile(lines, 8, 'register'), /entity\.name\.function\.spit/);
+  assert.match(scopes.inFile(lines, 8, '{bold}'), /variable\.parameter\.placeholder\.spit/);
+  // A command goes on over the lines indented beneath it.
+  assert.match(scopes.inFile(lines, 9, '@output'), /variable\.language\.placeholder\.spit/);
+  assert.match(scopes.inFile(lines, 10, 's', 6), /entity\.name\.section\.stage\.spit/);
+  assert.match(scopes.inFile(lines, 11, 'path'), /keyword\.control\.spit/);
+  assert.match(scopes.inFile(lines, 12, 'cleaned'), /variable\.other\.product\.spit/);
+  assert.match(scopes.inFile(lines, 12, '@stage'), /variable\.language\.placeholder\.spit/);
+  // The block ends at the stage's next step.
+  assert.match(scopes.inFile(lines, 13, '='), /keyword\.operator\.assignment\.spit/);
+  assert.match(scopes.inFile(lines, 15, 'where'), /keyword\.control\.constraint\.spit/);
+  assert.match(scopes.inFile(lines, 15, 't1w'), /variable\.other\.product\.spit/);
+  assert.match(scopes.inFile(lines, 17, 'bold'), /variable\.other\.product\.spit/);
 });
 
 test('a source beside another highlights its suffix and anchor', { skip }, async () => {
@@ -358,7 +581,7 @@ test('a source beside another highlights its suffix and anchor', { skip }, async
 
 test('each is a selector keyword', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = 'forecast = predict(reading, model @ each(scenario), parameters)';
+  const line = 'forecast = predict(reading, model @each(scenario), parameters)';
   assert.match(scopes(line, 'each'), /keyword\.other\.selector\.spit/);
 });
 
@@ -382,14 +605,17 @@ test('a recipe names its pipeline', { skip }, async () => {
   assert.doesNotMatch(scopes('pipeline = copy(raw)', 'pipeline'), /keyword\.control\.import/);
 });
 
-test('a recipe or a .spitout names its dataset root', { skip }, async () => {
+test('a pipeline, recipe or .spitout names its dataset root', { skip }, async () => {
   const scopes = await tokenizer();
   const line = 'root ../data  # where the dataset is';
   assert.match(scopes(line, 'root'), /keyword\.control\.import\.spit/);
   assert.match(scopes(line, '../data'), /string\.unquoted\.file\.spit/);
   assert.match(scopes(line, '# where'), /comment\.line/);
-  // A product or record called `root` stays one.
-  assert.doesNotMatch(scopes('root = copy(raw)', 'root'), /keyword\.control\.import/);
+  assert.match(scopes('root data=set', 'data=set'), /string\.unquoted\.file\.spit/);
+  // A product may not be named `root`, so the word is always the keyword,
+  // though a .spitout's record may still be called `root[...]`.
+  assert.match(scopes('root = copy(raw)', 'root'), /keyword\.control\.import/);
+  assert.match(scopes('root : Text = copy(raw)', 'root'), /keyword\.control\.import/);
   assert.doesNotMatch(scopes('    root[sub=01]', 'root'), /keyword\.control\.import/);
 });
 
@@ -411,23 +637,22 @@ test('a review is declared once, attached like a check, and named by a recipe', 
   assert.match(scopes(declared, 'looked_at'), /entity\.name\.function\.review\.spit/);
   // A step's output named `review` is assigned, not declared.
   assert.doesNotMatch(scopes('review = copy(raw)', 'review'), /keyword\.control/);
-  assert.doesNotMatch(scopes('review: Report [sub] = summarise(raw)', 'review'), /keyword\.control/);
 
-  const source = 'source t1w : Image .nii.gz [sub] @ check(nonempty) @ review(looked_at, lib::other)';
+  const source = 'source t1w : Image .nii.gz [sub] @check(nonempty) @review(looked_at, lib::other)';
   assert.match(scopes(source, 'review'), /keyword\.other\.selector\.spit/);
   assert.match(scopes(source, 'looked_at'), /entity\.name\.function\.review\.spit/);
   assert.match(scopes(source, 'lib::other'), /entity\.name\.function\.review\.spit/);
 
-  const operation = 'operation summarise(t1: Image @ review(looked_at), mask: Mask) -> Json .json @ review(checked)';
+  const operation = 'operation summarise(t1: Image @review(looked_at), mask: Mask) -> Json .json @review(checked)';
   assert.match(scopes(operation, 'review'), /keyword\.other\.selector\.spit/);
   assert.match(scopes(operation, 'looked_at'), /entity\.name\.function\.review\.spit/);
   assert.match(scopes(operation, 'review', operation.indexOf('->')), /keyword\.other\.selector\.spit/);
   assert.match(scopes(operation, 'checked'), /entity\.name\.function\.review\.spit/);
-  const several = 'operation split(table: Table) -> (left: Table @ review(!looked_at), right: Table)';
+  const several = 'operation split(table: Table) -> (left: Table @review(!looked_at), right: Table)';
   assert.match(scopes(several, '!'), /keyword\.operator\.negation\.spit/);
   assert.match(scopes(several, 'looked_at'), /entity\.name\.function\.review\.spit/);
 
-  const defaults = '    review: looked_at, !other  # in this stage';
+  const defaults = '    default review: looked_at, !other  # in this stage';
   assert.match(scopes(defaults, 'review'), /keyword\.control\.spit/);
   assert.match(scopes(defaults, 'looked_at'), /entity\.name\.function\.review\.spit/);
   assert.match(scopes(defaults, '!'), /keyword\.operator\.negation\.spit/);
@@ -439,4 +664,146 @@ test('a review is declared once, attached like a check, and named by a recipe', 
   assert.match(scopes(file, 'from'), /keyword\.control\.spit/);
   assert.match(scopes(file, 'qc/looked_at.csv'), /string\.unquoted\.file/);
   assert.match(scopes(file, '# the verdicts'), /comment\.line/);
+});
+
+test('a shape after a source placeholder\'s colon is marked in path rules', { skip }, async () => {
+  const scopes = await tokenizer();
+  const log = 'path log: logs/{server}/{date:date}.log';
+  const at = log.indexOf('{date');
+  // A dimension named `date` keeps its placeholder scope; the shape is its own.
+  assert.match(scopes(log, 'date', at), /variable\.parameter\.placeholder\.dimension\.spit/);
+  assert.doesNotMatch(scopes(log, 'date', at), /shape/);
+  assert.match(scopes(log, ':', at), /punctuation\.separator\.colon\.spit/);
+  assert.match(scopes(log, 'date', at + 2), /constant\.language\.shape\.spit/);
+  assert.match(scopes(log, '}', at), /punctuation\.definition\.template-expression\.end/);
+  assert.match(scopes(log, 'server'), /variable\.parameter\.placeholder\.dimension\.spit/);
+  const run = 'path run: raw/run-{run:digits}.csv';
+  assert.match(scopes(run, 'run', run.indexOf('{run')), /variable\.parameter\.placeholder\.dimension\.spit/);
+  assert.match(scopes(run, 'digits'), /constant\.language\.shape\.spit/);
+  assert.match(scopes(run, ':', run.indexOf('{run')), /punctuation\.separator\.colon\.spit/);
+  // A recipe's `default path:` and a source's `path source:` are path rules too.
+  const year = 'default path: data/{site}/{year:year}/{@product}';
+  assert.match(scopes(year, 'year', year.indexOf(':year') + 1), /constant\.language\.shape\.spit/);
+  // A word that is not a shape is not marked as one.
+  assert.doesNotMatch(scopes('path run: raw/{run:other}.csv', 'other'), /shape/);
+});
+
+test('a shape is marked in a .spitout\'s source_paths', { skip }, async () => {
+  const scopes = await tokenizer();
+  const file = ['root ../data', 'source_paths:', '    log: logs/{server}/{date:date}.log  # one a day', '    run: raw/run-{run:digits}.csv', 'sources:', '    log[server=web1,date=2026-09-01]'];
+  assert.match(scopes.inFile(file, 1, 'source_paths'), /keyword\.other\.section\.spit/);
+  assert.match(scopes.inFile(file, 2, 'log'), /variable\.other\.product\.spit/);
+  assert.match(scopes.inFile(file, 2, 'date', file[2].indexOf('{date') + 2), /constant\.language\.shape\.spit/);
+  assert.match(scopes.inFile(file, 2, 'date', file[2].indexOf('{date')), /variable\.parameter\.placeholder\.dimension\.spit/);
+  assert.match(scopes.inFile(file, 2, '# one'), /comment\.line/);
+  assert.match(scopes.inFile(file, 3, 'digits'), /constant\.language\.shape\.spit/);
+  // The next section ends the block, and its records are records again.
+  assert.match(scopes.inFile(file, 4, 'sources'), /keyword\.other\.section\.spit/);
+  assert.match(scopes.inFile(file, 5, 'log'), /variable\.other\.product\.spit/);
+  assert.doesNotMatch(scopes.inFile(file, 5, 'date'), /shape/);
+});
+
+test('a `command` line\'s `{x:date}` is not a shape', { skip }, async () => {
+  const scopes = await tokenizer();
+  for (const line of ['command copy: tool {x:date} {@output}', 'verify test -s {x:digits}']) {
+    const word = line.includes('date') ? 'date' : 'digits';
+    assert.doesNotMatch(scopes(line, word), /shape/, line);
+    assert.match(scopes(line, word), /variable\.parameter\.placeholder\.spit/, line);
+  }
+  const quoted = 'command copy: tool "--day={day:date}"';
+  assert.doesNotMatch(scopes(quoted, 'date', quoted.indexOf(':date')), /shape/);
+});
+
+test('multiline operation lists keep their scopes through the closing delimiter', { skip }, async () => {
+  const wasm = fs.readFileSync(require.resolve('vscode-oniguruma/release/onig.wasm'));
+  await oniguruma.loadWASM(wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength));
+  const registry = new textmate.Registry({
+    onigLib: Promise.resolve({
+      createOnigScanner: patterns => new oniguruma.OnigScanner(patterns),
+      createOnigString: text => new oniguruma.OnigString(text)
+    }),
+    loadGrammar: async () => textmate.parseRawGrammar(fs.readFileSync(path.join(__dirname, 'syntaxes', 'spit.tmLanguage.json'), 'utf8'), 'spit.tmLanguage.json')
+  });
+  const grammar = await registry.loadGrammar('source.spit');
+  let state = textmate.INITIAL;
+  const scopes = (line, word) => {
+    const result = grammar.tokenizeLine(line, state);
+    state = result.ruleStack;
+    const start = line.indexOf(word);
+    return result.tokens.find(token => token.startIndex <= start && start < token.endIndex).scopes.join(' ');
+  };
+  assert.match(scopes('    operation prep(', 'prep'), /entity.name.function.spit/);
+  assert.match(scopes('        images: many MRI<Native> @min(2),', 'many'), /storage.modifier.cardinality.spit/);
+  assert.match(scopes('        reference: MRI<Native>', 'MRI'), /support.type.spit/);
+  assert.match(scopes('    ) -> (', '->'), /keyword.operator.arrow.spit/);
+  assert.match(scopes('        mask: MRI<Mask,Grid<Native>>,', 'mask'), /variable.parameter.port.spit/);
+  assert.match(scopes('        report: Json .json', '.json'), /constant.other.extension.spit/);
+  scopes('    ):', ')');
+  assert.match(scopes('        result = clean(images)', 'clean'), /entity.name.function.spit/);
+  assert.match(scopes('operation later(x: Image) -> Image', 'later'), /entity.name.function.spit/);
+});
+
+test('a clause keyword is a selector only directly after its @', { skip }, async () => {
+  const scopes = await tokenizer();
+  assert.match(scopes('r = f(s @vary(a))', 'vary'), /keyword\.other\.selector\.spit/);
+  assert.match(scopes('r = f(s @where(a=1) @same(b))', 'same'), /keyword\.other\.selector\.spit/);
+  assert.match(scopes('operation f(xs: many T @min(2)) -> T', 'min'), /keyword\.other\.selector\.spit/);
+  // SPIT rejects `@ vary(`, so it is not coloured as the selector.
+  assert.doesNotMatch(scopes('r = f(s @ vary(a))', 'vary'), /selector/);
+  assert.doesNotMatch(scopes('operation f(xs: many T @ min(2)) -> T', 'min'), /selector/);
+});
+
+test('@check(...) is coloured on a source and on input and output ports', { skip }, async () => {
+  const scopes = await tokenizer();
+  const source = 'source dwi : DWI [sub] @check(ndim(4), nonempty)';
+  assert.match(scopes(source, 'check'), /keyword\.other\.selector\.spit/);
+  assert.match(scopes(source, 'ndim'), /entity\.name\.function\.check\.spit/);
+  assert.match(scopes(source, 'nonempty'), /entity\.name\.function\.check\.spit/);
+  assert.match(scopes(source, '4'), /constant\.numeric\.spit/);
+  const port = 'operation f(x: Image @check(nonempty)) -> (mask: Mask @check(!nonempty, ndim(3)))';
+  assert.match(scopes(port, 'nonempty'), /entity\.name\.function\.check\.spit/);
+  assert.match(scopes(port, '!'), /keyword\.operator\.negation\.spit/);
+  assert.match(scopes(port, 'ndim', port.indexOf('->')), /entity\.name\.function\.check\.spit/);
+  // The parentheses of the clause do not end the signature early.
+  assert.match(scopes(port, 'mask'), /variable|parameter|entity|spit/);
+  // SPIT rejects `@ check(`, so it is not coloured as the clause.
+  assert.doesNotMatch(scopes('source dwi : DWI [sub] @ check(nonempty)', 'check'), /selector/);
+});
+
+test('an unclosed @check( does not colour the lines after it', { skip }, async () => {
+  const scopes = await tokenizer();
+  const lines = ['source dwi : DWI [sub] @check(ndim(4)', 'source t1w : T1 [sub]'];
+  assert.doesNotMatch(scopes.inFile(lines, 1, 't1w'), /entity\.name\.function/);
+  assert.match(scopes.inFile(lines, 1, 'source'), /keyword\.control\.spit/);
+});
+
+test('a command block marks each line beneath it as a command', { skip }, async () => {
+  const scopes = await tokenizer();
+  const lines = [
+    'command sort:  # sort, then index',
+    '    samtools sort --threads {@cores} -o {bam} {sam}',
+    '    # the index is written beside the BAM',
+    '    samtools index {bam}',
+    '        > {log}',
+    'command:',
+    '    view:',
+    '        samtools view -b {sam} > {@output}',
+    'bam = view(sam)'
+  ];
+  assert.match(scopes.inFile(lines, 0, 'command'), /keyword\.control\.spit/);
+  assert.match(scopes.inFile(lines, 0, 'sort'), /entity\.name\.function\.spit/);
+  assert.match(scopes.inFile(lines, 0, ':'), /punctuation\.separator\.colon\.spit/);
+  assert.match(scopes.inFile(lines, 0, '# sort'), /comment\.line/);
+  assert.match(scopes.inFile(lines, 1, '{bam}'), /variable\.parameter\.placeholder\.spit/);
+  assert.match(scopes.inFile(lines, 2, '# the'), /comment\.line/);
+  assert.match(scopes.inFile(lines, 3, '{bam}'), /variable\.parameter\.placeholder\.spit/);
+  // A line indented further goes on with the one above, `>` included.
+  assert.match(scopes.inFile(lines, 4, '>'), /keyword\.operator\.redirect\.spit/);
+  // A `command:` block's entry holds its lines too.
+  assert.match(scopes.inFile(lines, 6, 'view'), /entity\.name\.function\.spit/);
+  assert.match(scopes.inFile(lines, 7, '>'), /keyword\.operator\.redirect\.spit/);
+  assert.match(scopes.inFile(lines, 7, '@output'), /variable\.language\.placeholder\.spit/);
+  // The block ends at the next line that is not indented beneath it.
+  assert.match(scopes.inFile(lines, 8, '='), /keyword\.operator\.assignment\.spit/);
+  assert.doesNotMatch(scopes.inFile(lines, 8, 'bam'), /placeholder/);
 });
