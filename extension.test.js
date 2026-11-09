@@ -60,6 +60,53 @@ test('checks unsaved edits and clears fixed errors', { skip: !fs.existsSync(bina
   extension.deactivate();
 });
 
+test('reads JSON errors on exit 1 and reports failed processes without diagnostics', async () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-exit-'));
+  const executable = path.join(folder, 'spit-stub');
+  const mode = path.join(folder, 'mode');
+  fs.writeFileSync(executable, `#!/usr/bin/env node
+const fs = require('node:fs');
+const mode = fs.readFileSync(${JSON.stringify(mode)}, 'utf8');
+if (process.argv[2] === '--version') {
+  fs.writeSync(1, 'SPIT (Simple Pipeline in Text) compiler, version ' + ${JSON.stringify(require('./package.json').version)} + '\\n');
+} else if (mode === 'json') {
+  fs.writeSync(1, JSON.stringify({ diagnostics: [{ severity: 'error', source: 'pipeline', line: 1, column: 2, end_column: 5, message: 'bad type' }] }));
+  process.exitCode = 1;
+} else {
+  fs.writeSync(2, 'compiler failed');
+  if (mode === 'invalid') fs.writeSync(1, 'not JSON');
+  process.exitCode = mode === 'invalid' ? 1 : 2;
+}
+`, { mode: 0o755 });
+  fs.writeFileSync(mode, 'json');
+  const direct = require('node:child_process').spawnSync(executable, [], { encoding: 'utf8' });
+  assert.equal(direct.status, 1, direct.stderr);
+  assert.match(direct.stdout, /bad type/);
+  const document = fakeDocument(path.join(folder, 'bad.spit'), 'bad type\n');
+  const results = new Map();
+  let onChange;
+  const vscode = mockVscode(document, results, callback => { onChange = callback; });
+  vscode.workspace.getConfiguration = () => ({ get: () => executable });
+  const extension = load(vscode);
+  try {
+    extension.activate({ extensionPath: __dirname, subscriptions: [] });
+    await until(() => results.has(document.uri.toString()));
+    assert.equal(results.get(document.uri.toString())?.[0]?.message, 'bad type');
+    assert.deepEqual(span(results.get(document.uri.toString())[0]), [0, 1, 4]);
+    for (const expected of ['invalid', 'crash']) {
+      fs.writeFileSync(mode, expected);
+      document.version++;
+      onChange({ document });
+      await until(() => results.get(document.uri.toString())?.[0]?.message.includes('compiler failed'));
+      assert.match(results.get(document.uri.toString())[0].message, /SPIT check failed/);
+      results.clear();
+    }
+  } finally {
+    extension.deactivate();
+    fs.rmSync(folder, { recursive: true, force: true });
+  }
+});
+
 test('checks a recipe against the pipeline it names', { skip: !fs.existsSync(binary) }, async () => {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-'));
   fs.writeFileSync(path.join(folder, 'analysis.spit'), 'source raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\n\ndefault path: out/{@product}/{@entities}\ndefault entities: {@key}={@value} separated "__"\n');
@@ -78,6 +125,70 @@ test('checks a recipe against the pipeline it names', { skip: !fs.existsSync(bin
     const [error] = results.get(document.uri.toString());
     assert.equal(error.range.start.line, 3);
     assert.match(error.message, /rwa/);
+  } finally {
+    extension.deactivate();
+    fs.rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test('a recipe inherits an inline root and marks a duplicate on the recipe', { skip: !fs.existsSync(binary) }, async () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-inline-'));
+  fs.writeFileSync(path.join(folder, 'analysis.spit'), 'root .\nsource raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\npath result: out/result/{id}.txt\n');
+  const document = fakeDocument(path.join(folder, 'cohort.spitin'), 'pipeline analysis.spit\nrequire [id] where raw count>=1\n');
+  const results = new Map();
+  let onChange;
+  const extension = load(mockVscode(document, results, callback => { onChange = callback; }));
+  try {
+    extension.activate({ extensionPath: __dirname, subscriptions: [] });
+    await until(() => results.get(document.uri.toString())?.length === 0);
+    document.text += 'root .\n';
+    document.version++;
+    onChange({ document });
+    await until(() => results.get(document.uri.toString())?.length === 1);
+    assert.equal(results.get(document.uri.toString())[0].range.start.line, 2);
+    assert.match(results.get(document.uri.toString())[0].message, /root is declared in both/);
+  } finally {
+    extension.deactivate();
+    fs.rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test('an unsaved inline root shows its hover and missing-folder warning', { skip: !fs.existsSync(binary) }, async () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-root-'));
+  const document = fakeDocument(path.join(folder, 'analysis.spit'), 'root missing\nsource raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\npath result: out/result/{id}.txt\n');
+  const results = new Map();
+  const hints = {};
+  const extension = load(mockVscode(document, results, () => {}, hints));
+  try {
+    extension.activate({ extensionPath: __dirname, subscriptions: [] });
+    await until(() => results.get(document.uri.toString())?.length === 1);
+    const [warning] = results.get(document.uri.toString());
+    assert.deepEqual(span(warning), [0, 5, 12]);
+    assert.equal(warning.severity, 1);
+    assert.match(warning.message, /dataset root `missing` is not a folder/);
+    const hover = await hints.hover.provideHover(document, { line: 0, character: 1 });
+    assert.match(JSON.stringify(hover), /inherits its pipeline's root/);
+  } finally {
+    extension.deactivate();
+    fs.rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test('types strict marks an untyped source as an error and explains its word', { skip: !fs.existsSync(binary) }, async () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-strict-'));
+  const document = fakeDocument(path.join(folder, 'strict.spit'), 'types strict\nsource raw [id]\noperation copy(input: Text) -> Text\nresult = copy(raw)\npath raw: in/{id}.txt\npath result: out/result/{id}.txt\n');
+  const results = new Map();
+  const hints = {};
+  const extension = load(mockVscode(document, results, () => {}, hints));
+  try {
+    extension.activate({ extensionPath: __dirname, subscriptions: [] });
+    await until(() => results.get(document.uri.toString())?.length === 1);
+    const [error] = results.get(document.uri.toString());
+    assert.deepEqual(span(error), [1, 7, 10]);
+    assert.equal(error.severity, 0);
+    assert.match(error.message, /`types strict` needs a type on source `raw`/);
+    const hover = await hints.hover.provideHover(document, { line: 0, character: 1 });
+    assert.match(JSON.stringify(hover), /How much of the pipeline must be typed/);
   } finally {
     extension.deactivate();
     fs.rmSync(folder, { recursive: true, force: true });
@@ -109,7 +220,120 @@ test('places a recipe check\'s pipeline error on the pipeline file', { skip: !fs
   }
 });
 
-test('shows each output path with its groups resolved and labels written out', { skip: !fs.existsSync(binary) }, async () => {
+const LIBRARY_OPERATIONS = 'operation cp(a: Lines) -> Lines\ncommand cp: cp {a} {@output}\n';
+
+// Check `text` as a pipeline in a fresh folder holding `files`, and return
+// the folder, what each file's collection holds, and a way to recheck.
+async function checkImporting(files, text, ready) {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-imports-'));
+  for (const [name, content] of Object.entries(files)) {
+    fs.mkdirSync(path.dirname(path.join(folder, name)), { recursive: true });
+    fs.writeFileSync(path.join(folder, name), content);
+  }
+  const results = new Map();
+  let onChange;
+  const document = fakeDocument(path.join(folder, 'pipeline.spit'), text);
+  const extension = load(mockVscode(document, results, callback => { onChange = callback; }));
+  extension.activate({ extensionPath: __dirname, subscriptions: [] });
+  const at = name => results.get(`file://${path.join(folder, name)}`);
+  await until(() => ready(at));
+  const recheck = async (newText, done) => {
+    if (newText !== undefined) document.text = newText;
+    document.version++;
+    onChange({ document });
+    await until(() => done(at));
+  };
+  return { folder, at, document, extension, recheck };
+}
+
+// Where a related place is: its file relative to the folder, and its span.
+function place(folder, related) {
+  return [path.relative(folder, related.location.uri.fsPath), ...span(related.location), related.message];
+}
+
+test('places an error in an imported library in the library, with its `use` line related', { skip: !fs.existsSync(binary) }, async () => {
+  const cases = [
+    ['a body that reads a missing product',
+      `${LIBRARY_OPERATIONS}operation wrap(x: Lines) -> (out: Lines):\n    out = cp(x)\n    z = cp(nope)\n`,
+      [4, 8, 16], /the body of `wrap` reads `nope`/],
+    ['an undeclared operation',
+      `${LIBRARY_OPERATIONS}operation wrap(x: Lines) -> (out: Lines):\n    out = missing(x)\n`,
+      [3, 10, 20], /operation `missing` must be declared before `wrap`/],
+    ['a bad placeholder',
+      'operation cp(a: Lines) -> Lines\ncommand cp: cp {a} {@output} {oops\noperation wrap(x: Lines) -> Lines\n',
+      [1, 12, 34], /unclosed `\{` in `\{oops`/]
+  ];
+  for (const [name, library, library_span, message] of cases) {
+    const text = 'use wrap from libs/lib.spit\nsource raw : Lines [id]\nout = wrap(raw)\nfoo bar baz\n';
+    const run = await checkImporting({ 'libs/lib.spit': library }, text, at => at('libs/lib.spit')?.length === 1 && at('pipeline.spit')?.length === 1);
+    try {
+      const [error] = run.at('libs/lib.spit');
+      assert.deepEqual(span(error), library_span, name);
+      assert.match(error.message, message, name);
+      assert.equal(error.severity, 0, name);
+      // The `use` line is the related place, in the checked file by its own name.
+      assert.deepEqual(error.relatedInformation.map(item => place(run.folder, item)), [['pipeline.spit', 0, 0, 27, 'imported here']], name);
+      // The pipeline's own error stays in the pipeline, at its own line.
+      const [own] = run.at('pipeline.spit');
+      assert.deepEqual(span(own), [3, 0, 3], name);
+      assert.match(own.message, /`foo` does not start a statement/, name);
+      assert.equal(own.relatedInformation, undefined, name);
+    } finally {
+      run.extension.deactivate();
+      fs.rmSync(run.folder, { recursive: true, force: true });
+    }
+  }
+});
+
+test('a nested import names each `use` line, and a fixed library loses its marks', { skip: !fs.existsSync(binary) }, async () => {
+  const broken = `${LIBRARY_OPERATIONS}operation wrap(x: Lines) -> (out: Lines):\n    out = cp(nope)\n`;
+  const run = await checkImporting(
+    { 'a/b/lib.spit': broken, 'a/mid.spit': '# the middle\nuse wrap from b/lib.spit\n' },
+    'use wrap from a/mid.spit\n',
+    at => at('a/b/lib.spit')?.length === 1);
+  try {
+    assert.deepEqual(run.at('pipeline.spit'), []);
+    assert.equal(run.at('a/mid.spit'), undefined);
+    const [error] = run.at('a/b/lib.spit');
+    assert.deepEqual(span(error), [3, 10, 18]);
+    assert.deepEqual(error.relatedInformation.map(item => place(run.folder, item)), [
+      ['a/mid.spit', 1, 0, 24, 'imported here'],
+      ['pipeline.spit', 0, 0, 24, 'imported here']
+    ]);
+
+    // Fixing the library, then recheck: its marks go.
+    fs.writeFileSync(path.join(run.folder, 'a/b/lib.spit'), broken.replace('cp(nope)', 'cp(x)'));
+    await run.recheck(undefined, at => at('a/b/lib.spit') === undefined);
+    assert.deepEqual(run.at('pipeline.spit'), []);
+  } finally {
+    run.extension.deactivate();
+    fs.rmSync(run.folder, { recursive: true, force: true });
+  }
+});
+
+test('a library error and the pipeline\'s later error on the same line are each in their own file', { skip: !fs.existsSync(binary) }, async () => {
+  const library = `${LIBRARY_OPERATIONS}operation wrap(x: Lines) -> (out: Lines):\n    out = cp(nope)\n`;
+  const text = 'use wrap from libs/lib.spit\nsource raw : Lines [id]\nout = wrap(raw)\nfoo bar baz\n';
+  const run = await checkImporting({ 'libs/lib.spit': library }, text, at => at('libs/lib.spit')?.length === 1 && at('pipeline.spit')?.length === 1);
+  try {
+    // Line 4 of the library and line 4 of the pipeline are different places.
+    assert.equal(run.at('libs/lib.spit')[0].range.start.line, 3);
+    assert.equal(run.at('pipeline.spit')[0].range.start.line, 3);
+    assert.match(run.at('libs/lib.spit')[0].message, /the body of `wrap`/);
+    assert.match(run.at('pipeline.spit')[0].message, /`foo` does not start a statement/);
+
+    // Fixing the pipeline's own line leaves the library's mark, and removing
+    // the import leaves none.
+    await run.recheck(text.replace('foo bar baz\n', ''), at => at('pipeline.spit')?.length === 0);
+    assert.equal(run.at('libs/lib.spit').length, 1);
+    await run.recheck('source raw : Lines [id]\n', at => at('libs/lib.spit') === undefined);
+  } finally {
+    run.extension.deactivate();
+    fs.rmSync(run.folder, { recursive: true, force: true });
+  }
+});
+
+test('shows each output path with its groups resolved and BIDS-style entities written out', { skip: !fs.existsSync(binary) }, async () => {
   const hints = {};
   const document = fakeDocument(path.join(__dirname, 'labels.spit'), [
     'default path: out/sub-{sub}[/ses-{ses}]/{@entities}_{@product}',
@@ -131,6 +355,56 @@ test('shows each output path with its groups resolved and labels written out', {
   assert.equal(copied.label, '→ out/sub-{sub}/ses-{ses}/sub-{sub}_ses-{ses}_copied.img');
   assert.equal(merged.label, '→ out/sub-{sub}/sub-{sub}_merged.img');
   extension.deactivate();
+});
+
+test('shows the path of an output written beside an input, beside that input\'s file', { skip: !fs.existsSync(binary) }, async () => {
+  const hints = {};
+  const document = fakeDocument(path.join(__dirname, 'faidx.spit'), [
+    'source reference : Fasta .fasta',
+    'path reference: reference/genome',
+    'operation faidx(fasta: Fasta) -> Fai +.fai beside fasta',
+    'command faidx: samtools faidx {fasta}',
+    'genome_fai = faidx(reference)',
+    ''
+  ].join('\n'));
+  const diagnostics = new Map();
+  const extension = load(mockVscode(document, diagnostics, () => {}, hints));
+  extension.activate({ extensionPath: __dirname, subscriptions: [] });
+  const shown = () => hints.provider.provideInlayHints(document, new Range(0, 0, document.lineCount, 0));
+  await until(() => shown().length === 2);
+  assert.deepEqual(shown().map(hint => hint.label), ['→ reference/genome.fasta', '→ reference/genome.fasta.fai']);
+  assert.deepEqual([...diagnostics.values()].flat(), []);
+  extension.deactivate();
+});
+
+test('shows the entities spelling for each shape and drops the group of a product with no dimensions', { skip: !fs.existsSync(binary) }, async () => {
+  const hints = {};
+  const document = fakeDocument(path.join(__dirname, 'entities.spit'), [
+    'default entities: {@key}_{@value} separated "-"',
+    'default entities sub: subject',
+    'default path: out/[{@entities}_]{@product}.img',
+    'source scan [sub, ses]',
+    'path scan: in/{sub}/{ses}.raw',
+    'operation copy(input)',
+    'operation merge(inputs: many)',
+    'copied = copy(scan)',
+    'merged = merge(copied @vary(ses))',
+    'all = merge(merged @vary(sub))',
+    ''
+  ].join('\n'));
+  const extension = load(mockVscode(document, new Map(), () => {}, hints));
+  extension.activate({ extensionPath: __dirname, subscriptions: [] });
+  try {
+    const shown = () => hints.provider.provideInlayHints(document, new Range(0, 0, document.lineCount, 0));
+    await until(() => shown().length === 3);
+    assert.deepEqual(shown().map(hint => hint.label), [
+      '→ out/subject_{sub}-ses_{ses}_copied.img',
+      '→ out/subject_{sub}_merged.img',
+      '→ out/all.img'
+    ]);
+  } finally {
+    extension.deactivate();
+  }
 });
 
 test('shows where each output is written at the end of its step', { skip: !fs.existsSync(binary) }, async () => {
@@ -436,7 +710,7 @@ test('hovers explain specialised operations and inferred products from unsaved t
     assert.match(operation.contents.value, /S = Native/);
     assert.match(operation.contents.value, /out: Frame<Native> \[id\]/);
     assert.ok(operation.contents.parts.some(part => part.code === 'S = Native'));
-    assert.ok(operation.contents.parts.some(part => part.code === 'output → out: Frame<Native> [id]'));
+    assert.ok(operation.contents.parts.some(part => part.code?.includes('output → out: Frame<Native> [id]')));
     assert.deepEqual(span(operation), [3, 6, 10]);
     const product = await hover(1);
     assert.match(product.contents.value, /out: Frame<Native> \[id\]/);
@@ -534,6 +808,50 @@ test('hovers on a call list the steps it expands to', { skip: !fs.existsSync(bin
     const product = await provider.provideHover(document, { line: 6, character: 1 });
     assert.ok(product.contents.parts.some(part => part.code === 'flip(cal, raw)'));
     assert.ok(product.contents.parts.some(part => part.code === 'out = clean(raw, cal)'));
+  } finally {
+    extension.deactivate();
+  }
+});
+
+test('composite hovers present readable signatures, typed bindings and the relevant expansion', { skip: !fs.existsSync(binary) }, async () => {
+  const lines = [
+    'source raw_t1: MRI<T1w,Native,Original> [sub]',
+    'operation parcellate(image: MRI<$I,$Space,$Grid>) -> (parc: MRI<Parc,$Space,SynthGrid<$Grid>>, resampled: MRI<$I,$Space,SynthGrid<$Grid>>)',
+    'operation brainmask(image: MRI<Parc,$Space,$Grid>) -> MRI<Mask,$Space,$Grid>',
+    'operation prep_registration(image: MRI<$I,$Space,$Grid>) -> (parc: MRI<Parc,$Space,SynthGrid<$Grid>>, resampled: MRI<$I,$Space,SynthGrid<$Grid>>, mask: MRI<Mask,$Space,SynthGrid<$Grid>>):',
+    '    parc, resampled = parcellate(image)',
+    '    mask = brainmask(parc)',
+    't1_parc, t1_resampled, t1_mask = prep_registration(raw_t1)',
+    'command parcellate: tool {image} {parc} {resampled}',
+    'command brainmask: tool {image} {@output}',
+    'default path: out/{@product}/sub-{sub}'
+  ];
+  const document = fakeDocument(path.join(__dirname, 'registration.spit'), lines.join('\n'));
+  const hints = {};
+  const results = new Map();
+  const extension = load(mockVscode(document, results, () => {}, hints));
+  try {
+    extension.activate({ extensionPath: __dirname, subscriptions: [] });
+    const hover = line => hints.hover.provideHover(document, { line, character: lines[line].indexOf('prep_registration') });
+    const declaration = await hover(3);
+    const declaredCode = declaration.contents.parts.filter(part => part.code).map(part => part.code);
+    assert.match(declaredCode[0], /^operation prep_registration\(\n    image: MRI</);
+    assert.match(declaredCode[0], /\) -> \(\n    parc: MRI</);
+    assert.match(declaredCode[0], /,\n    resampled: MRI</);
+    assert.ok(declaredCode.includes('parc, resampled = parcellate(image)\nmask = brainmask(parc)'));
+    assert.doesNotMatch(declaration.contents.value, /This call expands to/);
+    const call = await hover(6);
+    const code = call.contents.parts.filter(part => part.code).map(part => part.code);
+    assert.doesNotMatch(call.contents.value, /Carried out by the steps in its body/);
+    const mappings = code.find(value => value.startsWith('image ←'));
+    assert.match(mappings, /image ← raw_t1: MRI<T1w,Native,Original> \[sub\]/);
+    assert.match(mappings, /\nmask → t1_mask: MRI<Mask,Native,SynthGrid<Original>> \[sub\]/);
+    assert.ok(code.includes('t1_parc, t1_resampled = parcellate(raw_t1)\nt1_mask = brainmask(t1_parc)'));
+    assert.equal(code.filter(value => value.includes('= parcellate(')).length, 1);
+    assert.equal(call.contents.isTrusted, false);
+    assert.equal(call.contents.supportHtml, false);
+    assert.ok(call.contents.parts.filter(part => part.markdown).every(part => part.markdown === '\n\n'));
+    assert.deepEqual(results.get(document.uri.toString()), []);
   } finally {
     extension.deactivate();
   }
@@ -663,7 +981,9 @@ process.exit(result.status);
   const hover = () => provider.provideHover(document, { line: 2, character: 1 });
   const recorded = () => fs.readFileSync(calls, 'utf8').trim().split('\n').map(line => JSON.parse(line)).filter(args => args[0] === 'check');
   try {
-    assert.match((await hover()).contents.value, /out: Unknown \[id\]/);
+    const firstHover = await hover();
+    assert.ok(firstHover, JSON.stringify([...results.values()]));
+    assert.match(firstHover.contents.value, /out: Unknown \[id\]/);
     assert.deepEqual(results.get(document.uri.toString()), []);
     assert.equal(recorded().length, 1);
     assert.ok(recorded()[0].includes('--hovers'));
@@ -818,3 +1138,147 @@ test('a recipe\'s review line is checked against the pipeline and explained on h
   }
 });
 
+test('hovering shows SPIT\'s explanation of a shape on a source placeholder', { skip: !fs.existsSync(binary) }, async () => {
+  const hints = {};
+  const text = 'source log [server, date]\noperation copy(input)\nresult = copy(log)\npath log: logs/{server}/{date:date}.log\npath result: out/{server}/{date}.txt\n';
+  const document = fakeDocument(path.join(__dirname, 'shape.spit'), text);
+  const results = new Map();
+  const extension = load(mockVscode(document, results, () => {}, hints));
+  try {
+    extension.activate({ extensionPath: __dirname, subscriptions: [] });
+    await until(() => results.get(document.uri.toString())?.length === 0);
+
+    // The `check --json --hovers` output names the shape among the words, with a doc of kind `shape`.
+    const output = require('node:child_process').spawnSync(binary, ['check', 'shape.spit', '--json', '--stdin', '--hovers'], { input: text, encoding: 'utf8', cwd: __dirname });
+    const checked = JSON.parse(output.stdout);
+    const line = text.split('\n')[3];
+    const shape = checked.words.filter(word => word.word === 'date' && word.line === 4);
+    assert.equal(shape.length, 1, 'the shape is one word, and the dimension before the colon is not');
+    assert.equal(shape[0].column - 1, line.indexOf(':date') + 1);
+    assert.equal(checked.word_docs.date.kind, 'shape');
+
+    // Hovering the shape shows that doc; hovering the dimension named `date` before the colon shows none.
+    const hover = await hints.hover.provideHover(document, { line: 3, character: line.indexOf(':date') + 2 });
+    assert.deepEqual(span(hover), [3, line.indexOf(':date') + 1, line.indexOf(':date') + 5]);
+    assert.match(hover.contents.value, /^```spit\npath log: logs\/\{server\}\/\{date:date\}\.log\n```\n\nA shape for a placeholder in a source's path rule/);
+    assert.match(hover.contents.value, /\[Language reference\]\(https:\/\/github\.com\/eclnz\/spit\/blob\/main\/docs\/language-reference\.md#shapes-on-a-source-placeholder\)$/);
+    assert.equal(await hints.hover.provideHover(document, { line: 3, character: line.indexOf('{date') + 2 }), null, 'the dimension has no hover');
+  } finally {
+    extension.deactivate();
+  }
+});
+
+test('hovering a command\'s < or > shows SPIT\'s explanation of its stdin or stdout', { skip: !fs.existsSync(binary) }, async () => {
+  const hints = {};
+  const text = 'source table : Table [sheet]\noperation count(lines: Table) -> Count\ncommand count: wc -l < {lines} > {@output}\n';
+  const document = fakeDocument(path.join(__dirname, 'streams.spit'), text);
+  const results = new Map();
+  const extension = load(mockVscode(document, results, () => {}, hints));
+  try {
+    extension.activate({ extensionPath: __dirname, subscriptions: [] });
+    await until(() => results.get(document.uri.toString())?.length === 0);
+    const line = text.split('\n')[2];
+    for (const [sign, summary] of [['<', /^Connects the command's stdin to one input's file/], ['>', /^Writes the command's stdout to one output's file/]]) {
+      const at = line.indexOf(` ${sign} `) + 1;
+      const hover = await hints.hover.provideHover(document, { line: 2, character: at });
+      assert.deepEqual(span(hover), [2, at, at + 1], sign);
+      const body = hover.contents.value.split('\n\n')[1];
+      assert.match(body, summary, sign);
+      assert.match(hover.contents.value, /language-reference\.md#standard-input-and-output\)$/, sign);
+    }
+  } finally {
+    extension.deactivate();
+  }
+});
+
+test('hovering resources or {@cores} shows SPIT\'s explanation of what a job needs', { skip: !fs.existsSync(binary) }, async () => {
+  const hints = {};
+  const text = 'source table : Table [sheet]\noperation count(lines: Table) -> Count\ncommand count: wc -l {lines} --threads {@cores} > {@output}\nresources count: cores=2, memory=1G\n';
+  const document = fakeDocument(path.join(__dirname, 'resources.spit'), text);
+  const results = new Map();
+  const extension = load(mockVscode(document, results, () => {}, hints));
+  try {
+    extension.activate({ extensionPath: __dirname, subscriptions: [] });
+    await until(() => results.get(document.uri.toString())?.length === 0);
+    const lines = text.split('\n');
+    for (const [index, word, summary] of [[3, 'resources', /^What each job of an operation needs to run/], [2, '@cores', /^The cores the operation's `resources` line gives each job/]]) {
+      const at = lines[index].indexOf(word);
+      const hover = await hints.hover.provideHover(document, { line: index, character: at });
+      assert.deepEqual(span(hover), [index, at, at + word.length], word);
+      assert.match(hover.contents.value.split('\n\n')[1], summary, word);
+      assert.match(hover.contents.value, /language-reference\.md#cores-and-memory\)$/, word);
+    }
+    // The operation a resources line names explains the operation, with what its jobs need.
+    const at = lines[3].indexOf('count');
+    const hover = await hints.hover.provideHover(document, { line: 3, character: at });
+    assert.match(hover.contents.value, /operation count\(lines: Table\) -> Count/);
+    assert.match(hover.contents.value, /Resources: cores=2, memory=1G/);
+  } finally {
+    extension.deactivate();
+  }
+});
+
+test('hovering {@here} shows SPIT\'s explanation of the pipeline\'s folder', { skip: !fs.existsSync(binary) }, async () => {
+  const hints = {};
+  const text = 'source table : Table [sheet]\noperation count(lines: Table) -> Count\ncommand count: python3 {@here}/count.py {lines} > {@output}\n';
+  const document = fakeDocument(path.join(__dirname, 'here.spit'), text);
+  const results = new Map();
+  const extension = load(mockVscode(document, results, () => {}, hints));
+  try {
+    extension.activate({ extensionPath: __dirname, subscriptions: [] });
+    await until(() => results.get(document.uri.toString())?.length === 0);
+    const at = text.split('\n')[2].indexOf('@here');
+    const hover = await hints.hover.provideHover(document, { line: 2, character: at });
+    assert.deepEqual(span(hover), [2, at, at + '@here'.length]);
+    assert.match(hover.contents.value.split('\n\n')[1], /^The folder of the `\.spit` file that declares the operation/);
+  } finally {
+    extension.deactivate();
+  }
+});
+
+test('multiline signatures preserve diagnostic and hover ranges in unsaved edits', { skip: !fs.existsSync(binary) }, async () => {
+  const document = fakeDocument(path.join(__dirname, 'multiline.spit'), 'operation broken(\n    first: Image,\n    second: Image<Bad]>\n) -> Image\noperation later(\n    x: Image\n) -> Image\n');
+  const results = new Map();
+  let onChange;
+  const extension = load(mockVscode(document, results, callback => { onChange = callback; }));
+  const context = { extensionPath: __dirname, subscriptions: [] };
+  extension.activate(context);
+  const provider = context.subscriptions.find(item => item.hoverProvider).hoverProvider;
+  try {
+    await until(() => results.get(document.uri.toString())?.length === 1);
+    assert.deepEqual(span(results.get(document.uri.toString())[0]), [2, 21, 22]);
+    const later = await provider.provideHover(document, { line: 4, character: 11 });
+    assert.match(later.contents.value, /operation later/);
+    assert.deepEqual(span(later), [4, 10, 15]);
+    document.text = document.text.replace('Image<Bad]>', 'Image<Bad>');
+    document.version++;
+    onChange({ document });
+    await until(() => results.get(document.uri.toString())?.length === 0);
+    const fixed = await provider.provideHover(document, { line: 0, character: 11 });
+    assert.match(fixed.contents.value, /operation broken/);
+  } finally {
+    extension.deactivate();
+  }
+});
+
+test('a command block marks an error on the line it is in, and explains each line\'s words', { skip: !fs.existsSync(binary) }, async () => {
+  const hints = {};
+  const text = 'source sam : Sam [sample]\noperation sort(sam: Sam) -> (bam: Bam, log: Log)\ncommand sort:\n    samtools sort -o {bam} {sam}\n    samtools index {bam} {nope} > {log}\nbam, log = sort(sam)\npath bam: out/{sample}.bam\npath log: out/{sample}.log\n';
+  const document = fakeDocument(path.join(__dirname, 'sequence.spit'), text);
+  const results = new Map();
+  const extension = load(mockVscode(document, results, () => {}, hints));
+  try {
+    extension.activate({ extensionPath: __dirname, subscriptions: [] });
+    await until(() => results.get(document.uri.toString())?.length === 1);
+    const [error] = results.get(document.uri.toString());
+    const line = text.split('\n')[4];
+    assert.deepEqual(span(error), [4, line.indexOf('{nope}'), line.indexOf('{nope}') + 6]);
+    assert.match(error.message, /unknown placeholder `\{nope\}`/);
+    // The `>` on the block's second line is the command's, as on a line of its own.
+    const at = line.indexOf(' > ') + 1;
+    const hover = await hints.hover.provideHover(document, { line: 4, character: at });
+    assert.match(hover.contents.value.split('\n\n')[1], /^Writes the command's stdout to one output's file/);
+  } finally {
+    extension.deactivate();
+  }
+});
