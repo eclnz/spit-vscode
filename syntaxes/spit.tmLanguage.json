@@ -514,6 +514,10 @@
                           "match": "\\bbeside\\b"
                         },
                         {
+                          "match": "(?<=/)\\s+(view)\\b",
+                          "captures": { "1": { "name": "keyword.other.view.spit" } }
+                        },
+                        {
                           "match": "(?<=/)\\s+(from)\\b(?:\\s+([A-Za-z_][A-Za-z0-9_]*))?",
                           "captures": {
                             "1": { "name": "keyword.other.from.spit" },
@@ -571,6 +575,10 @@
                     {
                       "name": "keyword.other.beside.spit",
                       "match": "\\bbeside\\b"
+                    },
+                    {
+                      "match": "(?<=/)\\s+(view)\\b",
+                      "captures": { "1": { "name": "keyword.other.view.spit" } }
                     },
                     {
                       "match": "(?<=/)\\s+(from)\\b(?:\\s+([A-Za-z_][A-Za-z0-9_]*))?",
@@ -1355,6 +1363,10 @@
                   "match": "\\bbeside\\b"
                 },
                 {
+                  "match": "(?<=/)\\s+(view)\\b",
+                  "captures": { "1": { "name": "keyword.other.view.spit" } }
+                },
+                {
                   "match": "(?<=/)\\s+(from)\\b(?:\\s+([A-Za-z_][A-Za-z0-9_]*))?",
                   "captures": {
                     "1": { "name": "keyword.other.from.spit" },
@@ -1412,6 +1424,10 @@
             {
               "name": "keyword.other.beside.spit",
               "match": "\\bbeside\\b"
+            },
+            {
+              "match": "(?<=/)\\s+(view)\\b",
+              "captures": { "1": { "name": "keyword.other.view.spit" } }
             },
             {
               "match": "(?<=/)\\s+(from)\\b(?:\\s+([A-Za-z_][A-Za-z0-9_]*))?",

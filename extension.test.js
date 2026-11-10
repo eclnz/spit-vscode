@@ -1070,6 +1070,23 @@ test('hovering explains an output beside another', { skip: !fs.existsSync(binary
   extension.deactivate();
 });
 
+test('hovering explains seeded folders and directory views', { skip: !fs.existsSync(binary) }, async () => {
+  const hints = {};
+  const text = [
+    'operation classify(input: FixDir) -> ClassifiedDir / from input',
+    'operation anatomy(image: Image, tissue: Image) -> Anat .anat/ view',
+  ].join('\n');
+  const document = fakeDocument(path.join(__dirname, 'folder_artifacts.spit'), text);
+  const extension = load(mockVscode(document, new Map(), () => {}, hints));
+  extension.activate({ extensionPath: __dirname, subscriptions: [] });
+  const at = (line, word) => hints.hover.provideHover(document, {
+    line, character: document.lineAt(line).text.lastIndexOf(word) + 1,
+  });
+  assert.match((await at(0, 'from')).contents.value, /private copy/);
+  assert.match((await at(1, 'view')).contents.value, /required file inputs/);
+  extension.deactivate();
+});
+
 test('hovering a default check list explains the default keyword', { skip: !fs.existsSync(binary) }, async () => {
   const hints = {};
   const text = 'check nonempty: test -s {@path}\ndefault check: nonempty\nsource raw [id]\noperation copy(x) -> .txt\ncommand copy: cp {x} {@output}\ncopied = copy(raw)\n\ndefault path: out/{@product}/{@entities}\n\ndefault entities: {@key}={@value} separated "__"\n';

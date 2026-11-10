@@ -832,3 +832,10 @@ test('a seeded folder marks from and its input port', { skip }, async () => {
     assert.match(scopes(line, 'input', line.indexOf('from')), /variable\.parameter\.port\.spit/);
   }
 });
+
+test('a directory view highlights view after a folder ending', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'operation anatomy(image: Image, tissue: Image) -> Anat .anat/ view';
+  assert.match(scopes(line, 'view'), /keyword\.other\.view\.spit/);
+  assert.doesNotMatch(scopes('anatomy = folder(view)', 'view'), /keyword\.other\.view\.spit/);
+});
