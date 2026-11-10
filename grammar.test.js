@@ -821,3 +821,14 @@ test('a command block marks each line beneath it as a command', { skip }, async 
   assert.match(scopes.inFile(lines, 8, '='), /keyword\.operator\.assignment\.spit/);
   assert.doesNotMatch(scopes.inFile(lines, 8, 'bam'), /placeholder/);
 });
+
+test('a seeded folder marks from and its input port', { skip }, async () => {
+  const scopes = await tokenizer();
+  for (const line of [
+    'operation classify(input: FixDir) -> FixDir / from input',
+    'operation classify(input: FixDir) -> (result: FixDir / from input)',
+  ]) {
+    assert.match(scopes(line, 'from'), /keyword\.other\.from\.spit/);
+    assert.match(scopes(line, 'input', line.indexOf('from')), /variable\.parameter\.port\.spit/);
+  }
+});
