@@ -315,8 +315,8 @@
       ]
     },
     "input-header": {
-      "comment": "A .spitin names its pipeline; pipelines, recipes and saved inventories can name a dataset root. `root` is reserved, so a line starting with it is this keyword, though a .spitout record may still be called `root[...]`; `pipeline` is no keyword of a pipeline, so a product may take its name.",
-      "match": "^(\\s*)(pipeline(?=\\s+[^\\s=:#])|root(?=\\s|$))(?:\\s+([^\\s=:#][^#]*?)\\s*(?=#|$))?",
+      "comment": "A .spitin names its pipeline; pipelines, recipes and saved inventories can name a dataset root and an output root. `root` and `output` are reserved, so a line starting with either is that keyword, though a .spitout record may still be called `root[...]` or `output[...]`; `pipeline` is no keyword of a pipeline, so a product may take its name.",
+      "match": "^(\\s*)(pipeline(?=\\s+[^\\s=:#])|root(?=\\s|$)|output(?=\\s|$))(?:\\s+([^\\s=:#][^#]*?)\\s*(?=#|$))?",
       "captures": {
         "2": { "name": "keyword.control.import.spit" },
         "3": { "name": "string.unquoted.file.spit" }

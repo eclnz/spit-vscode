@@ -619,6 +619,20 @@ test('a pipeline, recipe or .spitout names its dataset root', { skip }, async ()
   assert.doesNotMatch(scopes('    root[sub=01]', 'root'), /keyword\.control\.import/);
 });
 
+test('a pipeline, recipe or .spitout names its output root', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'output ../results  # where the jobs write';
+  assert.match(scopes(line, 'output'), /keyword\.control\.import\.spit/);
+  assert.match(scopes(line, '../results'), /string\.unquoted\.file\.spit/);
+  assert.match(scopes(line, '# where'), /comment\.line/);
+  // A product may not be named `output`, so the word is always the keyword,
+  // though a .spitout's record may still be called `output[...]`, and an
+  // operation called `output` keeps its entry in a `command:` block.
+  assert.match(scopes('output = copy(raw)', 'output'), /keyword\.control\.import/);
+  assert.doesNotMatch(scopes('    output[sub=01]', 'output'), /keyword\.control\.import/);
+  assert.doesNotMatch(scopes('    output: cp {x} {@output}', 'output'), /keyword\.control\.import/);
+});
+
 test('records mark the product and its dimensions', { skip }, async () => {
   const scopes = await tokenizer();
   const line = '    image[sub=01,ses=01]';
