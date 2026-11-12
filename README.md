@@ -43,13 +43,13 @@ Rebuild the sibling SPIT compiler with `cargo build`: hovers require its `check 
 
 The extension uses a build at `../spit/target/debug/spit` if present, then tries `spit` on PATH. Set `spit.executablePath` in your user settings to use a build elsewhere; workspace settings cannot change it. It is the only setting. The extension stays off in folders VS Code does not trust. The SPIT executable needs `check <file> --json --stdin --hovers`, including for a `.spitin` and a `.spitout`.
 
-The extension verifies the executable with `--version` before checking a file. View the selected binary path and version under **Output → SPIT Compiler**. It requires SPIT's descriptive version line, `SPIT (Simple Pipeline in Text) compiler, version 0.3.0`, and a SPIT at least as new as the extension, whose version follows SPIT's: this release needs SPIT 0.3.0 or later. If a sibling debug build is selected, rebuild it when the compiler source changes; two different builds can report the same package version.
+The extension verifies the executable with `--version` before checking a file. The status bar shows the version of the SPIT that checked the open file, and its path on hover; **Output → SPIT Compiler** shows the same. It requires SPIT's descriptive version line, `SPIT (Simple Pipeline in Text) compiler, version 0.4.0`, and a SPIT at least as new as the extension, whose version follows SPIT's: this release needs SPIT 0.4.0 or later. Two builds can report the same version, so when the sibling debug build is older than a file of `../spit/src`, `Cargo.toml` or `Cargo.lock`, the file's first diagnostic is a warning naming the changed file and saying to run `cargo build`, and the status bar shows a warning sign.
 
 A recipe groups dataset-specific source paths in `inputs:`. Indented `source: path`, `default: path`, and repeated `contexts: directory-pattern` entries highlight their names and path captures. Requirements count sources or exact context domains, as `require [sub] where contexts[sub,ses] count>=2`; `require [] where lut count=1` checks a global lookup. Inventories use unnamed `contexts:` sections.
 
 ## Test
 
-Run `npm install`, then `npm test` with a sibling SPIT build. The grammar tests tokenize SPIT text with `vscode-textmate`, the engine VS Code uses, and are skipped until it is installed. Set `SPIT_TEST_EXECUTABLE` to another SPIT binary path if the repositories are elsewhere.
+Run `npm install`, then `npm test` with a sibling SPIT build. The grammar tests tokenize SPIT text with `vscode-textmate`, the engine VS Code uses, and are skipped until it is installed. Set `SPIT_TEST_EXECUTABLE` to another SPIT binary path if the repositories are elsewhere. A grammar test reads SPIT's keywords from `spit keywords` and fails when SPIT has a keyword the grammar does not colour, or the test lists one SPIT no longer has.
 
 ## Disclaimer
 
