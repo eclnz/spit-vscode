@@ -6,16 +6,16 @@ const path = require('node:path');
 const os = require('node:os');
 
 test('identifies SPIT compiler and compares the minimum language version', () => {
-  assert.deepEqual(parseCompilerIdentity('SPIT (Simple Pipeline in Text) compiler, version 0.3.0\n', '0.3.0'), { version: '0.3.0', incompatible: false });
-  assert.deepEqual(parseCompilerIdentity('SPIT (Simple Pipeline in Text) compiler, version 0.2.2\n', '0.3.0'), { version: '0.2.2', incompatible: true });
-  assert.deepEqual(parseCompilerIdentity('SPIT (Simple Pipeline in Text) compiler, version 0.3.1\n', '0.3.0'), { version: '0.3.1', incompatible: false });
-  assert.deepEqual(parseCompilerIdentity('SPIT (Simple Pipeline in Text) compiler, version 1.0.0\n', '0.3.0'), { version: '1.0.0', incompatible: false });
+  assert.deepEqual(parseCompilerIdentity('SPIT (Simple Pipeline in Text) compiler, version 0.4.0\n', '0.4.0'), { version: '0.4.0', incompatible: false });
+  assert.deepEqual(parseCompilerIdentity('SPIT (Simple Pipeline in Text) compiler, version 0.3.0\n', '0.4.0'), { version: '0.3.0', incompatible: true });
+  assert.deepEqual(parseCompilerIdentity('SPIT (Simple Pipeline in Text) compiler, version 0.4.1\n', '0.4.0'), { version: '0.4.1', incompatible: false });
+  assert.deepEqual(parseCompilerIdentity('SPIT (Simple Pipeline in Text) compiler, version 1.0.0\n', '0.4.0'), { version: '1.0.0', incompatible: false });
 });
 
 test('rejects unrelated or unidentifiable executables, including old ambiguous versions', () => {
-  assert.equal(parseCompilerIdentity('spit 0.3.0\n', '0.3.0'), null);
-  assert.equal(parseCompilerIdentity('unrelated spit 0.3.0\n', '0.3.0'), null);
-  assert.equal(parseCompilerIdentity('', '0.3.0'), null);
+  assert.equal(parseCompilerIdentity('spit 0.4.0\n', '0.4.0'), null);
+  assert.equal(parseCompilerIdentity('unrelated spit 0.4.0\n', '0.4.0'), null);
+  assert.equal(parseCompilerIdentity('', '0.4.0'), null);
 });
 
 test('reports the exact executable found on PATH', t => {
