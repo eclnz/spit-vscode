@@ -290,6 +290,29 @@ test('{@here} in a command is a built-in placeholder', { skip }, async () => {
   assert.match(scopes(command, 'durations'), /variable\.parameter\.placeholder\.spit/);
 });
 
+test('@scalar in a command marks the read, its port and its bounds', { skip }, async () => {
+  const scopes = await tokenizer();
+  const command = 'command fit: oxford_asl --tr @scalar(tr, min=5, max=1e2) --te=@scalar(te) -o {@output}';
+  assert.match(scopes(command, '@scalar'), /variable\.language\.scalar\.spit/);
+  assert.match(scopes(command, 'tr,'), /variable\.parameter\.placeholder\.spit/);
+  for (const bound of ['min', 'max']) {
+    assert.match(scopes(command, bound), /variable\.parameter\.bound\.spit/, bound);
+  }
+  assert.match(scopes(command, '5'), /constant\.numeric\.spit/);
+  assert.match(scopes(command, '1e2'), /constant\.numeric\.spit/);
+  // Within an argument, as SPIT reads it.
+  assert.match(scopes(command, '@scalar', command.indexOf('--te=')), /variable\.language\.scalar\.spit/);
+  assert.match(scopes(command, 'te)'), /variable\.parameter\.placeholder\.spit/);
+  // A verify line and each line of a command block read it too.
+  assert.match(scopes('verify fit: test-tr @scalar(tr)', '@scalar'), /variable\.language\.scalar\.spit/);
+  const block = ['command fit:', '    oxford_asl --tr @scalar(tr, min=5) -o {@output}'];
+  assert.match(scopes.inFile(block, 1, '@scalar'), /variable\.language\.scalar\.spit/);
+  assert.match(scopes.inFile(block, 1, 'min'), /variable\.parameter\.bound\.spit/);
+  // Quoted, it is text.
+  const quoted = "command fit: tool '@scalar(tr)' -o {@output}";
+  assert.doesNotMatch(scopes(quoted, '@scalar'), /scalar\.spit/);
+});
+
 test('a dimensions line marks the pipeline order', { skip }, async () => {
   const scopes = await tokenizer();
   const line = 'dimensions [model, config, seed]';

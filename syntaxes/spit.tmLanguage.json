@@ -628,6 +628,9 @@
               }
             },
             {
+              "include": "#scalar-read"
+            },
+            {
               "include": "#command-redirect"
             },
             {
@@ -656,6 +659,9 @@
           "patterns": [
             {
               "include": "#comments"
+            },
+            {
+              "include": "#scalar-read"
             },
             {
               "include": "#command-redirect"
@@ -967,6 +973,7 @@
           "beginCaptures": { "2": { "name": "keyword.control.spit" } },
           "end": "$",
           "patterns": [
+            { "include": "#scalar-read" },
             { "include": "#command-redirect" },
             { "include": "$self" }
           ]
@@ -1590,6 +1597,29 @@
         { "name": "punctuation.separator.comma.spit", "match": "," }
       ]
     },
+    "scalar-read": {
+      "comment": "`@scalar(tr, min=5, max=100)` in a command: the number the file at an input port holds, with the least and greatest values allowed. Quoted, it is text, and a string takes it first.",
+      "match": "(@scalar)(\\()([^)]*)(\\))",
+      "captures": {
+        "1": { "name": "variable.language.scalar.spit" },
+        "2": { "name": "punctuation.definition.arguments.begin.spit" },
+        "3": {
+          "patterns": [
+            {
+              "match": "\\b(min|max)\\s*(=)\\s*([+-]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][+-]?\\d+)?)",
+              "captures": {
+                "1": { "name": "variable.parameter.bound.spit" },
+                "2": { "name": "keyword.operator.assignment.spit" },
+                "3": { "name": "constant.numeric.spit" }
+              }
+            },
+            { "name": "punctuation.separator.comma.spit", "match": "," },
+            { "name": "variable.parameter.placeholder.spit", "match": "[A-Za-z_][A-Za-z0-9_-]*" }
+          ]
+        },
+        "4": { "name": "punctuation.definition.arguments.end.spit" }
+      }
+    },
     "command-redirect": {
       "comment": "A `<` or `>` that is a word of its own in an operation's command: `< {input}` reads an input on the command's stdin, and `> {output}` writes its stdout to an output. Quoted, either is an argument, and a string takes it first.",
       "name": "keyword.operator.redirect.spit",
@@ -1597,6 +1627,7 @@
     },
     "placeholder": {
       "patterns": [
+        { "include": "#scalar-read" },
         { "include": "#brace-escape" },
         {
           "comment": "`{image.dir}` and `{image.stem}`: an output's folder, and its file name without its extension. `{@output.dir}` and `{@output.stem}` are the unnamed output's.",
