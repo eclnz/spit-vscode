@@ -628,6 +628,9 @@
               }
             },
             {
+              "include": "#collection-read"
+            },
+            {
               "include": "#scalar-read"
             },
             {
@@ -659,6 +662,9 @@
           "patterns": [
             {
               "include": "#comments"
+            },
+            {
+              "include": "#collection-read"
             },
             {
               "include": "#scalar-read"
@@ -973,6 +979,7 @@
           "beginCaptures": { "2": { "name": "keyword.control.spit" } },
           "end": "$",
           "patterns": [
+            { "include": "#collection-read" },
             { "include": "#scalar-read" },
             { "include": "#command-redirect" },
             { "include": "$self" }
@@ -1028,6 +1035,45 @@
             },
             {
               "include": "#tool-items"
+            }
+          ]
+        },
+        {
+          "comment": "`anchored:`: an operation whose tools store its paths on each line beneath it.",
+          "begin": "^(\\s*)(anchored)\\s*(:)\\s*(?=#|$)",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.spit"
+            },
+            "3": {
+              "name": "punctuation.separator.colon.spit"
+            }
+          },
+          "end": "^(?!\\1[ \\t]+\\S)(?=[ \\t]*[^\\s#])",
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "include": "#operation-names"
+            }
+          ]
+        },
+        {
+          "comment": "`anchored feat, group_feat`: operations whose tools write their own paths into their outputs.",
+          "begin": "^(\\s*)(anchored)\\s+(?=[A-Za-z_])",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.spit"
+            }
+          },
+          "end": "$",
+          "patterns": [
+            {
+              "include": "#word-comment"
+            },
+            {
+              "include": "#operation-names"
             }
           ]
         },
@@ -1194,6 +1240,13 @@
           "end": "$",
           "patterns": [{ "include": "#word-comment" }, { "include": "#brace-escape" }, { "include": "#path-group" }, { "include": "#path-placeholder" }]
         }
+      ]
+    },
+    "operation-names": {
+      "comment": "Operations an `anchored` line names, separated by commas; an import may qualify one, as `L::feat`.",
+      "patterns": [
+        { "name": "entity.name.function.spit", "match": "[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*" },
+        { "name": "punctuation.separator.comma.spit", "match": "," }
       ]
     },
     "tool-items": {
@@ -1801,6 +1854,22 @@
         "4": { "name": "punctuation.definition.arguments.end.spit" }
       }
     },
+    "collection-read": {
+      "comment": "`@join(images, \"; \")` or `@list(images)` in a command: a many input's paths as one argument, or as a file listing them. A `)` in the quoted separator does not close it. Quoted, either is text, and a string takes it first.",
+      "match": "(@join|@list)(\\()((?:\"(?:\\\\.|[^\"\\\\])*\"|[^)\"])*)(\\))",
+      "captures": {
+        "1": { "name": "variable.language.collection.spit" },
+        "2": { "name": "punctuation.definition.arguments.begin.spit" },
+        "3": {
+          "patterns": [
+            { "name": "string.quoted.double.spit", "match": "\"(?:\\\\.|[^\"\\\\])*\"" },
+            { "name": "punctuation.separator.comma.spit", "match": "," },
+            { "name": "variable.parameter.placeholder.spit", "match": "[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)?" }
+          ]
+        },
+        "4": { "name": "punctuation.definition.arguments.end.spit" }
+      }
+    },
     "command-redirect": {
       "comment": "A `<` or `>` that is a word of its own in an operation's command: `< {input}` reads an input on the command's stdin, and `> {output}` writes its stdout to an output. Quoted, either is an argument, and a string takes it first.",
       "name": "keyword.operator.redirect.spit",
@@ -1808,6 +1877,7 @@
     },
     "placeholder": {
       "patterns": [
+        { "include": "#collection-read" },
         { "include": "#scalar-read" },
         { "include": "#brace-escape" },
         {
@@ -1870,12 +1940,17 @@
         {
           "comment": "A `/` that makes a source a folder, alone or after its extension: `source dicom : Dicom / [sub]`, `source store .zarr/`.",
           "name": "constant.other.extension.folder.spit",
-          "match": "(?<=\\s)(?:(?:\\.[A-Za-z0-9_-]+)+)?/(?=\\s*(?:#|$|\\[|@|beside\\b))"
+          "match": "(?<=\\s)(?:(?:\\.[A-Za-z0-9_-]+)+)?/(?=\\s*(?:#|$|\\[|@|beside\\b|here\\b))"
         },
         {
           "comment": "The extension a source declares, before its dimensions or at the end of its line: `source events : Events .tsv [sub]`, `source gps : Track .gpx`.",
           "name": "constant.other.extension.spit",
-          "match": "(?<=\\s)(?:\\.[A-Za-z0-9_-]+)+(?=\\s*(?:#|$|\\[|@|beside\\b))"
+          "match": "(?<=\\s)(?:\\.[A-Za-z0-9_-]+)+(?=\\s*(?:#|$|\\[|@|beside\\b|here\\b))"
+        },
+        {
+          "comment": "`here` at the end of a source: a file found from the folder of the file declaring it, as `source plotter : Script .py here`.",
+          "name": "keyword.other.here.spit",
+          "match": "(?<=\\s)here(?=\\s*(?:#|$|@))"
         },
         { "name": "keyword.control.spit", "match": "\\b(require|exclude|verify|resources|use|from|as|source|dimensions|operation|command|path|(?:check|review)(?!\\s*:))\\b" },
         { "match": "\\b(beside)\\s+([A-Za-z_][A-Za-z0-9_]*)", "captures": { "1": { "name": "keyword.other.beside.spit" }, "2": { "name": "variable.other.product.spit" } } },

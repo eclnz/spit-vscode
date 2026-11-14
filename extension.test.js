@@ -1293,6 +1293,27 @@ test('multiline signatures preserve diagnostic and hover ranges in unsaved edits
   }
 });
 
+test('a pipeline with @join, @list, an anchored operation and a here source checks clean', { skip: !fs.existsSync(binary) }, async () => {
+  const results = new Map();
+  const document = fakeDocument(path.join(__dirname, 'collections.spit'), [
+    'source raw : Text .txt [n]',
+    'source script : Script .py here',
+    'path raw: in/{n}.txt',
+    'path script: scripts/bundle.py',
+    'operation gather(xs: many Text, script: Script) -> Text .txt',
+    'command gather: python3 {script} --in=@join(xs, "; ") --list=@list(xs) {@output}',
+    'anchored gather',
+    'result = gather(raw @vary(n), script)',
+    'path result: out/result.txt',
+    ''
+  ].join('\n'));
+  const extension = load(mockVscode(document, results, () => {}));
+  extension.activate({ extensionPath: __dirname, subscriptions: [] });
+  await until(() => results.has(document.uri.toString()));
+  assert.deepEqual(results.get(document.uri.toString()), []);
+  extension.deactivate();
+});
+
 test('a command block marks an error on the line it is in, and explains each line\'s words', { skip: !fs.existsSync(binary) }, async () => {
   const hints = {};
   const text = 'source sam : Sam [sample]\noperation sort(sam: Sam) -> (bam: Bam, log: Log)\ncommand sort:\n    samtools sort -o {bam} {sam}\n    samtools index {bam} {nope} > {log}\nbam, log = sort(sam)\npath bam: out/{sample}.bam\npath log: out/{sample}.log\n';

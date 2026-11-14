@@ -313,6 +313,45 @@ test('@scalar in a command marks the read, its port and its bounds', { skip }, a
   assert.doesNotMatch(scopes(quoted, '@scalar'), /scalar\.spit/);
 });
 
+test('@join and @list in a command mark the read, its port and its separator', { skip }, async () => {
+  const scopes = await tokenizer();
+  const command = 'command merge: tool --in=@join(images, "; ) ") --runs=@join(images.run) @list(images) -o {@output}';
+  assert.match(scopes(command, '@join'), /variable\.language\.collection\.spit/);
+  assert.match(scopes(command, 'images,'), /variable\.parameter\.placeholder\.spit/);
+  assert.match(scopes(command, '"; ) "'), /string\.quoted\.double\.spit/);
+  // The `)` in the separator does not end the read.
+  assert.match(scopes(command, ') "'), /string\.quoted\.double\.spit/);
+  assert.match(scopes(command, 'images.run'), /variable\.parameter\.placeholder\.spit/);
+  assert.match(scopes(command, '@list'), /variable\.language\.collection\.spit/);
+  assert.match(scopes('verify merge: test-all @list(images)', '@list'), /variable\.language\.collection\.spit/);
+  const block = ['command merge:', '    tool @join(images) -o {@output}'];
+  assert.match(scopes.inFile(block, 1, '@join'), /variable\.language\.collection\.spit/);
+  // Quoted, it is text.
+  assert.doesNotMatch(scopes("command merge: tool '@join(images)' {@output}", '@join'), /collection\.spit/);
+});
+
+test('an anchored line or block names operations', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'anchored feat, group_feat  # their outputs hold their paths';
+  assert.match(scopes(line, 'anchored'), /keyword\.control\.spit/);
+  assert.match(scopes(line, 'feat'), /entity\.name\.function\.spit/);
+  assert.match(scopes(line, 'group_feat'), /entity\.name\.function\.spit/);
+  assert.match(scopes(line, '# their'), /comment/);
+  const block = ['anchored:', '    feat', 'x = f(y)'];
+  assert.match(scopes.inFile(block, 0, 'anchored'), /keyword\.control\.spit/);
+  assert.match(scopes.inFile(block, 1, 'feat'), /entity\.name\.function\.spit/);
+  assert.doesNotMatch(scopes.inFile(block, 2, 'x'), /entity\.name\.function\.spit/);
+});
+
+test('a source declared here marks the word, after its extension', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'source plotter : Script .py here';
+  assert.match(scopes(line, 'here'), /keyword\.other\.here\.spit/);
+  assert.match(scopes(line, '.py'), /constant\.other\.extension\.spit/);
+  assert.match(scopes('source plotter : Script here @check(nonempty)', 'here'), /keyword\.other\.here\.spit/);
+  assert.doesNotMatch(scopes('source here : Script', 'here'), /keyword\.other\.here\.spit/);
+});
+
 test('a dimensions line marks the pipeline order', { skip }, async () => {
   const scopes = await tokenizer();
   const line = 'dimensions [model, config, seed]';
@@ -893,6 +932,7 @@ const keywordLines = {
   verify: 'verify clean: test -s {input}',
   resources: 'resources clean: cores=8, memory=16G',
   tool: 'tool fsl',
+  anchored: 'anchored feat',
   uses: 'uses clean: fsl, !mrtrix3',
   tools: 'tools from hpc.spitenv',
   check: 'check nonempty: test -s {@path}',
