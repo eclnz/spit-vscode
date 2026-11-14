@@ -456,6 +456,28 @@ test('checks a .spitout\'s records on their own', { skip: !fs.existsSync(binary)
   extension.deactivate();
 });
 
+test('checks a .spitenv on its own, and a recipe against the .spitenv it names', { skip: !fs.existsSync(binary) }, async () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-'));
+  fs.writeFileSync(path.join(folder, 'analysis.spit'), 'tool sorter, counter\nuses copy: sorter\nsource raw [id]\noperation copy(input)\ncommand copy: cp {input} {@output}\nresult = copy(raw)\npath raw: in/{id}.txt\ndefault path: out/{@product}/{@entities}\ndefault entities: {@key}={@value} separated "__"\n');
+  fs.writeFileSync(path.join(folder, 'machine.spitenv'), 'tools:\n    sorter: probe sort --version\n');
+  const results = new Map();
+  const env = fakeDocument(path.join(folder, 'machine.spitenv'), 'tools:\n    sorter: probe sort > out\n');
+  const recipe = fakeDocument(path.join(folder, 'cohort.spitin'), 'pipeline analysis.spit\nroot .\ntools from machine.spitenv\n');
+  for (const [document, line, message] of [[env, 1, /runs with no shell/], [recipe, 2, /declares tool `counter`/]]) {
+    const extension = load(mockVscode(document, results, () => {}));
+    try {
+      extension.activate({ extensionPath: __dirname, subscriptions: [] });
+      await until(() => results.get(document.uri.toString())?.length === 1);
+      const [error] = results.get(document.uri.toString());
+      assert.equal(error.range.start.line, line);
+      assert.match(error.message, message);
+    } finally {
+      extension.deactivate();
+    }
+  }
+  fs.rmSync(folder, { recursive: true, force: true });
+});
+
 function fakeDocument(fsPath, text) {
   return {
     uri: { scheme: 'file', fsPath, toString() { return `file://${this.fsPath}`; } },
@@ -1269,6 +1291,27 @@ test('multiline signatures preserve diagnostic and hover ranges in unsaved edits
   } finally {
     extension.deactivate();
   }
+});
+
+test('a pipeline with @join, @list, an anchored operation and a here source checks clean', { skip: !fs.existsSync(binary) }, async () => {
+  const results = new Map();
+  const document = fakeDocument(path.join(__dirname, 'collections.spit'), [
+    'source raw : Text .txt [n]',
+    'source script : Script .py here',
+    'path raw: in/{n}.txt',
+    'path script: scripts/bundle.py',
+    'operation gather(xs: many Text, script: Script) -> Text .txt',
+    'command gather: python3 {script} --in=@join(xs, "; ") --list=@list(xs) {@output}',
+    'anchored gather',
+    'result = gather(raw @vary(n), script)',
+    'path result: out/result.txt',
+    ''
+  ].join('\n'));
+  const extension = load(mockVscode(document, results, () => {}));
+  extension.activate({ extensionPath: __dirname, subscriptions: [] });
+  await until(() => results.has(document.uri.toString()));
+  assert.deepEqual(results.get(document.uri.toString()), []);
+  extension.deactivate();
 });
 
 test('a command block marks an error on the line it is in, and explains each line\'s words', { skip: !fs.existsSync(binary) }, async () => {

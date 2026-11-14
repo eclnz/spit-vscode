@@ -313,6 +313,45 @@ test('@scalar in a command marks the read, its port and its bounds', { skip }, a
   assert.doesNotMatch(scopes(quoted, '@scalar'), /scalar\.spit/);
 });
 
+test('@join and @list in a command mark the read, its port and its separator', { skip }, async () => {
+  const scopes = await tokenizer();
+  const command = 'command merge: tool --in=@join(images, "; ) ") --runs=@join(images.run) @list(images) -o {@output}';
+  assert.match(scopes(command, '@join'), /variable\.language\.collection\.spit/);
+  assert.match(scopes(command, 'images,'), /variable\.parameter\.placeholder\.spit/);
+  assert.match(scopes(command, '"; ) "'), /string\.quoted\.double\.spit/);
+  // The `)` in the separator does not end the read.
+  assert.match(scopes(command, ') "'), /string\.quoted\.double\.spit/);
+  assert.match(scopes(command, 'images.run'), /variable\.parameter\.placeholder\.spit/);
+  assert.match(scopes(command, '@list'), /variable\.language\.collection\.spit/);
+  assert.match(scopes('verify merge: test-all @list(images)', '@list'), /variable\.language\.collection\.spit/);
+  const block = ['command merge:', '    tool @join(images) -o {@output}'];
+  assert.match(scopes.inFile(block, 1, '@join'), /variable\.language\.collection\.spit/);
+  // Quoted, it is text.
+  assert.doesNotMatch(scopes("command merge: tool '@join(images)' {@output}", '@join'), /collection\.spit/);
+});
+
+test('an anchored line or block names operations', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'anchored feat, group_feat  # their outputs hold their paths';
+  assert.match(scopes(line, 'anchored'), /keyword\.control\.spit/);
+  assert.match(scopes(line, 'feat'), /entity\.name\.function\.spit/);
+  assert.match(scopes(line, 'group_feat'), /entity\.name\.function\.spit/);
+  assert.match(scopes(line, '# their'), /comment/);
+  const block = ['anchored:', '    feat', 'x = f(y)'];
+  assert.match(scopes.inFile(block, 0, 'anchored'), /keyword\.control\.spit/);
+  assert.match(scopes.inFile(block, 1, 'feat'), /entity\.name\.function\.spit/);
+  assert.doesNotMatch(scopes.inFile(block, 2, 'x'), /entity\.name\.function\.spit/);
+});
+
+test('a source declared here marks the word, after its extension', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'source plotter : Script .py here';
+  assert.match(scopes(line, 'here'), /keyword\.other\.here\.spit/);
+  assert.match(scopes(line, '.py'), /constant\.other\.extension\.spit/);
+  assert.match(scopes('source plotter : Script here @check(nonempty)', 'here'), /keyword\.other\.here\.spit/);
+  assert.doesNotMatch(scopes('source here : Script', 'here'), /keyword\.other\.here\.spit/);
+});
+
 test('a dimensions line marks the pipeline order', { skip }, async () => {
   const scopes = await tokenizer();
   const line = 'dimensions [model, config, seed]';
@@ -845,6 +884,41 @@ test('a command block marks each line beneath it as a command', { skip }, async 
   assert.doesNotMatch(scopes.inFile(lines, 8, 'bam'), /placeholder/);
 });
 
+test('tool and uses lines mark their tools, the operation a uses line names and the ! that removes a tool', { skip }, async () => {
+  const scopes = await tokenizer();
+  assert.match(scopes('tool mrtrix3, fsl  # both', 'tool'), /keyword\.control\.spit/);
+  assert.match(scopes('tool mrtrix3, fsl  # both', 'fsl'), /variable\.other\.tool\.spit/);
+  assert.match(scopes('tool mrtrix3, fsl  # both', 'both'), /comment/);
+  const line = 'uses L::register: fsl, !mrtrix3';
+  assert.match(scopes(line, 'uses'), /keyword\.control\.spit/);
+  assert.match(scopes(line, 'L::register'), /entity\.name\.function\.spit/);
+  assert.match(scopes(line, 'fsl'), /variable\.other\.tool\.spit/);
+  assert.match(scopes(line, '!'), /keyword\.operator\.negation\.spit/);
+  assert.match(scopes(line, 'mrtrix3'), /variable\.other\.tool\.spit/);
+  const fallback = 'default uses: mrtrix3';
+  assert.match(scopes(fallback, 'default'), /keyword\.control\.spit/);
+  assert.match(scopes(fallback, 'uses'), /keyword\.control\.spit/);
+  assert.match(scopes(fallback, 'mrtrix3'), /variable\.other\.tool\.spit/);
+  // A `uses:` block holds an operation and its tools on each line, and a `default:` block's `uses:` a list.
+  const block = ['uses:', '    register: fsl', 'default:', '    uses: mrtrix3', 'tool:', '    ants'];
+  assert.match(scopes.inFile(block, 1, 'register'), /entity\.name\.function\.spit/);
+  assert.match(scopes.inFile(block, 1, 'fsl'), /variable\.other\.tool\.spit/);
+  assert.match(scopes.inFile(block, 3, 'uses'), /keyword\.control\.spit/);
+  assert.match(scopes.inFile(block, 3, 'mrtrix3'), /variable\.other\.tool\.spit/);
+  assert.match(scopes.inFile(block, 5, 'ants'), /variable\.other\.tool\.spit/);
+});
+
+test('a recipe names its .spitenv, and a .spitenv marks each tool and its probe', { skip }, async () => {
+  const scopes = await tokenizer();
+  assert.match(scopes('tools from hpc.spitenv', 'from'), /keyword\.control\.spit/);
+  assert.match(scopes('tools from hpc.spitenv', 'hpc.spitenv'), /string\.unquoted\.file\.spit/);
+  const env = ['tools:', '    mrtrix3: probe mrconvert -version', '    synthseg: docker.io/lab/synthseg@sha256:4f1c  # pinned'];
+  assert.match(scopes.inFile(env, 0, 'tools'), /keyword\.control\.spit/);
+  assert.match(scopes.inFile(env, 1, 'mrtrix3'), /variable\.other\.tool\.spit/);
+  assert.match(scopes.inFile(env, 1, 'probe'), /keyword\.control\.spit/);
+  assert.match(scopes.inFile(env, 2, 'pinned'), /comment/);
+});
+
 // SPIT prints its keyword table with `spit keywords`. Each word needs a line
 // here that starts a statement with it, and that line must colour it as a
 // keyword. A word SPIT reads only to say what to write instead has `null`:
@@ -857,6 +931,10 @@ const keywordLines = {
   command: 'command clean: cp {input} {@output}',
   verify: 'verify clean: test -s {input}',
   resources: 'resources clean: cores=8, memory=16G',
+  tool: 'tool fsl',
+  anchored: 'anchored feat',
+  uses: 'uses clean: fsl, !mrtrix3',
+  tools: 'tools from hpc.spitenv',
   check: 'check nonempty: test -s {@path}',
   review: 'review quality',
   path: 'path raw: raw/{sub}.txt',
