@@ -4,6 +4,7 @@
   "scopeName": "source.spit",
   "patterns": [
     { "include": "#comments" },
+    { "include": "#environment-lines" },
     { "include": "#section-headers" },
     { "include": "#stage-header" },
     { "include": "#input-block" },
@@ -249,6 +250,47 @@
           "match": ","
         }
       ]
+    },
+    "environment-lines": {
+      "patterns": [
+        {
+          "match": "^\\s*(anchored|tool|uses|tools)\\b",
+          "captures": {
+            "1": {
+              "name": "keyword.control.environment.spit"
+            }
+          }
+        },
+        {
+          "match": "\\bhere\\b(?=\\s*(?:#.*)?$)",
+          "name": "keyword.control.source-root.spit"
+        }
+      ]
+    },
+    "collection-read": {
+      "match": "(@join|@list)(\\()((?:\"(?:\\\\.|[^\"\\\\])*\"|[^)\"])*)(\\))",
+      "captures": {
+        "1": {
+          "name": "variable.language.collection.spit"
+        },
+        "2": {
+          "name": "punctuation.definition.arguments.begin.spit"
+        },
+        "3": {
+          "patterns": [
+            {
+              "include": "#strings"
+            },
+            {
+              "name": "variable.parameter.placeholder.spit",
+              "match": "[A-Za-z_][A-Za-z0-9_.-]*"
+            }
+          ]
+        },
+        "4": {
+          "name": "punctuation.definition.arguments.end.spit"
+        }
+      }
     },
     "comments": {
       "patterns": [
@@ -628,6 +670,9 @@
               }
             },
             {
+              "include": "#collection-read"
+            },
+            {
               "include": "#scalar-read"
             },
             {
@@ -659,6 +704,9 @@
           "patterns": [
             {
               "include": "#comments"
+            },
+            {
+              "include": "#collection-read"
             },
             {
               "include": "#scalar-read"
@@ -973,7 +1021,7 @@
           "beginCaptures": { "2": { "name": "keyword.control.spit" } },
           "end": "$",
           "patterns": [
-            { "include": "#scalar-read" },
+            { "include": "#collection-read" }, { "include": "#scalar-read" },
             { "include": "#command-redirect" },
             { "include": "$self" }
           ]
@@ -1627,7 +1675,7 @@
     },
     "placeholder": {
       "patterns": [
-        { "include": "#scalar-read" },
+        { "include": "#collection-read" }, { "include": "#scalar-read" },
         { "include": "#brace-escape" },
         {
           "comment": "`{image.dir}` and `{image.stem}`: an output's folder, and its file name without its extension. `{@output.dir}` and `{@output.stem}` are the unnamed output's.",

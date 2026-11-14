@@ -1346,3 +1346,24 @@ process.exit(result.status);
     fs.rmSync(folder, { recursive: true, force: true });
   }
 });
+
+test('checks collection calls and standalone tool environment files', { skip: !fs.existsSync(binary) }, async () => {
+  const results = new Map();
+  const document = fakeDocument(path.join(__dirname, 'new-functions.spit'), 'source raw: Text [n]\noperation gather(xs: many Text) -> Text .txt\ncommand gather: tool @join(xs) @list(xs) {@output}\nresult = gather(raw @vary(n))\npath raw: in/{n}.txt\npath result: out.txt\nanchored gather\n');
+  const extension = load(mockVscode(document, results, () => {}));
+  extension.activate({ extensionPath: __dirname, subscriptions: [] });
+  await until(() => results.get(document.uri.toString())?.length === 0);
+  extension.deactivate();
+});
+
+test('checks an unsaved .spitenv and locates its invalid entry', { skip: !fs.existsSync(binary) }, async () => {
+  const results = new Map();
+  const document = fakeDocument(path.join(__dirname, 'host.spitenv'), 'tools:\n    missing-colon\n');
+  const extension = load(mockVscode(document, results, () => {}));
+  extension.activate({ extensionPath: __dirname, subscriptions: [] });
+  await until(() => results.get(document.uri.toString())?.length === 1);
+  const diagnostic = results.get(document.uri.toString())[0];
+  assert.equal(diagnostic.range.start.line, 1);
+  assert.match(diagnostic.message, /expected tool:/);
+  extension.deactivate();
+});

@@ -411,7 +411,7 @@ function showPaths(document, paths) {
 // `spit check` compiles a pipeline, checks a recipe against the pipeline
 // its `pipeline` line names, or checks a .spitout's records.
 function checkable(document) {
-  return document.languageId === 'spit' && document.uri.scheme === 'file' && /\.spit(?:in|out)?$/i.test(document.uri.fsPath);
+  return document.languageId === 'spit' && document.uri.scheme === 'file' && /\.spit(?:in|out|env)?$/i.test(document.uri.fsPath);
 }
 
 // What `spit check --hovers` says about each line: a pipeline's products

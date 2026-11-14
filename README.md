@@ -60,3 +60,10 @@ This extension was developed with the help of generative AI tools. I am not a Ja
 Released under the [MIT License](LICENSE).
 
 Validation diagnostics remain available when `spit check --json` returns exit status 1 for errors. Editor fixtures use explicit output paths and entity formatting, matching the current compiler.
+
+Collection functions `@join(port, "separator")` and `@list(port)` are highlighted
+in commands and verify lines. `anchored`, `tool`, `uses` and `tools from` mark
+path-sensitive operations and tool dependencies; a source ending in `here` reads
+a fixed file beside its declaring pipeline or library. `.spitenv` files use the
+same language mode and are checked by SPIT. See SPIT's language reference for
+these declarations and their effect on reruns.

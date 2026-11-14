@@ -850,6 +850,10 @@ test('a command block marks each line beneath it as a command', { skip }, async 
 // keyword. A word SPIT reads only to say what to write instead has `null`:
 // the grammar leaves it uncoloured, so it does not look like current syntax.
 const keywordLines = {
+  anchored: 'anchored feat',
+  tool: 'tool fsl',
+  tools: 'tools from host.spitenv',
+  uses: 'uses feat: fsl',
   source: 'source raw : Raw [sub]',
   dimensions: 'dimensions [sub, ses]',
   types: 'types strict',
@@ -902,4 +906,17 @@ test('every keyword SPIT has is coloured as one, and no other word is listed', {
     }
     if (line !== null) assert.match(scopes(line, word), /keyword\.control/, line);
   }
+});
+
+test('collection functions preserve their separators as command syntax', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'command gather: tool --in=@join(xs, "; ) ") @list(xs) {@output}';
+  assert.match(scopes(line, '@join'), /variable\.language\.collection\.spit/);
+  assert.match(scopes(line, '@list'), /variable\.language\.collection\.spit/);
+  assert.doesNotMatch(scopes("command gather: tool '@join(xs)' {@output}", '@join'), /collection\.spit/);
+});
+
+test('a local source marks its here origin', { skip }, async () => {
+  const scopes = await tokenizer();
+  assert.match(scopes('source script: Script .py here', 'here'), /keyword\.control\.source-root\.spit/);
 });

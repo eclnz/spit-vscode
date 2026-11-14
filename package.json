@@ -3,16 +3,20 @@
   "displayName": "SPIT",
   "icon": "icon.png",
   "description": "Live diagnostics for SPIT pipelines and input recipes",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "publisher": "spit-local",
   "private": true,
   "license": "MIT",
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": ["Linters"],
+  "categories": [
+    "Linters"
+  ],
   "main": "./extension.js",
-  "activationEvents": ["onLanguage:spit"],
+  "activationEvents": [
+    "onLanguage:spit"
+  ],
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": false,
@@ -23,8 +27,15 @@
     "languages": [
       {
         "id": "spit",
-        "aliases": ["SPIT"],
-        "extensions": [".spit", ".spitin", ".spitout"],
+        "aliases": [
+          "SPIT"
+        ],
+        "extensions": [
+          ".spit",
+          ".spitin",
+          ".spitout",
+          ".spitenv"
+        ],
         "configuration": "./language-configuration.json"
       }
     ],
