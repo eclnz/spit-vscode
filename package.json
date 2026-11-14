@@ -3,7 +3,7 @@
   "displayName": "SPIT",
   "icon": "icon.png",
   "description": "Live diagnostics for SPIT pipelines and input recipes",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "publisher": "spit-local",
   "private": true,
   "license": "MIT",
@@ -24,7 +24,7 @@
       {
         "id": "spit",
         "aliases": ["SPIT"],
-        "extensions": [".spit", ".spitin", ".spitout"],
+        "extensions": [".spit", ".spitin", ".spitout", ".spitenv"],
         "configuration": "./language-configuration.json"
       }
     ],

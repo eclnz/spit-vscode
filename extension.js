@@ -409,9 +409,9 @@ function showPaths(document, paths) {
 }
 
 // `spit check` compiles a pipeline, checks a recipe against the pipeline
-// its `pipeline` line names, or checks a .spitout's records.
+// its `pipeline` line names, or checks a .spitout's records or a .spitenv's tools.
 function checkable(document) {
-  return document.languageId === 'spit' && document.uri.scheme === 'file' && /\.spit(?:in|out)?$/i.test(document.uri.fsPath);
+  return document.languageId === 'spit' && document.uri.scheme === 'file' && /\.spit(?:in|out|env)?$/i.test(document.uri.fsPath);
 }
 
 // What `spit check --hovers` says about each line: a pipeline's products
@@ -697,9 +697,9 @@ function activate(context) {
       for (const document of vscode.workspace.textDocuments) schedule(context, document, 0);
     }
   }));
-  // Re-check when a pipeline changes on disk: another pipeline may import it,
-  // and a recipe is checked against it.
-  const watcher = vscode.workspace.createFileSystemWatcher('**/*.spit');
+  // Re-check when a pipeline or a .spitenv changes on disk: another pipeline may
+  // import a pipeline, and a recipe is checked against both.
+  const watcher = vscode.workspace.createFileSystemWatcher('**/*.{spit,spitenv}');
   const refresh = () => {
     for (const document of vscode.workspace.textDocuments) {
       schedule(context, document, 0);

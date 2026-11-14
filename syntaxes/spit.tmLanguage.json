@@ -993,6 +993,167 @@
           ]
         },
         {
+          "comment": "`tool:`: a tool's name on each line beneath it, which `uses` lines may name.",
+          "begin": "^(\\s*)(tool)\\s*(:)\\s*(?=#|$)",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.spit"
+            },
+            "3": {
+              "name": "punctuation.separator.colon.spit"
+            }
+          },
+          "end": "^(?!\\1[ \\t]+\\S)(?=[ \\t]*[^\\s#])",
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "include": "#tool-items"
+            }
+          ]
+        },
+        {
+          "comment": "`tool mrtrix3, fsl`: the tools `uses` lines may name.",
+          "begin": "^(\\s*)(tool)\\s+(?=[A-Za-z_])",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.spit"
+            }
+          },
+          "end": "$",
+          "patterns": [
+            {
+              "include": "#word-comment"
+            },
+            {
+              "include": "#tool-items"
+            }
+          ]
+        },
+        {
+          "comment": "`uses:`: an operation and its tools on each line beneath it, `name: fsl, !mrtrix3`.",
+          "begin": "^(\\s*)(uses)\\s*(:)\\s*(?=#|$)",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.spit"
+            },
+            "3": {
+              "name": "punctuation.separator.colon.spit"
+            }
+          },
+          "end": "^(?!\\1[ \\t]+\\S)(?=[ \\t]*[^\\s#])",
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "match": "^(\\s*)([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s*(:)",
+              "captures": {
+                "2": {
+                  "name": "entity.name.function.spit"
+                },
+                "3": {
+                  "name": "punctuation.separator.colon.spit"
+                }
+              }
+            },
+            {
+              "include": "#tool-items"
+            }
+          ]
+        },
+        {
+          "comment": "`uses register: fsl, !mrtrix3`: the tools each job of an operation depends on.",
+          "begin": "^(\\s*)(uses)\\s+([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s*(:)",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.spit"
+            },
+            "3": {
+              "name": "entity.name.function.spit"
+            },
+            "4": {
+              "name": "punctuation.separator.colon.spit"
+            }
+          },
+          "end": "$",
+          "patterns": [
+            {
+              "include": "#word-comment"
+            },
+            {
+              "include": "#tool-items"
+            }
+          ]
+        },
+        {
+          "comment": "`default uses: mrtrix3`, or `uses:` with its list in a `default:` block: the tools of every operation declared in a file or stage.",
+          "begin": "^(\\s*)(?:(default)\\s+)?(uses)\\s*(:)(?=\\s*[!A-Za-z_])",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.spit"
+            },
+            "3": {
+              "name": "keyword.control.spit"
+            },
+            "4": {
+              "name": "punctuation.separator.colon.spit"
+            }
+          },
+          "end": "$",
+          "patterns": [
+            {
+              "include": "#word-comment"
+            },
+            {
+              "include": "#tool-items"
+            }
+          ]
+        },
+        {
+          "comment": "`tools from hpc.spitenv`, in a recipe: the file that says what each tool is.",
+          "match": "^(\\s*)(tools)\\s+(from)\\s+([^#\\s]+)",
+          "captures": {
+            "2": {
+              "name": "keyword.control.spit"
+            },
+            "3": {
+              "name": "keyword.control.spit"
+            },
+            "4": {
+              "name": "string.unquoted.file.spit"
+            }
+          }
+        },
+        {
+          "comment": "`tools:`, the one block of a `.spitenv`.",
+          "match": "^(tools)\\s*(:)\\s*(?=#|$)",
+          "captures": {
+            "1": {
+              "name": "keyword.control.spit"
+            },
+            "2": {
+              "name": "punctuation.separator.colon.spit"
+            }
+          }
+        },
+        {
+          "comment": "A `.spitenv` entry whose identity is a probe: `mrtrix3: probe mrconvert -version`.",
+          "match": "^(\\s+)([A-Za-z_][A-Za-z0-9_]*)\\s*(:)\\s*(probe)(?=\\s|$)",
+          "captures": {
+            "2": {
+              "name": "variable.other.tool.spit"
+            },
+            "3": {
+              "name": "punctuation.separator.colon.spit"
+            },
+            "4": {
+              "name": "keyword.control.spit"
+            }
+          }
+        },
+        {
           "comment": "`default:`, which opens a block of defaults.",
           "match": "^(\\s*)(default)\\s*(:)\\s*(?=#|$)",
           "captures": {
@@ -1032,6 +1193,26 @@
           },
           "end": "$",
           "patterns": [{ "include": "#word-comment" }, { "include": "#brace-escape" }, { "include": "#path-group" }, { "include": "#path-placeholder" }]
+        }
+      ]
+    },
+    "tool-items": {
+      "comment": "A list of tools, as `uses` and `tool` lines give it, with the `!` that removes one.",
+      "patterns": [
+        {
+          "match": "(!)?\\s*([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "keyword.operator.negation.spit"
+            },
+            "2": {
+              "name": "variable.other.tool.spit"
+            }
+          }
+        },
+        {
+          "name": "punctuation.separator.comma.spit",
+          "match": ","
         }
       ]
     },
