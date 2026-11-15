@@ -529,7 +529,7 @@ async function provideHover(context, document, position, token) {
     }
     appendHoverDetail(contents, detail);
   }
-  if (item.reference) contents.appendMarkdown(`\n\n[Language reference](${item.reference})`);
+  if (item.reference) contents.appendMarkdown(`\n\n[User guide](${item.reference})`);
   return new vscode.Hover(contents, new vscode.Range(position.line, item.start, position.line, item.end));
 }
 

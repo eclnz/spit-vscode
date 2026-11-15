@@ -514,6 +514,17 @@
                           "match": "\\bbeside\\b"
                         },
                         {
+                          "match": "(?<=/)\\s+(view)\\b",
+                          "captures": { "1": { "name": "keyword.other.view.spit" } }
+                        },
+                        {
+                          "match": "(?<=/)\\s+(from)\\b(?:\\s+([A-Za-z_][A-Za-z0-9_]*))?",
+                          "captures": {
+                            "1": { "name": "keyword.other.from.spit" },
+                            "2": { "name": "variable.parameter.port.spit" }
+                          }
+                        },
+                        {
                           "comment": "A `/` that makes the output a folder, alone or after its extension: `-> (subject: FsSubject /)`, `-> Zarr .zarr/`.",
                           "name": "constant.other.extension.folder.spit",
                           "match": "(?<![A-Za-z0-9_])(?:(?:\\.[A-Za-z0-9_-]+)+)?/"
@@ -564,6 +575,17 @@
                     {
                       "name": "keyword.other.beside.spit",
                       "match": "\\bbeside\\b"
+                    },
+                    {
+                      "match": "(?<=/)\\s+(view)\\b",
+                      "captures": { "1": { "name": "keyword.other.view.spit" } }
+                    },
+                    {
+                      "match": "(?<=/)\\s+(from)\\b(?:\\s+([A-Za-z_][A-Za-z0-9_]*))?",
+                      "captures": {
+                        "1": { "name": "keyword.other.from.spit" },
+                        "2": { "name": "variable.parameter.port.spit" }
+                      }
                     },
                     {
                       "comment": "A `/` that makes the output a folder, alone or after its extension: `-> (subject: FsSubject /)`, `-> Zarr .zarr/`.",
@@ -1582,6 +1604,17 @@
                   "match": "\\bbeside\\b"
                 },
                 {
+                  "match": "(?<=/)\\s+(view)\\b",
+                  "captures": { "1": { "name": "keyword.other.view.spit" } }
+                },
+                {
+                  "match": "(?<=/)\\s+(from)\\b(?:\\s+([A-Za-z_][A-Za-z0-9_]*))?",
+                  "captures": {
+                    "1": { "name": "keyword.other.from.spit" },
+                    "2": { "name": "variable.parameter.port.spit" }
+                  }
+                },
+                {
                   "comment": "A `/` that makes the output a folder, alone or after its extension: `-> (subject: FsSubject /)`, `-> Zarr .zarr/`.",
                   "name": "constant.other.extension.folder.spit",
                   "match": "(?<![A-Za-z0-9_])(?:(?:\\.[A-Za-z0-9_-]+)+)?/"
@@ -1632,6 +1665,17 @@
             {
               "name": "keyword.other.beside.spit",
               "match": "\\bbeside\\b"
+            },
+            {
+              "match": "(?<=/)\\s+(view)\\b",
+              "captures": { "1": { "name": "keyword.other.view.spit" } }
+            },
+            {
+              "match": "(?<=/)\\s+(from)\\b(?:\\s+([A-Za-z_][A-Za-z0-9_]*))?",
+              "captures": {
+                "1": { "name": "keyword.other.from.spit" },
+                "2": { "name": "variable.parameter.port.spit" }
+              }
             },
             {
               "comment": "A `/` that makes the output a folder, alone or after its extension: `-> (subject: FsSubject /)`, `-> Zarr .zarr/`.",

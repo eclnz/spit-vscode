@@ -884,6 +884,24 @@ test('a command block marks each line beneath it as a command', { skip }, async 
   assert.doesNotMatch(scopes.inFile(lines, 8, 'bam'), /placeholder/);
 });
 
+test('a seeded folder marks from and its input port', { skip }, async () => {
+  const scopes = await tokenizer();
+  for (const line of [
+    'operation classify(input: FixDir) -> FixDir / from input',
+    'operation classify(input: FixDir) -> (result: FixDir / from input)',
+  ]) {
+    assert.match(scopes(line, 'from'), /keyword\.other\.from\.spit/);
+    assert.match(scopes(line, 'input', line.indexOf('from')), /variable\.parameter\.port\.spit/);
+  }
+});
+
+test('a directory view highlights view after a folder ending', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'operation anatomy(image: Image, tissue: Image) -> Anat .anat/ view';
+  assert.match(scopes(line, 'view'), /keyword\.other\.view\.spit/);
+  assert.doesNotMatch(scopes('anatomy = folder(view)', 'view'), /keyword\.other\.view\.spit/);
+});
+
 test('tool and uses lines mark their tools, the operation a uses line names and the ! that removes a tool', { skip }, async () => {
   const scopes = await tokenizer();
   assert.match(scopes('tool mrtrix3, fsl  # both', 'tool'), /keyword\.control\.spit/);
