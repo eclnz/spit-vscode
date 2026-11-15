@@ -1052,7 +1052,7 @@ test('hovering shows SPIT\'s explanation of a word or a name, and nothing in a c
   const vary = await at(3, 'vary');
   assert.deepEqual(span(vary), [3, 18, 22]);
   assert.match(vary.contents.value, /^```spit\naverage = mean\(processed @vary\(run\)\)\n```\n\nCollects a `many` input/);
-  assert.match(vary.contents.value, /\[Language reference\]\(https:\/\/github\.com\/eclnz\/spit\/blob\/main\/docs\/language-reference\.md#operations-and-commands\)$/);
+  assert.match(vary.contents.value, /\[User guide\]\(https:\/\/github\.com\/eclnz\/spit\/blob\/main\/docs\/guide\/pipelines\.md#collections\)$/);
 
   const total = await at(3, 'total');
   assert.match(total.contents.value, /^```spit\ntotal: Unknown \[id\]\n```/);
@@ -1075,7 +1075,7 @@ test('hovering explains a check, where it is declared and where it is attached',
   const declared = await at(0, 'ndim');
   assert.match(declared.contents.value, /^```spit\ncheck ndim\(n\): check_ndim \{@path\} \{n\}\n```/);
   const keyword = await at(0, 'check');
-  assert.match(keyword.contents.value, /language-reference\.md#checks\)$/);
+  assert.match(keyword.contents.value, /guide\/operations\.md#artifact-checks\)$/);
   const path_ = await at(0, '@path');
   assert.match(path_.contents.value, /the artifact being checked/);
   const clause = await at(1, 'check');
@@ -1127,7 +1127,7 @@ test('hovering a default check list explains the default keyword', { skip: !fs.e
   extension.activate({ extensionPath: __dirname, subscriptions: [] });
   const keyword = await hints.hover.provideHover(document, { line: 1, character: 2 });
   assert.match(keyword.contents.value, /Sets a default for the outputs/);
-  assert.match(keyword.contents.value, /language-reference\.md#defaults\)$/);
+  assert.match(keyword.contents.value, /guide\/pipelines\.md#defaults\)$/);
 });
 
 test('a recipe and a .spitout explain SPIT\'s words, and a .spitout\'s records are checked', { skip: !fs.existsSync(binary) }, async () => {
@@ -1210,7 +1210,7 @@ test('hovering shows SPIT\'s explanation of a shape on a source placeholder', { 
     const hover = await hints.hover.provideHover(document, { line: 3, character: line.indexOf(':date') + 2 });
     assert.deepEqual(span(hover), [3, line.indexOf(':date') + 1, line.indexOf(':date') + 5]);
     assert.match(hover.contents.value, /^```spit\npath log: logs\/\{server\}\/\{date:date\}\.log\n```\n\nA shape for a placeholder in a source's path rule/);
-    assert.match(hover.contents.value, /\[Language reference\]\(https:\/\/github\.com\/eclnz\/spit\/blob\/main\/docs\/language-reference\.md#shapes-on-a-source-placeholder\)$/);
+    assert.match(hover.contents.value, /\[User guide\]\(https:\/\/github\.com\/eclnz\/spit\/blob\/main\/docs\/guide\/artifacts\.md#reading-dimensions-from-files\)$/);
     assert.equal(await hints.hover.provideHover(document, { line: 3, character: line.indexOf('{date') + 2 }), null, 'the dimension has no hover');
   } finally {
     extension.deactivate();
@@ -1233,7 +1233,7 @@ test('hovering a command\'s < or > shows SPIT\'s explanation of its stdin or std
       assert.deepEqual(span(hover), [2, at, at + 1], sign);
       const body = hover.contents.value.split('\n\n')[1];
       assert.match(body, summary, sign);
-      assert.match(hover.contents.value, /language-reference\.md#standard-input-and-output\)$/, sign);
+      assert.match(hover.contents.value, /guide\/operations\.md#standard-input-and-output\)$/, sign);
     }
   } finally {
     extension.deactivate();
@@ -1255,7 +1255,7 @@ test('hovering resources or {@cores} shows SPIT\'s explanation of what a job nee
       const hover = await hints.hover.provideHover(document, { line: index, character: at });
       assert.deepEqual(span(hover), [index, at, at + word.length], word);
       assert.match(hover.contents.value.split('\n\n')[1], summary, word);
-      assert.match(hover.contents.value, /language-reference\.md#cores-and-memory\)$/, word);
+      assert.match(hover.contents.value, /guide\/operations\.md#resources\)$/, word);
     }
     // The operation a resources line names explains the operation, with what its jobs need.
     const at = lines[3].indexOf('count');
