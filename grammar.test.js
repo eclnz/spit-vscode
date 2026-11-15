@@ -290,6 +290,68 @@ test('{@here} in a command is a built-in placeholder', { skip }, async () => {
   assert.match(scopes(command, 'durations'), /variable\.parameter\.placeholder\.spit/);
 });
 
+test('@scalar in a command marks the read, its port and its bounds', { skip }, async () => {
+  const scopes = await tokenizer();
+  const command = 'command fit: oxford_asl --tr @scalar(tr, min=5, max=1e2) --te=@scalar(te) -o {@output}';
+  assert.match(scopes(command, '@scalar'), /variable\.language\.scalar\.spit/);
+  assert.match(scopes(command, 'tr,'), /variable\.parameter\.placeholder\.spit/);
+  for (const bound of ['min', 'max']) {
+    assert.match(scopes(command, bound), /variable\.parameter\.bound\.spit/, bound);
+  }
+  assert.match(scopes(command, '5'), /constant\.numeric\.spit/);
+  assert.match(scopes(command, '1e2'), /constant\.numeric\.spit/);
+  // Within an argument, as SPIT reads it.
+  assert.match(scopes(command, '@scalar', command.indexOf('--te=')), /variable\.language\.scalar\.spit/);
+  assert.match(scopes(command, 'te)'), /variable\.parameter\.placeholder\.spit/);
+  // A verify line and each line of a command block read it too.
+  assert.match(scopes('verify fit: test-tr @scalar(tr)', '@scalar'), /variable\.language\.scalar\.spit/);
+  const block = ['command fit:', '    oxford_asl --tr @scalar(tr, min=5) -o {@output}'];
+  assert.match(scopes.inFile(block, 1, '@scalar'), /variable\.language\.scalar\.spit/);
+  assert.match(scopes.inFile(block, 1, 'min'), /variable\.parameter\.bound\.spit/);
+  // Quoted, it is text.
+  const quoted = "command fit: tool '@scalar(tr)' -o {@output}";
+  assert.doesNotMatch(scopes(quoted, '@scalar'), /scalar\.spit/);
+});
+
+test('@join and @list in a command mark the read, its port and its separator', { skip }, async () => {
+  const scopes = await tokenizer();
+  const command = 'command merge: tool --in=@join(images, "; ) ") --runs=@join(images.run) @list(images) -o {@output}';
+  assert.match(scopes(command, '@join'), /variable\.language\.collection\.spit/);
+  assert.match(scopes(command, 'images,'), /variable\.parameter\.placeholder\.spit/);
+  assert.match(scopes(command, '"; ) "'), /string\.quoted\.double\.spit/);
+  // The `)` in the separator does not end the read.
+  assert.match(scopes(command, ') "'), /string\.quoted\.double\.spit/);
+  assert.match(scopes(command, 'images.run'), /variable\.parameter\.placeholder\.spit/);
+  assert.match(scopes(command, '@list'), /variable\.language\.collection\.spit/);
+  assert.match(scopes('verify merge: test-all @list(images)', '@list'), /variable\.language\.collection\.spit/);
+  const block = ['command merge:', '    tool @join(images) -o {@output}'];
+  assert.match(scopes.inFile(block, 1, '@join'), /variable\.language\.collection\.spit/);
+  // Quoted, it is text.
+  assert.doesNotMatch(scopes("command merge: tool '@join(images)' {@output}", '@join'), /collection\.spit/);
+});
+
+test('an anchored line or block names operations', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'anchored feat, group_feat  # their outputs hold their paths';
+  assert.match(scopes(line, 'anchored'), /keyword\.control\.spit/);
+  assert.match(scopes(line, 'feat'), /entity\.name\.function\.spit/);
+  assert.match(scopes(line, 'group_feat'), /entity\.name\.function\.spit/);
+  assert.match(scopes(line, '# their'), /comment/);
+  const block = ['anchored:', '    feat', 'x = f(y)'];
+  assert.match(scopes.inFile(block, 0, 'anchored'), /keyword\.control\.spit/);
+  assert.match(scopes.inFile(block, 1, 'feat'), /entity\.name\.function\.spit/);
+  assert.doesNotMatch(scopes.inFile(block, 2, 'x'), /entity\.name\.function\.spit/);
+});
+
+test('a source declared here marks the word, after its extension', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'source plotter : Script .py here';
+  assert.match(scopes(line, 'here'), /keyword\.other\.here\.spit/);
+  assert.match(scopes(line, '.py'), /constant\.other\.extension\.spit/);
+  assert.match(scopes('source plotter : Script here @check(nonempty)', 'here'), /keyword\.other\.here\.spit/);
+  assert.doesNotMatch(scopes('source here : Script', 'here'), /keyword\.other\.here\.spit/);
+});
+
 test('a dimensions line marks the pipeline order', { skip }, async () => {
   const scopes = await tokenizer();
   const line = 'dimensions [model, config, seed]';
@@ -838,4 +900,102 @@ test('a directory view highlights view after a folder ending', { skip }, async (
   const line = 'operation anatomy(image: Image, tissue: Image) -> Anat .anat/ view';
   assert.match(scopes(line, 'view'), /keyword\.other\.view\.spit/);
   assert.doesNotMatch(scopes('anatomy = folder(view)', 'view'), /keyword\.other\.view\.spit/);
+});
+
+test('tool and uses lines mark their tools, the operation a uses line names and the ! that removes a tool', { skip }, async () => {
+  const scopes = await tokenizer();
+  assert.match(scopes('tool mrtrix3, fsl  # both', 'tool'), /keyword\.control\.spit/);
+  assert.match(scopes('tool mrtrix3, fsl  # both', 'fsl'), /variable\.other\.tool\.spit/);
+  assert.match(scopes('tool mrtrix3, fsl  # both', 'both'), /comment/);
+  const line = 'uses L::register: fsl, !mrtrix3';
+  assert.match(scopes(line, 'uses'), /keyword\.control\.spit/);
+  assert.match(scopes(line, 'L::register'), /entity\.name\.function\.spit/);
+  assert.match(scopes(line, 'fsl'), /variable\.other\.tool\.spit/);
+  assert.match(scopes(line, '!'), /keyword\.operator\.negation\.spit/);
+  assert.match(scopes(line, 'mrtrix3'), /variable\.other\.tool\.spit/);
+  const fallback = 'default uses: mrtrix3';
+  assert.match(scopes(fallback, 'default'), /keyword\.control\.spit/);
+  assert.match(scopes(fallback, 'uses'), /keyword\.control\.spit/);
+  assert.match(scopes(fallback, 'mrtrix3'), /variable\.other\.tool\.spit/);
+  // A `uses:` block holds an operation and its tools on each line, and a `default:` block's `uses:` a list.
+  const block = ['uses:', '    register: fsl', 'default:', '    uses: mrtrix3', 'tool:', '    ants'];
+  assert.match(scopes.inFile(block, 1, 'register'), /entity\.name\.function\.spit/);
+  assert.match(scopes.inFile(block, 1, 'fsl'), /variable\.other\.tool\.spit/);
+  assert.match(scopes.inFile(block, 3, 'uses'), /keyword\.control\.spit/);
+  assert.match(scopes.inFile(block, 3, 'mrtrix3'), /variable\.other\.tool\.spit/);
+  assert.match(scopes.inFile(block, 5, 'ants'), /variable\.other\.tool\.spit/);
+});
+
+test('a recipe names its .spitenv, and a .spitenv marks each tool and its probe', { skip }, async () => {
+  const scopes = await tokenizer();
+  assert.match(scopes('tools from hpc.spitenv', 'from'), /keyword\.control\.spit/);
+  assert.match(scopes('tools from hpc.spitenv', 'hpc.spitenv'), /string\.unquoted\.file\.spit/);
+  const env = ['tools:', '    mrtrix3: probe mrconvert -version', '    synthseg: docker.io/lab/synthseg@sha256:4f1c  # pinned'];
+  assert.match(scopes.inFile(env, 0, 'tools'), /keyword\.control\.spit/);
+  assert.match(scopes.inFile(env, 1, 'mrtrix3'), /variable\.other\.tool\.spit/);
+  assert.match(scopes.inFile(env, 1, 'probe'), /keyword\.control\.spit/);
+  assert.match(scopes.inFile(env, 2, 'pinned'), /comment/);
+});
+
+// SPIT prints its keyword table with `spit keywords`. Each word needs a line
+// here that starts a statement with it, and that line must colour it as a
+// keyword. A word SPIT reads only to say what to write instead has `null`:
+// the grammar leaves it uncoloured, so it does not look like current syntax.
+const keywordLines = {
+  source: 'source raw : Raw [sub]',
+  dimensions: 'dimensions [sub, ses]',
+  types: 'types strict',
+  operation: 'operation clean(input: Raw) -> Raw',
+  command: 'command clean: cp {input} {@output}',
+  verify: 'verify clean: test -s {input}',
+  resources: 'resources clean: cores=8, memory=16G',
+  tool: 'tool fsl',
+  anchored: 'anchored feat',
+  uses: 'uses clean: fsl, !mrtrix3',
+  tools: 'tools from hpc.spitenv',
+  check: 'check nonempty: test -s {@path}',
+  review: 'review quality',
+  path: 'path raw: raw/{sub}.txt',
+  default: 'default path: out/{@product}/{@entities}.txt',
+  stage: 'stage prep:',
+  use: 'use clean from lib.spit',
+  root: 'root data',
+  output: 'output ../results',
+  require: 'require [sub] where raw count>=1',
+  exclude: 'exclude [sub] where raw count<1',
+  ext: 'ext: .txt',
+  entities: 'entities: {@key}-{@value}',
+  type: 'type Image<Space>',
+  drop: null,
+  skip: null,
+  sidecars: null,
+  'shell-source': null
+};
+
+const spitBinary = process.env.SPIT_TEST_EXECUTABLE
+  || path.resolve(__dirname, '..', 'spit', 'target', 'debug', process.platform === 'win32' ? 'spit.exe' : 'spit');
+
+test('every keyword SPIT has is coloured as one, and no other word is listed', {
+  skip: skip || (!fs.existsSync(spitBinary) && 'build SPIT to check the grammar against its keywords')
+}, async () => {
+  const result = require('node:child_process').spawnSync(spitBinary, ['keywords'], { encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
+  const keywords = JSON.parse(result.stdout).keywords;
+  const words = keywords.map(keyword => keyword.word);
+  assert.deepEqual(
+    words.filter(word => !(word in keywordLines)), [],
+    'SPIT has keywords this test has no line for: add one, and colour the word in the grammar'
+  );
+  assert.deepEqual(
+    Object.keys(keywordLines).filter(word => !words.includes(word)), [],
+    'this test lists words that are no longer SPIT keywords: remove them, and their colouring'
+  );
+  const scopes = await tokenizer();
+  for (const { word, file } of keywords) {
+    const line = keywordLines[word];
+    if (file === 'replaced') {
+      assert.equal(line, null, `\`${word}\` is only read to say what to write instead, so it gets no line`);
+    }
+    if (line !== null) assert.match(scopes(line, word), /keyword\.control/, line);
+  }
 });
