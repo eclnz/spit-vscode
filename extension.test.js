@@ -447,6 +447,15 @@ test('labels one path per line, naming each product of a step with several', () 
   assert.deepEqual([...labels], [[3, '→ out/a.txt'], [5, 'w → out/w.npz  q → out/q.json']]);
 });
 
+test('labels a source with several rules with each of them', () => {
+  const { pathHintLabels } = load({ SemanticTokensLegend: class {} });
+  const labels = pathHintLabels([
+    { product: 't1', line: 2, path: '*_{id}_{visit}{cohort=patient}/*.nii' },
+    { product: 't1', line: 2, path: '*_Ctrl_{id}{cohort=ctrl}{visit=none}/*.nii' }
+  ]);
+  assert.deepEqual([...labels], [[2, '→ *_{id}_{visit}{cohort=patient}/*.nii | *_Ctrl_{id}{cohort=ctrl}{visit=none}/*.nii']]);
+});
+
 test('checks a .spitout\'s records on their own', { skip: !fs.existsSync(binary) }, async () => {
   const results = new Map();
   const document = fakeDocument(path.join(__dirname, 'inputs.spitout'), 'sources:\n    raw[id=1]\n');
