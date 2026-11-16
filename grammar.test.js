@@ -890,9 +890,13 @@ test('a clause keyword is a selector only directly after its @', { skip }, async
   const scopes = await tokenizer();
   assert.match(scopes('r = f(s @vary(a))', 'vary'), /keyword\.other\.selector\.spit/);
   assert.match(scopes('r = f(s @where(a=1) @same(b))', 'same'), /keyword\.other\.selector\.spit/);
+  assert.match(scopes('r = f(s @where(a=1) @first(b))', 'first'), /keyword\.other\.selector\.spit/);
+  assert.match(scopes('r = f(s @last(b))', 'last'), /keyword\.other\.selector\.spit/);
   assert.match(scopes('operation f(xs: many T @min(2)) -> T', 'min'), /keyword\.other\.selector\.spit/);
   // SPIT rejects `@ vary(`, so it is not coloured as the selector.
   assert.doesNotMatch(scopes('r = f(s @ vary(a))', 'vary'), /selector/);
+  assert.doesNotMatch(scopes('r = f(s @ first(b))', 'first'), /selector/);
+  assert.doesNotMatch(scopes('r = f(last)', 'last'), /selector/);
   assert.doesNotMatch(scopes('operation f(xs: many T @ min(2)) -> T', 'min'), /selector/);
 });
 

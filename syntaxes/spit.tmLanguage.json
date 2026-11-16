@@ -2129,7 +2129,7 @@
         { "name": "storage.modifier.cardinality.spit", "match": "\\bmany\\b" },
         { "include": "#check-clause" },
         { "include": "#review-clause" },
-        { "name": "keyword.other.selector.spit", "comment": "A clause keyword directly after its `@`, as SPIT reads it: `@vary(`, not `@ vary(`.", "match": "(?<=@)(vary|where|same|each|min)\\b" },
+        { "name": "keyword.other.selector.spit", "comment": "A clause keyword directly after its `@`, as SPIT reads it: `@vary(`, not `@ vary(`.", "match": "(?<=@)(vary|where|first|last|same|each|min)\\b" },
         { "include": "#strings" },
         { "name": "keyword.operator.at.spit", "match": "@" },
         { "name": "keyword.operator.arrow.spit", "match": "->" },
