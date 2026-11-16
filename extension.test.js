@@ -70,7 +70,7 @@ const mode = fs.readFileSync(${JSON.stringify(mode)}, 'utf8');
 if (process.argv[2] === '--version') {
   fs.writeSync(1, 'SPIT (Simple Pipeline in Text) compiler, version ' + ${JSON.stringify(require('./package.json').version)} + '\\n');
 } else if (mode === 'json') {
-  fs.writeSync(1, JSON.stringify({ diagnostics: [{ severity: 'error', source: 'pipeline', line: 1, column: 2, end_column: 5, message: 'bad type' }] }));
+  fs.writeSync(1, JSON.stringify({ diagnostics: [{ severity: 'error', source: 'pipeline', line: 1, column: 2, end_column: 5, code: 'parse.flow.unknown-keyword', message: 'bad type' }] }));
   process.exitCode = 1;
 } else {
   fs.writeSync(2, 'compiler failed');
@@ -92,6 +92,7 @@ if (process.argv[2] === '--version') {
     extension.activate({ extensionPath: __dirname, subscriptions: [] });
     await until(() => results.has(document.uri.toString()));
     assert.equal(results.get(document.uri.toString())?.[0]?.message, 'bad type');
+    assert.equal(results.get(document.uri.toString())[0].code, 'parse.flow.unknown-keyword');
     assert.deepEqual(span(results.get(document.uri.toString())[0]), [0, 1, 4]);
     for (const expected of ['invalid', 'crash']) {
       fs.writeFileSync(mode, expected);
