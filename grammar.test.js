@@ -201,6 +201,21 @@ test('exclude rules highlight a product, and exclude from is no rule', { skip },
   assert.match(scopes(byPath, 'path'), /keyword\.control\.spit/);
   assert.match(scopes(byPath, 'Proj A - 1234'), /string\.unquoted\.path\.spit/);
   assert.match(scopes(byPath, '# sent'), /comment/);
+  const starred = 'exclude path ProjA_Case_**_*    # copies';
+  assert.match(scopes(starred, '**'), /constant\.character\.escape\.star\.spit/);
+  assert.match(scopes(starred, '*', starred.lastIndexOf('*')), /keyword\.operator\.wildcard\.spit/);
+  const preferred = 'prefer path */* - *    # sent again';
+  assert.match(scopes(preferred, 'prefer'), /keyword\.control\.constraint/);
+  assert.match(scopes(preferred, 'path'), /keyword\.control\.spit/);
+  assert.match(scopes(preferred, '*'), /keyword\.operator\.wildcard\.spit/);
+  assert.match(scopes(preferred, ' - '), /string\.unquoted\.path\.spit/);
+  assert.match(scopes(preferred, '# sent'), /comment/);
+  const block = ['prefer:', '    path Proj_A_*    # exported twice', '    path */* - *'];
+  assert.match(scopes.inFile(block, 0, 'prefer'), /keyword\.control\.constraint/);
+  assert.match(scopes.inFile(block, 1, 'path'), /keyword\.control\.spit/);
+  assert.match(scopes.inFile(block, 1, '*'), /keyword\.operator\.wildcard\.spit/);
+  assert.match(scopes.inFile(block, 1, '# exported'), /comment/);
+  assert.match(scopes.inFile(block, 2, ' - '), /string\.unquoted\.path\.spit/);
   assert.doesNotMatch(scopes('skip sessions count>=2 per [sub]', 'skip'), /keyword\.control/);
   assert.doesNotMatch(scopes('drop [sub] where sessions count<2', 'drop'), /keyword\.control\.constraint/);
 });
@@ -1015,6 +1030,7 @@ const keywordLines = {
   output: 'output ../results',
   require: 'require [sub] where raw count>=1',
   exclude: 'exclude [sub] where raw count<1',
+  prefer: 'prefer path */* - *',
   ext: 'ext: .txt',
   entities: 'entities: {@key}-{@value}',
   type: 'type Image<Space>',

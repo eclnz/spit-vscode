@@ -892,6 +892,31 @@
           ]
         },
         {
+          "comment": "`prefer:` in a recipe: a `path` on each line beneath it, written without `prefer`.",
+          "begin": "^(\\s*)(prefer)\\s*(:)\\s*(?=#|$)",
+          "beginCaptures": {
+            "2": { "name": "keyword.control.constraint.spit" },
+            "3": { "name": "punctuation.separator.colon.spit" }
+          },
+          "end": "^(?!\\1[ \\t]+\\S)(?=[ \\t]*[^\\s#])",
+          "patterns": [
+            { "include": "#comments" },
+            {
+              "match": "^(\\s*)(path)\\s+(.*?)\\s*(?=(?:\\s#.*)?$)",
+              "captures": {
+                "2": { "name": "keyword.control.spit" },
+                "3": {
+                  "name": "string.unquoted.path.spit",
+                  "patterns": [
+                    { "name": "constant.character.escape.star.spit", "match": "\\*\\*" },
+                    { "name": "keyword.operator.wildcard.spit", "match": "\\*" }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
           "comment": "`require:` in a recipe: a coverage rule on each line beneath it, written without `require`.",
           "begin": "^(\\s*)(require)\\s*(:)\\s*(?=#|$)",
           "beginCaptures": {
@@ -1533,12 +1558,18 @@
     "exclude-rule": {
       "patterns": [
         {
-          "comment": "`exclude path <path>`: a file or folder under the root, read to the end of the line but for a comment.",
-          "match": "^(\\s*)(exclude)\\s+(path)\\s+(.*?)\\s*(?=(?:\\s#.*)?$)",
+          "comment": "`exclude path <path>` and `prefer path <path>`: files and folders under the root, read to the end of the line but for a comment, with `*` for any text within a name.",
+          "match": "^(\\s*)(exclude|prefer)\\s+(path)\\s+(.*?)\\s*(?=(?:\\s#.*)?$)",
           "captures": {
             "2": { "name": "keyword.control.constraint.spit" },
             "3": { "name": "keyword.control.spit" },
-            "4": { "name": "string.unquoted.path.spit" }
+            "4": {
+              "name": "string.unquoted.path.spit",
+              "patterns": [
+                { "name": "constant.character.escape.star.spit", "match": "\\*\\*" },
+                { "name": "keyword.operator.wildcard.spit", "match": "\\*" }
+              ]
+            }
           }
         },
         {
