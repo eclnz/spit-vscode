@@ -259,6 +259,8 @@ test('command templates mark an output\'s folder and name', { skip }, async () =
     assert.match(scopes(line, 'output', at), /variable\.language\.placeholder\.spit/, part);
     assert.match(scopes(line, part, at), /variable\.other\.property\.spit/, part);
   }
+  const prefixed = 'command fast: fast -o {seg.prefix} {brain}';
+  assert.match(scopes(prefixed, 'prefix'), /variable\.other\.property\.spit/);
   assert.match(scopes(line, 'dicom'), /variable\.parameter\.placeholder\.spit/);
 });
 

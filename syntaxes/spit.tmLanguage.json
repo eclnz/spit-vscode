@@ -2030,8 +2030,8 @@
         { "include": "#scalar-read" },
         { "include": "#brace-escape" },
         {
-          "comment": "`{image.dir}` and `{image.stem}`: an output's folder, and its file name without its extension. `{@output.dir}` and `{@output.stem}` are the unnamed output's.",
-          "match": "(\\{)(?:(@output)|([A-Za-z_][A-Za-z0-9_]*))(\\.)(dir|stem)(\\})",
+          "comment": "`{image.dir}`, `{image.stem}` and `{seg.prefix}`: an output's folder, its file name without its extension, and its path without its naming suffix and extension. `{@output.dir}` and `{@output.stem}` are the unnamed output's.",
+          "match": "(\\{)(?:(@output)|([A-Za-z_][A-Za-z0-9_]*))(\\.)(dir|stem|prefix)(\\})",
           "captures": {
             "1": { "name": "punctuation.definition.template-expression.begin.spit" },
             "2": { "name": "variable.language.placeholder.spit" },
@@ -2042,7 +2042,7 @@
           }
         },
         {
-          "comment": "`{durations.digit}`: each of an input's artifacts' value of a dimension. Any name after the `.` but `dir` and `stem`, which the pattern before takes.",
+          "comment": "`{durations.digit}`: each of an input's artifacts' value of a dimension. Any name after the `.` but `dir`, `stem` and `prefix`, which the pattern before takes.",
           "match": "(\\{)([A-Za-z_][A-Za-z0-9_]*)(\\.)([A-Za-z_][A-Za-z0-9_-]*)(\\})",
           "captures": {
             "1": { "name": "punctuation.definition.template-expression.begin.spit" },
