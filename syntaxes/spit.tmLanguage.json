@@ -525,13 +525,18 @@
                           "match": "\"[^\"]*\""
                         },
                         {
-                          "comment": "A `+` that appends a `beside` suffix to the whole file name: `bai: Bai +.bai beside bam`, `+\"_index.txt\"`.",
+                          "comment": "A `+` that appends a `beside` suffix to the whole file name: `bai: Bai +.bai beside bam`, and a quoted `suffix` after the sibling gives it a naming part.",
                           "name": "keyword.operator.append.spit",
-                          "match": "\\+(?=\\.|\")"
+                          "match": "\\+(?=\\.)"
                         },
                         {
                           "name": "keyword.other.beside.spit",
                           "match": "\\bbeside\\b"
+                        },
+                        {
+                          "comment": "The naming suffix after a `beside` sibling: `mask: Image .nii.gz beside brain suffix \"_mask\"`.",
+                          "name": "keyword.other.suffix.spit",
+                          "match": "\\bsuffix\\b(?=\\s*\")"
                         },
                         {
                           "match": "(?<=/)\\s+(view)\\b",
@@ -588,13 +593,18 @@
                       "match": "\"[^\"]*\""
                     },
                     {
-                      "comment": "A `+` that appends a `beside` suffix to the whole file name: `bai: Bai +.bai beside bam`, `+\"_index.txt\"`.",
+                      "comment": "A `+` that appends a `beside` suffix to the whole file name: `bai: Bai +.bai beside bam`, and a quoted `suffix` after the sibling gives it a naming part.",
                       "name": "keyword.operator.append.spit",
-                      "match": "\\+(?=\\.|\")"
+                      "match": "\\+(?=\\.)"
                     },
                     {
                       "name": "keyword.other.beside.spit",
                       "match": "\\bbeside\\b"
+                    },
+                    {
+                      "comment": "The naming suffix after a `beside` sibling: `mask: Image .nii.gz beside brain suffix \"_mask\"`.",
+                      "name": "keyword.other.suffix.spit",
+                      "match": "\\bsuffix\\b(?=\\s*\")"
                     },
                     {
                       "match": "(?<=/)\\s+(view)\\b",
@@ -1270,6 +1280,18 @@
           }
         },
         {
+          "comment": "`default check .nii.gz:`, or `check .nii.gz:` in a `default:` block: the checks of the files with that extension in a file or stage, sources included.",
+          "begin": "^(\\s*)(?:(default)\\s+)?(check)\\s+(\\.[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)*)\\s*(:)",
+          "beginCaptures": {
+            "2": { "name": "keyword.control.spit" },
+            "3": { "name": "keyword.control.spit" },
+            "4": { "name": "constant.other.extension.spit" },
+            "5": { "name": "punctuation.separator.colon.spit" }
+          },
+          "end": "$",
+          "patterns": [{ "include": "#word-comment" }, { "include": "#check-items" }]
+        },
+        {
           "comment": "`default check:`, or `check:` in a `default:` block: the checks every output in a file or stage runs.",
           "begin": "^(\\s*)(?:(default)\\s+)?(check)\\s*(:)",
           "beginCaptures": {
@@ -1645,13 +1667,18 @@
                   "match": "\"[^\"]*\""
                 },
                 {
-                  "comment": "A `+` that appends a `beside` suffix to the whole file name: `bai: Bai +.bai beside bam`, `+\"_index.txt\"`.",
+                  "comment": "A `+` that appends a `beside` suffix to the whole file name: `bai: Bai +.bai beside bam`, and a quoted `suffix` after the sibling gives it a naming part.",
                   "name": "keyword.operator.append.spit",
-                  "match": "\\+(?=\\.|\")"
+                  "match": "\\+(?=\\.)"
                 },
                 {
                   "name": "keyword.other.beside.spit",
                   "match": "\\bbeside\\b"
+                },
+                {
+                  "comment": "The naming suffix after a `beside` sibling: `mask: Image .nii.gz beside brain suffix \"_mask\"`.",
+                  "name": "keyword.other.suffix.spit",
+                  "match": "\\bsuffix\\b(?=\\s*\")"
                 },
                 {
                   "match": "(?<=/)\\s+(view)\\b",
@@ -1708,13 +1735,18 @@
               "match": "\"[^\"]*\""
             },
             {
-              "comment": "A `+` that appends a `beside` suffix to the whole file name: `bai: Bai +.bai beside bam`, `+\"_index.txt\"`.",
+              "comment": "A `+` that appends a `beside` suffix to the whole file name: `bai: Bai +.bai beside bam`, and a quoted `suffix` after the sibling gives it a naming part.",
               "name": "keyword.operator.append.spit",
-              "match": "\\+(?=\\.|\")"
+              "match": "\\+(?=\\.)"
             },
             {
               "name": "keyword.other.beside.spit",
               "match": "\\bbeside\\b"
+            },
+            {
+              "comment": "The naming suffix after a `beside` sibling: `mask: Image .nii.gz beside brain suffix \"_mask\"`.",
+              "name": "keyword.other.suffix.spit",
+              "match": "\\bsuffix\\b(?=\\s*\")"
             },
             {
               "match": "(?<=/)\\s+(view)\\b",
@@ -1998,8 +2030,8 @@
         { "include": "#scalar-read" },
         { "include": "#brace-escape" },
         {
-          "comment": "`{image.dir}` and `{image.stem}`: an output's folder, and its file name without its extension. `{@output.dir}` and `{@output.stem}` are the unnamed output's.",
-          "match": "(\\{)(?:(@output)|([A-Za-z_][A-Za-z0-9_]*))(\\.)(dir|stem)(\\})",
+          "comment": "`{image.dir}`, `{image.stem}` and `{seg.prefix}`: an output's folder, its file name without its extension, and its path without its naming suffix and extension. `{@output.dir}` and `{@output.stem}` are the unnamed output's.",
+          "match": "(\\{)(?:(@output)|([A-Za-z_][A-Za-z0-9_]*))(\\.)(dir|stem|prefix)(\\})",
           "captures": {
             "1": { "name": "punctuation.definition.template-expression.begin.spit" },
             "2": { "name": "variable.language.placeholder.spit" },
@@ -2010,7 +2042,7 @@
           }
         },
         {
-          "comment": "`{durations.digit}`: each of an input's artifacts' value of a dimension. Any name after the `.` but `dir` and `stem`, which the pattern before takes.",
+          "comment": "`{durations.digit}`: each of an input's artifacts' value of a dimension. Any name after the `.` but `dir`, `stem` and `prefix`, which the pattern before takes.",
           "match": "(\\{)([A-Za-z_][A-Za-z0-9_]*)(\\.)([A-Za-z_][A-Za-z0-9_-]*)(\\})",
           "captures": {
             "1": { "name": "punctuation.definition.template-expression.begin.spit" },
@@ -2036,22 +2068,14 @@
       "patterns": [
         {
           "comment": "A source companion's suffix and `beside`, an extension with an optional `+` that appends it to the whole name: `source gps : Track .gpx beside raw`, `source fai : Fai +.fai beside reference`.",
-          "match": "(?<=\\s)(\\+)?((?:\\.[A-Za-z0-9_-]+)+)(\\s+)(beside)\\b(?:\\s+([A-Za-z_][A-Za-z0-9_]*))?",
+          "match": "(?<=\\s)(\\+)?((?:\\.[A-Za-z0-9_-]+)+)(\\s+)(beside)\\b(?:\\s+([A-Za-z_][A-Za-z0-9_]*)(?:\\s+(suffix)\\s+(\"[^\"]*\"))?)?",
           "captures": {
             "1": { "name": "keyword.operator.append.spit" },
             "2": { "name": "constant.other.extension.spit" },
             "4": { "name": "keyword.other.beside.spit" },
-            "5": { "name": "variable.other.product.spit" }
-          }
-        },
-        {
-          "comment": "A source companion's quoted suffix and `beside`: `source mask \"_mask.nii.gz\" beside image`, `source dict +\"_dict.txt\" beside reference`.",
-          "match": "(?<=\\s)(\\+)?(\"[^\"]*\")(\\s+)(beside)\\b(?:\\s+([A-Za-z_][A-Za-z0-9_]*))?",
-          "captures": {
-            "1": { "name": "keyword.operator.append.spit" },
-            "2": { "name": "string.quoted.double.spit" },
-            "4": { "name": "keyword.other.beside.spit" },
-            "5": { "name": "variable.other.product.spit" }
+            "5": { "name": "variable.other.product.spit" },
+            "6": { "name": "keyword.other.suffix.spit" },
+            "7": { "name": "string.quoted.double.spit" }
           }
         },
         {

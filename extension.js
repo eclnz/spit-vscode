@@ -256,8 +256,9 @@ function reportStale(executable, modified, stale) {
 }
 
 // `column` and `end_column` are 1-based UTF-16 offsets, as SPIT reports them;
-// without them the whole line is marked.
-function issue(document, line, message, severity = 'error', column, endColumn) {
+// without them the whole line is marked. `code` is SPIT's stable name for the
+// diagnostic, such as `resolve.missing-input`, which the editor shows with it.
+function issue(document, line, message, severity = 'error', column, endColumn, code) {
   const index = Number.isInteger(line) ? Math.max(0, Math.min(line - 1, document.lineCount - 1)) : 0;
   const lineRange = document.lineAt(index).range;
   const range = Number.isInteger(column) && Number.isInteger(endColumn) && index === line - 1
@@ -271,6 +272,7 @@ function issue(document, line, message, severity = 'error', column, endColumn) {
   const level = severity === 'warning' ? vscode.DiagnosticSeverity.Warning : vscode.DiagnosticSeverity.Error;
   const item = new vscode.Diagnostic(range, message, level);
   item.source = 'SPIT';
+  if (typeof code === 'string' && code) item.code = code;
   return item;
 }
 
@@ -330,7 +332,7 @@ function linesOf(document, file) {
 // as related information.
 function issueFor(document, item) {
   const file = path.resolve(resolveFile(document, item.file));
-  const diagnostic = issue(linesOf(document, file), item.line, item.message, item.severity, item.column, item.end_column);
+  const diagnostic = issue(linesOf(document, file), item.line, item.message, item.severity, item.column, item.end_column, item.code);
   const related = [];
   for (const place of item.related || []) {
     const placeFile = path.resolve(resolveFile(document, place.file));
