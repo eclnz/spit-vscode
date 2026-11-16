@@ -557,6 +557,16 @@ test('default check: lists the checks every output of a file or stage runs', { s
   assert.doesNotMatch(scopes('check = summarise(raw)', 'check'), /keyword\.control/);
 });
 
+test('default check .ext: lists the checks of the files with that extension', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'default check .nii.gz: nifti_ok, !nonempty  # by extension';
+  assert.match(scopes(line, 'check'), /keyword\.control\.spit/);
+  assert.match(scopes(line, '.nii.gz'), /constant\.other\.extension\.spit/);
+  assert.match(scopes(line, 'nifti_ok'), /entity\.name\.function\.check\.spit/);
+  assert.match(scopes(line, '!'), /keyword\.operator\.negation\.spit/);
+  assert.match(scopes(line, '# by'), /comment\.line/);
+});
+
 test('a + suffix appends to the whole name, and beside names an input or a source', { skip }, async () => {
   const scopes = await tokenizer();
   const single = 'operation faidx(fasta: Fasta) -> Fai +.fai beside fasta';

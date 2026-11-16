@@ -1270,6 +1270,18 @@
           }
         },
         {
+          "comment": "`default check .nii.gz:`, or `check .nii.gz:` in a `default:` block: the checks of the files with that extension in a file or stage, sources included.",
+          "begin": "^(\\s*)(?:(default)\\s+)?(check)\\s+(\\.[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)*)\\s*(:)",
+          "beginCaptures": {
+            "2": { "name": "keyword.control.spit" },
+            "3": { "name": "keyword.control.spit" },
+            "4": { "name": "constant.other.extension.spit" },
+            "5": { "name": "punctuation.separator.colon.spit" }
+          },
+          "end": "$",
+          "patterns": [{ "include": "#word-comment" }, { "include": "#check-items" }]
+        },
+        {
           "comment": "`default check:`, or `check:` in a `default:` block: the checks every output in a file or stage runs.",
           "begin": "^(\\s*)(?:(default)\\s+)?(check)\\s*(:)",
           "beginCaptures": {
