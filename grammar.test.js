@@ -532,9 +532,9 @@ test('a `/` after a type makes a source or an output a folder', { skip }, async 
 
 test('an output written beside another names its suffix and sibling', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = 'operation strip(t1: Image) -> (brain: Image .nii.gz, mask: Image "_mask.nii.gz" beside brain, log .txt beside brain)';
-  assert.match(scopes(line, '"_mask.nii.gz"'), /string\.quoted\.double\.spit/);
-  assert.doesNotMatch(scopes(line, '.nii.gz"'), /constant\.other\.extension/);
+  const line = 'operation strip(t1: Image) -> (brain: Image .nii.gz, mask: Image .nii.gz beside brain suffix "_mask", log .txt beside brain)';
+  assert.match(scopes(line, 'suffix'), /keyword\.other\.suffix\.spit/);
+  assert.match(scopes(line, '"_mask"'), /string\.quoted\.double\.spit/);
   assert.match(scopes(line, 'beside'), /keyword\.other\.beside\.spit/);
   assert.match(scopes(line, 'brain', line.indexOf('beside')), /variable\.parameter\.port\.spit/);
   assert.match(scopes(line, '.txt'), /constant\.other\.extension\.spit/);
@@ -574,15 +574,15 @@ test('a + suffix appends to the whole name, and beside names an input or a sourc
   assert.match(scopes(single, '.fai'), /constant\.other\.extension\.spit/);
   assert.match(scopes(single, 'beside'), /keyword\.other\.beside\.spit/);
   assert.match(scopes(single, 'fasta', single.indexOf('beside')), /variable\.parameter\.port\.spit/);
-  const several = 'operation sort(sam: Sam) -> (bam: Bam .bam, bai: Bai +.bai beside bam, dict: Dict +"_dict.txt" beside bam)';
+  const several = 'operation sort(sam: Sam) -> (bam: Bam .bam, bai: Bai +.bai beside bam, dict: Dict +.txt beside bam suffix "_dict")';
   assert.match(scopes(several, '+.bai'), /keyword\.operator\.append\.spit/);
   assert.match(scopes(several, '.bai'), /constant\.other\.extension\.spit/);
-  assert.match(scopes(several, '+"'), /keyword\.operator\.append\.spit/);
-  assert.match(scopes(several, '"_dict.txt"'), /string\.quoted\.double\.spit/);
+  assert.match(scopes(several, '+.txt'), /keyword\.operator\.append\.spit/);
+  assert.match(scopes(several, '"_dict"'), /string\.quoted\.double\.spit/);
   for (const [line, suffix, scope] of [
     ['source fai : Fai +.fai beside reference', '.fai', /constant\.other\.extension\.spit/],
     ['source gps : Track .gpx beside raw', '.gpx', /constant\.other\.extension\.spit/],
-    ['source dict +"_dict.txt" beside reference', '"_dict.txt"', /string\.quoted\.double\.spit/]
+    ['source dict : Dict +.txt beside reference suffix "_dict"', '"_dict"', /string\.quoted\.double\.spit/]
   ]) {
     assert.match(scopes(line, suffix), scope);
     assert.match(scopes(line, 'beside'), /keyword\.other\.beside\.spit/);
