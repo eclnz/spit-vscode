@@ -87,6 +87,16 @@
           "include": "#comments"
         },
         {
+          "comment": "A source alone, `t1:`, with a rule on each line beneath it.",
+          "begin": "^(\\s+)([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s*(:)\\s*(?=#|$)",
+          "beginCaptures": {
+            "2": { "name": "variable.other.product.spit" },
+            "3": { "name": "punctuation.separator.colon.spit" }
+          },
+          "end": "^(?!\\1[ \\t]+\\S)(?=[ \\t]*[^\\s#])",
+          "patterns": [{ "include": "#comments" }, { "include": "#brace-escape" }, { "include": "#path-group" }, { "include": "#path-placeholder" }]
+        },
+        {
           "begin": "^(\\s+)(contexts|default|[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s*(:)\\s+",
           "beginCaptures": {
             "2": {
@@ -271,6 +281,16 @@
           "end": "^(?=\\S)",
           "patterns": [
             { "include": "#comments" },
+            {
+              "comment": "A source alone, `t1:`, with a rule on each line beneath it.",
+              "begin": "^(\\s+)([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s*(:)\\s*$",
+              "beginCaptures": {
+                "2": { "name": "variable.other.product.spit" },
+                "3": { "name": "punctuation.separator.colon.spit" }
+              },
+              "end": "^(?!\\1[ \\t]+\\S)(?=[ \\t]*[^\\s#])",
+              "patterns": [{ "include": "#comments" }, { "include": "#brace-escape" }, { "include": "#path-group" }, { "include": "#path-placeholder" }]
+            },
             {
               "begin": "^(\\s+)([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s*(:)\\s*",
               "beginCaptures": {
@@ -815,6 +835,16 @@
               "include": "#comments"
             },
             {
+              "comment": "A source alone, `t1:`, with a rule on each line beneath it.",
+              "begin": "^(\\s*)([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s*(:)\\s*(?=#|$)",
+              "beginCaptures": {
+                "2": { "name": "variable.other.product.spit" },
+                "3": { "name": "punctuation.separator.colon.spit" }
+              },
+              "end": "^(?!\\1[ \\t]+\\S)(?=[ \\t]*[^\\s#])",
+              "patterns": [{ "include": "#comments" }, { "include": "#brace-escape" }, { "include": "#path-group" }, { "include": "#path-placeholder" }]
+            },
+            {
               "begin": "^(\\s*)()()([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s*(:)",
               "beginCaptures": {
                 "2": {
@@ -1251,6 +1281,17 @@
           "patterns": [{ "include": "#word-comment" }, { "include": "#check-items" }]
         },
         {
+          "comment": "`path source:` alone, with a rule on each line beneath it.",
+          "begin": "^(\\s*)(path)\\s+([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s*(:)\\s*(?=#|$)",
+          "beginCaptures": {
+            "2": { "name": "keyword.control.spit" },
+            "3": { "name": "variable.other.product.spit" },
+            "4": { "name": "punctuation.separator.colon.spit" }
+          },
+          "end": "^(?!\\1[ \\t]+\\S)(?=[ \\t]*[^\\s#])",
+          "patterns": [{ "include": "#comments" }, { "include": "#brace-escape" }, { "include": "#path-group" }, { "include": "#path-placeholder" }]
+        },
+        {
           "comment": "`path product:`, or `default path:` and `path:` in a `default:` block, then a template.",
           "begin": "^(\\s*)(?:(default)\\s+)?(path)(?:\\s+([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*))?\\s*(:)",
           "beginCaptures": {
@@ -1469,6 +1510,15 @@
     },
     "exclude-rule": {
       "patterns": [
+        {
+          "comment": "`exclude path <path>`: a file or folder under the root, read to the end of the line but for a comment.",
+          "match": "^(\\s*)(exclude)\\s+(path)\\s+(.*?)\\s*(?=(?:\\s#.*)?$)",
+          "captures": {
+            "2": { "name": "keyword.control.constraint.spit" },
+            "3": { "name": "keyword.control.spit" },
+            "4": { "name": "string.unquoted.path.spit" }
+          }
+        },
         {
           "match": "^(\\s*)(exclude)\\s+(?:([A-Za-z_][A-Za-z0-9_]*)?)(\\[[^\\]]*\\])?",
           "captures": {
@@ -1745,13 +1795,15 @@
       }
     },
     "inventory-entry": {
-      "comment": "A record; its source's path rule gives its file.",
-      "match": "^(\\s*)([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)(\\[)([^\\]]*)(\\])\\s*(?=#|$)",
+      "comment": "A record. Its source's path rule gives its file, unless the rule writes no path; then the file follows `:`, to the end of the line.",
+      "match": "^(\\s*)([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)(\\[)([^\\]]*)(\\])(?:\\s*(:)\\s*(.*\\S))?\\s*(?=#|$)",
       "captures": {
         "2": { "name": "variable.other.product.spit" },
         "3": { "name": "punctuation.definition.dimensions.begin.spit" },
         "4": { "patterns": [{ "include": "#dimension-assignment-list" }] },
-        "5": { "name": "punctuation.definition.dimensions.end.spit" }
+        "5": { "name": "punctuation.definition.dimensions.end.spit" },
+        "6": { "name": "punctuation.separator.colon.spit" },
+        "7": { "name": "string.unquoted.path.spit" }
       }
     },
     "context-entry": {
@@ -1830,6 +1882,27 @@
     },
     "path-placeholder": {
       "patterns": [
+        {
+          "comment": "`**` is a literal star.",
+          "name": "constant.character.escape.star.spit",
+          "match": "\\*\\*"
+        },
+        {
+          "comment": "`*` in a source's rule: any text within one name, which binds nothing.",
+          "name": "keyword.operator.wildcard.spit",
+          "match": "\\*"
+        },
+        {
+          "comment": "`{cohort=ctrl}` in a source's rule: a dimension's fixed value, which matches no text.",
+          "match": "(\\{)([A-Za-z_][A-Za-z0-9_]*)(=)([^\\s,\\[\\]=#{}]+)(\\})",
+          "captures": {
+            "1": { "name": "punctuation.definition.template-expression.begin.spit" },
+            "2": { "name": "variable.parameter.placeholder.dimension.spit" },
+            "3": { "name": "keyword.operator.assignment.spit" },
+            "4": { "name": "constant.character.dimension-value.spit" },
+            "5": { "name": "punctuation.definition.template-expression.end.spit" }
+          }
+        },
         {
           "comment": "SPIT's own placeholders, which take `@` to tell them from dimensions.",
           "match": "(\\{)(@(?:product|entities|stage))(\\})",

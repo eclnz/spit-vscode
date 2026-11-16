@@ -120,6 +120,42 @@ test('input paths mark source names and directory captures', { skip }, async () 
   assert.match(scopes('inputs:\n    image: data/{sub}.nii.gz', 'image'), /variable\.other\.product\.spit/);
 });
 
+test('a source rule marks `*`, a literal `**` and a fixed value', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'path t1: *_{id:digits}_{visit}{cohort=patient}/a**b/anat_T1*';
+  assert.match(scopes(line, '*'), /keyword\.operator\.wildcard\.spit/);
+  assert.match(scopes(line, '*', line.length - 1), /keyword\.operator\.wildcard\.spit/);
+  assert.match(scopes(line, '**'), /constant\.character\.escape\.star\.spit/);
+  assert.match(scopes(line, 'cohort'), /variable\.parameter\.placeholder\.dimension\.spit/);
+  assert.match(scopes(line, '='), /keyword\.operator\.assignment\.spit/);
+  assert.match(scopes(line, 'patient'), /constant\.character\.dimension-value\.spit/);
+});
+
+test('a source\'s rules on the lines beneath it are path rules, wherever it is named', { skip }, async () => {
+  const scopes = await tokenizer();
+  for (const lines of [
+    ['path t1:', '    *_{id}{cohort=patient}/*', '    *_Ctrl_{id}{cohort=ctrl}/*', 'x = f(t1)'],
+    ['path:', '    t1:', '        *_{id}{cohort=patient}/*', '        *_Ctrl_{id}{cohort=ctrl}/*', 'x = f(t1)'],
+    ['inputs:', '    t1:', '        *_{id}{cohort=patient}/*', '        *_Ctrl_{id}{cohort=ctrl}/*', 'x = f(t1)'],
+    ['source_paths:', '    t1:', '        *_{id}{cohort=patient}/*', '        *_Ctrl_{id}{cohort=ctrl}/*', 'sources:']
+  ]) {
+    const named = lines.findIndex(line => line.includes('t1:'));
+    assert.match(scopes.inFile(lines, named, 't1'), /variable\.other\.product\.spit/, lines[0]);
+    for (const index of [named + 1, named + 2]) {
+      assert.match(scopes.inFile(lines, index, '*'), /keyword\.operator\.wildcard\.spit/, lines[0]);
+      assert.match(scopes.inFile(lines, index, 'id'), /variable\.parameter\.placeholder\.dimension\.spit/, lines[0]);
+    }
+    assert.doesNotMatch(scopes.inFile(lines, lines.length - 1, lines.at(-1).slice(0, 1)), /wildcard/, lines[0]);
+  }
+});
+
+test('a record may name its file after a colon', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'sources:\n    t1[cohort=ctrl,id=6]: Proj_A_Ctrl_6/Proj A - 77/anat_T1_3';
+  assert.match(scopes(line, 't1'), /variable\.other\.product\.spit/);
+  assert.match(scopes(line, 'Proj A - 77'), /string\.unquoted\.path\.spit/);
+});
+
 test('observed contexts have an unnamed section header', { skip }, async () => {
   const scopes = await tokenizer();
   const line = 'contexts:';
@@ -161,6 +197,10 @@ test('exclude rules highlight a product, and exclude from is no rule', { skip },
   assert.match(scopes(named, 'exclude'), /keyword\.control\.constraint/);
   assert.match(scopes(named, 'bold'), /variable\.other\.product/);
   assert.doesNotMatch(scopes('exclude from qc/excluded.csv', 'qc/excluded.csv'), /string\.unquoted\.file/);
+  const byPath = 'exclude path ProjA_Case_4_A/Proj A - 1234    # sent twice';
+  assert.match(scopes(byPath, 'path'), /keyword\.control\.spit/);
+  assert.match(scopes(byPath, 'Proj A - 1234'), /string\.unquoted\.path\.spit/);
+  assert.match(scopes(byPath, '# sent'), /comment/);
   assert.doesNotMatch(scopes('skip sessions count>=2 per [sub]', 'skip'), /keyword\.control/);
   assert.doesNotMatch(scopes('drop [sub] where sessions count<2', 'drop'), /keyword\.control\.constraint/);
 });

@@ -369,15 +369,19 @@ function publishIssues(document, items, notice) {
 }
 
 // One label per line from `spit check`'s `paths`: `→ path`, or, for a step
-// with several outputs, each product with its path.
+// with several outputs, each product with its path. A source with several
+// rules has an entry for each, shown as `→ first | second`.
 function pathHintLabels(paths) {
   const byLine = new Map();
   for (const { product, line, path: shown } of paths) {
-    if (!byLine.has(line)) byLine.set(line, []);
-    byLine.get(line).push({ product, shown });
+    if (!byLine.has(line)) byLine.set(line, new Map());
+    const products = byLine.get(line);
+    if (!products.has(product)) products.set(product, []);
+    products.get(product).push(shown);
   }
   const labels = new Map();
-  for (const [line, items] of byLine) {
+  for (const [line, products] of byLine) {
+    const items = [...products].map(([product, rules]) => ({ product, shown: rules.join(' | ') }));
     labels.set(line, items.length === 1
       ? `→ ${items[0].shown}`
       : items.map(item => `${item.product} → ${item.shown}`).join('  '));
