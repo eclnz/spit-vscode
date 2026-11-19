@@ -1445,3 +1445,27 @@ process.exit(result.status);
     fs.rmSync(folder, { recursive: true, force: true });
   }
 });
+
+test('calculate shows formula help and the operation body on hover', { skip: !fs.existsSync(binary) }, async () => {
+  const document = fakeDocument(path.join(os.tmpdir(), 'calculate-hover.spit'), [
+    'source raw : Scalar .txt [sub]',
+    'path raw: raw/{sub}',
+    'default path: out/{@product}/{sub}',
+    'operation scale(exp: Scalar) -> Scalar .txt',
+    'calculate scale: exp(exp)',
+    'scaled = scale(raw)',
+    ''
+  ].join('\n'));
+  const extension = load(mockVscode(document, new Map(), () => {}));
+  const context = { extensionPath: __dirname, subscriptions: [] };
+  extension.activate(context);
+  const provider = context.subscriptions.find(item => item.hoverProvider).hoverProvider;
+  try {
+    const keyword = await provider.provideHover(document, { line: 4, character: 2 });
+    assert.match(keyword.contents.value, /operations\.md#calculating-numbers/);
+    const operation = await provider.provideHover(document, { line: 3, character: 11 });
+    assert.match(operation.contents.value, /exp\(exp\)/);
+  } finally {
+    extension.deactivate();
+  }
+});
