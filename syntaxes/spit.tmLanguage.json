@@ -1061,6 +1061,39 @@
           }
         },
         {
+          "comment": "A calculation highlights function calls by position, including a function with the same name as its argument.",
+          "begin": "^(\\s*)(calculate)\\s+([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s*(:)",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.spit"
+            },
+            "3": {
+              "name": "entity.name.function.spit"
+            },
+            "4": {
+              "name": "punctuation.separator.colon.spit"
+            }
+          },
+          "end": "$",
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "name": "support.function.calculation.spit",
+              "match": "\\b(?:exp|log|sqrt|abs|min|max|round)(?=\\s*\\()"
+            },
+            {
+              "name": "constant.numeric.spit",
+              "match": "(?<!\\w)(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][+-]?\\d+)?(?!\\w)"
+            },
+            {
+              "name": "keyword.operator.arithmetic.spit",
+              "match": "[+*/^\\-]"
+            }
+          ]
+        },
+        {
           "comment": "`command name: program ...`: the rest of the line is read as any other, apart from a `<` or `>` that connects the command's stdin or stdout.",
           "begin": "^(\\s*)(command)\\s+",
           "beginCaptures": { "2": { "name": "keyword.control.spit" } },
