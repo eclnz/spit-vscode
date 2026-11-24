@@ -1097,6 +1097,35 @@ test('hovering explains a check, where it is declared and where it is attached',
   extension.deactivate();
 });
 
+test('hovering explains a screen attached to one call', { skip: !fs.existsSync(binary) }, async () => {
+  const hints = {};
+  const text = [
+    'screen usable: test -s {@path}',
+    'source raw [id]',
+    'operation copy(x) -> .txt',
+    'command copy: cp {x} {@output}',
+    'screened = copy(raw @screen(usable))',
+    'untested = copy(raw)',
+    'default path: out/{@product}/{@entities}',
+    'default entities: {@key}={@value} separated "__"',
+  ].join('\n') + '\n';
+  const document = fakeDocument(path.join(__dirname, 'screens.spit'), text);
+  const extension = load(mockVscode(document, new Map(), () => {}, hints));
+  extension.activate({ extensionPath: __dirname, subscriptions: [] });
+  try {
+    const hover = (line, word) => hints.hover.provideHover(document, {
+      line, character: document.lineAt(line).text.indexOf(word) + 1
+    });
+    const declared = await hover(0, 'usable');
+    assert.match(declared.contents.value, /screen usable: test -s \{@path\}/);
+    const clause = await hover(4, 'screen(');
+    assert.match(clause.contents.value, /A human verdict at the same attachment overrides it/);
+    assert.match(clause.contents.value, /guide\/operations\.md#artifact-screens\)$/);
+  } finally {
+    extension.deactivate();
+  }
+});
+
 test('hovering explains an output beside another', { skip: !fs.existsSync(binary) }, async () => {
   const hints = {};
   const text = 'source raw .raw [id]\npath raw: scans/{id}.raw\noperation read(image) -> (result: Image .raw, meta: Json .json beside result)\nresult, meta = read(raw)\n\ndefault path: out/{@product}/{@entities}\n\ndefault entities: {@key}={@value} separated "__"\n';
@@ -1414,5 +1443,29 @@ process.exit(result.status);
   } finally {
     extension.deactivate();
     fs.rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test('calculate shows formula help and the operation body on hover', { skip: !fs.existsSync(binary) }, async () => {
+  const document = fakeDocument(path.join(os.tmpdir(), 'calculate-hover.spit'), [
+    'source raw : Scalar .txt [sub]',
+    'path raw: raw/{sub}',
+    'default path: out/{@product}/{sub}',
+    'operation scale(exp: Scalar) -> Scalar .txt',
+    'calculate scale: exp(exp)',
+    'scaled = scale(raw)',
+    ''
+  ].join('\n'));
+  const extension = load(mockVscode(document, new Map(), () => {}));
+  const context = { extensionPath: __dirname, subscriptions: [] };
+  extension.activate(context);
+  const provider = context.subscriptions.find(item => item.hoverProvider).hoverProvider;
+  try {
+    const keyword = await provider.provideHover(document, { line: 4, character: 2 });
+    assert.match(keyword.contents.value, /operations\.md#calculating-numbers/);
+    const operation = await provider.provideHover(document, { line: 3, character: 11 });
+    assert.match(operation.contents.value, /exp\(exp\)/);
+  } finally {
+    extension.deactivate();
   }
 });

@@ -125,8 +125,8 @@
       ]
     },
     "check-declaration": {
-      "comment": "`check name(params): command`: a test of one artifact, which reads `{@path}` and each `{param}`. A step's product named `check` takes `=`, so it is not one.",
-      "begin": "^(\\s*)(check)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(?:(\\()([^()]*)(\\)))?\\s*(:)",
+      "comment": "`check name(params): command` or `screen name(params): command`: a command on one artifact, which reads `{@path}` and each `{param}`. A step's product named `check` takes `=`, so it is not one.",
+      "begin": "^(\\s*)(check|screen)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(?:(\\()([^()]*)(\\)))?\\s*(:)",
       "beginCaptures": {
         "2": {
           "name": "keyword.control.spit"
@@ -797,8 +797,8 @@
           ]
         },
         {
-          "comment": "`check:`: a check on each line beneath it, `name(params): command`.",
-          "begin": "^(\\s*)(check)\\s*(:)\\s*(?=#|$)",
+          "comment": "`check:` or `screen:`: a declaration on each line beneath it, `name(params): command`.",
+          "begin": "^(\\s*)(check|screen)\\s*(:)\\s*(?=#|$)",
           "beginCaptures": {
             "2": {
               "name": "keyword.control.spit"
@@ -1061,6 +1061,39 @@
           }
         },
         {
+          "comment": "A calculation highlights function calls by position, including a function with the same name as its argument.",
+          "begin": "^(\\s*)(calculate)\\s+([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s*(:)",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.spit"
+            },
+            "3": {
+              "name": "entity.name.function.spit"
+            },
+            "4": {
+              "name": "punctuation.separator.colon.spit"
+            }
+          },
+          "end": "$",
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "name": "support.function.calculation.spit",
+              "match": "\\b(?:exp|log|sqrt|abs|min|max|round)(?=\\s*\\()"
+            },
+            {
+              "name": "constant.numeric.spit",
+              "match": "(?<!\\w)(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][+-]?\\d+)?(?!\\w)"
+            },
+            {
+              "name": "keyword.operator.arithmetic.spit",
+              "match": "[+*/^\\-]"
+            }
+          ]
+        },
+        {
           "comment": "`command name: program ...`: the rest of the line is read as any other, apart from a `<` or `>` that connects the command's stdin or stdout.",
           "begin": "^(\\s*)(command)\\s+",
           "beginCaptures": { "2": { "name": "keyword.control.spit" } },
@@ -1318,7 +1351,7 @@
         },
         {
           "comment": "`default check:`, or `check:` in a `default:` block: the checks every output in a file or stage runs.",
-          "begin": "^(\\s*)(?:(default)\\s+)?(check)\\s*(:)",
+          "begin": "^(\\s*)(?:(default)\\s+)?(check|screen)\\s*(:)",
           "beginCaptures": {
             "2": { "name": "keyword.control.spit" },
             "3": { "name": "keyword.control.spit" },
@@ -1381,7 +1414,7 @@
     },
     "check-clause": {
       "comment": "`@check(nonempty, ndim(3))` on a source or a port, ended at the end of the line so an unclosed one does not colour what follows, with its keyword directly after the `@` as SPIT reads it. An output may opt out of a default check with `!name`.",
-      "begin": "(@)(check)(\\()",
+      "begin": "(@)(check|screen)(\\()",
       "beginCaptures": {
         "1": { "name": "keyword.operator.at.spit" },
         "2": { "name": "keyword.other.selector.spit" },
@@ -2124,7 +2157,7 @@
           "name": "keyword.other.here.spit",
           "match": "(?<=\\s)here(?=\\s*(?:#|$|@))"
         },
-        { "name": "keyword.control.spit", "match": "\\b(require|exclude|verify|resources|use|from|as|source|dimensions|operation|command|path|(?:check|review)(?!\\s*:))\\b" },
+        { "name": "keyword.control.spit", "match": "\\b(require|exclude|verify|resources|use|from|as|source|dimensions|operation|command|path|(?:check|screen|review)(?!\\s*:))\\b" },
         { "match": "\\b(beside)\\s+([A-Za-z_][A-Za-z0-9_]*)", "captures": { "1": { "name": "keyword.other.beside.spit" }, "2": { "name": "variable.other.product.spit" } } },
         { "name": "storage.modifier.cardinality.spit", "match": "\\bmany\\b" },
         { "include": "#check-clause" },

@@ -557,6 +557,26 @@ test('an output written beside another names its suffix and sibling', { skip }, 
   assert.match(scopes(line, '.txt'), /constant\.other\.extension\.spit/);
 });
 
+test('screens highlight from declaration through attachment and defaults', { skip }, async () => {
+  const scopes = await tokenizer();
+  assert.match(scopes('screen usable(limit): test {@path} {limit}', 'screen'), /keyword\.control\.spit/);
+  assert.match(scopes('screen usable(limit): test {@path} {limit}', '@path'), /variable\.language/);
+  assert.match(scopes('default screen: usable(35)', 'usable'), /entity\.name\.function\.check\.spit/);
+  assert.match(scopes('source data : Image @screen(usable(35))', 'screen'), /keyword\.other\.selector\.spit/);
+  const block = ['screen:', '    usable(limit): test {@path} {limit}'];
+  assert.match(scopes.inFile(block, 1, 'usable'), /entity\.name\.function\.spit/);
+});
+
+test('a call argument highlights checks, screens and reviews alongside selectors', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'total = table(summaries @vary(sub) @check(valid) @screen(usable(35)) @review(looked_at))';
+  for (const word of ['vary', 'check', 'screen', 'review']) {
+    assert.match(scopes(line, word), /keyword\.other\.selector\.spit/);
+  }
+  assert.match(scopes(line, 'usable'), /entity\.name\.function\.check\.spit/);
+  assert.match(scopes(line, 'looked_at'), /entity\.name\.function\.review\.spit/);
+});
+
 test('default check: lists the checks every output of a file or stage runs', { skip }, async () => {
   const scopes = await tokenizer();
   const line = '    default check: nonempty, ndim(3), !lines(2)  # in this stage';
@@ -1018,6 +1038,7 @@ const keywordLines = {
   types: 'types strict',
   operation: 'operation clean(input: Raw) -> Raw',
   command: 'command clean: cp {input} {@output}',
+  calculate: 'calculate clean: exp(input)',
   verify: 'verify clean: test -s {input}',
   resources: 'resources clean: cores=8, memory=16G',
   tool: 'tool fsl',
@@ -1025,6 +1046,8 @@ const keywordLines = {
   uses: 'uses clean: fsl, !mrtrix3',
   tools: 'tools from hpc.spitenv',
   check: 'check nonempty: test -s {@path}',
+  screen: "screen usable: test -s {@path}",
+
   review: 'review quality',
   path: 'path raw: raw/{sub}.txt',
   default: 'default path: out/{@product}/{@entities}.txt',
@@ -1070,4 +1093,13 @@ test('every keyword SPIT has is coloured as one, and no other word is listed', {
     }
     if (line !== null) assert.match(scopes(line, word), /keyword\.control/, line);
   }
+});
+
+test('a calculation distinguishes an operator name from the same port name', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'calculate calibrate: exp(exp) + .25';
+  assert.match(scopes(line, 'calculate'), /keyword\.control\.spit/);
+  assert.match(scopes(line, 'exp'), /support\.function\.calculation\.spit/);
+  assert.doesNotMatch(scopes(line, 'exp', line.lastIndexOf('exp')), /support\.function\.calculation\.spit/);
+  assert.match(scopes(line, '.25'), /constant\.numeric\.spit/);
 });
