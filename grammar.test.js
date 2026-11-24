@@ -1038,6 +1038,7 @@ const keywordLines = {
   types: 'types strict',
   operation: 'operation clean(input: Raw) -> Raw',
   command: 'command clean: cp {input} {@output}',
+  calculate: 'calculate clean: exp(input)',
   verify: 'verify clean: test -s {input}',
   resources: 'resources clean: cores=8, memory=16G',
   tool: 'tool fsl',
@@ -1092,4 +1093,13 @@ test('every keyword SPIT has is coloured as one, and no other word is listed', {
     }
     if (line !== null) assert.match(scopes(line, word), /keyword\.control/, line);
   }
+});
+
+test('a calculation distinguishes an operator name from the same port name', { skip }, async () => {
+  const scopes = await tokenizer();
+  const line = 'calculate calibrate: exp(exp) + .25';
+  assert.match(scopes(line, 'calculate'), /keyword\.control\.spit/);
+  assert.match(scopes(line, 'exp'), /support\.function\.calculation\.spit/);
+  assert.doesNotMatch(scopes(line, 'exp', line.lastIndexOf('exp')), /support\.function\.calculation\.spit/);
+  assert.match(scopes(line, '.25'), /constant\.numeric\.spit/);
 });
