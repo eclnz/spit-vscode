@@ -11,8 +11,6 @@
     { "include": "#use-line" },
     { "include": "#check-declaration" },
     { "include": "#review-file" },
-    { "include": "#review-declaration" },
-    { "include": "#review-default" },
     { "include": "#keyword-blocks" },
     { "include": "#flow-declaration" },
     { "include": "#entities-declaration" },
@@ -163,108 +161,47 @@
         }
       ]
     },
-    "review-declaration": {
-      "comment": "`review name`: a judgement a person makes, with no parameters and no command. A step's product named `review` takes `=`, so it is not one.",
-      "match": "^(\\s*)(review)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(?=#|$)",
-      "captures": {
-        "2": {
-          "name": "keyword.control.spit"
-        },
-        "3": {
-          "name": "entity.name.function.review.spit"
-        }
-      }
-    },
-    "review-default": {
-      "comment": "`default review: looked_at, !other`, or `review:` in a `default:` block: the reviews that judge every output of a file or stage. A step's product named `review` takes `=` outside parentheses, so it is not one.",
-      "begin": "^(\\s*)(?:(default)\\s+)?(review)\\s*(:)(?!(?:[^#=()]|\\([^()]*\\))*=)",
-      "beginCaptures": {
-        "2": {
-          "name": "keyword.control.spit"
-        },
-        "3": {
-          "name": "keyword.control.spit"
-        },
-        "4": {
-          "name": "punctuation.separator.colon.spit"
-        }
-      },
-      "end": "$",
-      "patterns": [
-        {
-          "include": "#word-comment"
-        },
-        {
-          "include": "#review-items"
-        }
-      ]
-    },
     "review-file": {
-      "comment": "`review looked_at from qc/looked_at.csv`, in a recipe: the file a review's verdicts are in.",
+      "comment": "A recipe names a reviewed product and its verdict CSV: review t1 from qc/t1.csv.",
       "match": "^(\\s*)(review)\\s+([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s+(from)\\s+([^#\\s]+)",
       "captures": {
-        "2": {
-          "name": "keyword.control.spit"
-        },
-        "3": {
-          "name": "entity.name.function.review.spit"
-        },
-        "4": {
-          "name": "keyword.control.spit"
-        },
-        "5": {
-          "name": "string.unquoted.file.spit"
-        }
+        "2": { "name": "keyword.control.spit" },
+        "3": { "name": "variable.other.product.spit" },
+        "4": { "name": "keyword.control.spit" },
+        "5": { "name": "string.unquoted.file.spit" }
       }
     },
     "review-clause": {
-      "comment": "`@review(looked_at)` on a source, an operation output or a call, with its keyword directly after the `@` as SPIT reads it.",
-      "begin": "(@)(review)(\\()",
-      "beginCaptures": {
-        "1": {
-          "name": "keyword.operator.at.spit"
-        },
-        "2": {
-          "name": "keyword.other.selector.spit"
-        },
-        "3": {
-          "name": "punctuation.section.parens.spit"
-        }
-      },
-      "end": "\\)|$",
-      "endCaptures": {
-        "0": {
-          "name": "punctuation.section.parens.spit"
-        }
-      },
+      "comment": "A call's outputs are reviewed directly with @review, or using the products in @review(figures, report).",
       "patterns": [
         {
-          "match": "\\b(product|evidence)\\s*(:)(?!:)\\s*([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)",
+          "begin": "(@)(review)(\\()",
+          "beginCaptures": {
+            "1": { "name": "keyword.operator.at.spit" },
+            "2": { "name": "keyword.other.selector.spit" },
+            "3": { "name": "punctuation.section.parens.spit" }
+          },
+          "end": "\\)|$",
+          "endCaptures": {
+            "0": { "name": "punctuation.section.parens.spit" }
+          },
+          "patterns": [
+            {
+              "name": "variable.other.product.spit",
+              "match": "[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*"
+            },
+            {
+              "name": "punctuation.separator.comma.spit",
+              "match": ","
+            }
+          ]
+        },
+        {
+          "match": "(@)(review)\\b",
           "captures": {
-            "1": { "name": "keyword.other.selector.spit" },
-            "2": { "name": "punctuation.separator.colon.spit" },
-            "3": { "name": "variable.other.product.spit" }
+            "1": { "name": "keyword.operator.at.spit" },
+            "2": { "name": "keyword.other.selector.spit" }
           }
-        },
-        {
-          "include": "#review-items"
-        }
-      ]
-    },
-    "review-items": {
-      "comment": "Reviews, each a name; `!` before one drops it from the defaults of a wider scope.",
-      "patterns": [
-        {
-          "name": "keyword.operator.negation.spit",
-          "match": "!"
-        },
-        {
-          "name": "entity.name.function.review.spit",
-          "match": "[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*"
-        },
-        {
-          "name": "punctuation.separator.comma.spit",
-          "match": ","
         }
       ]
     },
@@ -522,7 +459,6 @@
                         {
                           "include": "#check-clause"
                         },
-                        { "include": "#review-clause" },
                         {
                           "name": "keyword.operator.at.spit",
                           "match": "@"
@@ -590,7 +526,6 @@
                     {
                       "include": "#check-clause"
                     },
-                    { "include": "#review-clause" },
                     {
                       "name": "keyword.operator.at.spit",
                       "match": "@"
@@ -1727,7 +1662,6 @@
                 {
                   "include": "#check-clause"
                 },
-                { "include": "#review-clause" },
                 {
                   "name": "keyword.operator.at.spit",
                   "match": "@"
@@ -1795,7 +1729,6 @@
             {
               "include": "#check-clause"
             },
-            { "include": "#review-clause" },
             {
               "name": "keyword.operator.at.spit",
               "match": "@"
