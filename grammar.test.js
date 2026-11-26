@@ -567,9 +567,9 @@ test('screens highlight from declaration through attachment and defaults', { ski
   assert.match(scopes.inFile(block, 1, 'usable'), /entity\.name\.function\.spit/);
 });
 
-test('a call argument highlights checks, screens and reviews alongside selectors', { skip }, async () => {
+test('a call argument highlights checks and screens alongside selectors', { skip }, async () => {
   const scopes = await tokenizer();
-  const line = 'total = table(summaries @vary(sub) @check(valid) @screen(usable(35)) @review(looked_at))';
+  const line = 'total = table(summaries @vary(sub) @check(valid) @screen(usable(35))) @review(looked_at)';
   for (const word of ['vary', 'check', 'screen', 'review']) {
     assert.match(scopes(line, word), /keyword\.other\.selector\.spit/);
   }
@@ -806,14 +806,24 @@ test('a review is declared once, attached like a check, and named by a recipe', 
   assert.match(scopes(source, 'looked_at'), /entity\.name\.function\.review\.spit/);
   assert.match(scopes(source, 'lib::other'), /entity\.name\.function\.review\.spit/);
 
-  const operation = 'operation summarise(t1: Image @review(looked_at), mask: Mask) -> Json .json @review(checked)';
+  const operation = 'operation summarise(t1: Image, mask: Mask) -> Json .json @review(checked)';
   assert.match(scopes(operation, 'review'), /keyword\.other\.selector\.spit/);
-  assert.match(scopes(operation, 'looked_at'), /entity\.name\.function\.review\.spit/);
-  assert.match(scopes(operation, 'review', operation.indexOf('->')), /keyword\.other\.selector\.spit/);
   assert.match(scopes(operation, 'checked'), /entity\.name\.function\.review\.spit/);
   const several = 'operation split(table: Table) -> (left: Table @review(!looked_at), right: Table)';
   assert.match(scopes(several, '!'), /keyword\.operator\.negation\.spit/);
   assert.match(scopes(several, 'looked_at'), /entity\.name\.function\.review\.spit/);
+
+  const call = 'fit, stats = prepare(raw) @review(lib::looked_at, product: fit, evidence: qc::figure)';
+  const after = call.indexOf('@review');
+  assert.match(scopes(call, 'lib::looked_at', after), /entity\.name\.function\.review\.spit/);
+  for (const option of ['product', 'evidence']) {
+    assert.match(scopes(call, option, after), /keyword\.other\.selector\.spit/);
+    assert.match(scopes(call, ':', call.indexOf(option, after)), /punctuation\.separator\.colon\.spit/);
+  }
+  for (const product of ['fit', 'qc::figure']) {
+    assert.match(scopes(call, product, after), /variable\.other\.product\.spit/);
+    assert.doesNotMatch(scopes(call, product, after), /entity\.name\.function\.review/);
+  }
 
   const defaults = '    default review: looked_at, !other  # in this stage';
   assert.match(scopes(defaults, 'review'), /keyword\.control\.spit/);

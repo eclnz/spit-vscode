@@ -218,7 +218,7 @@
       }
     },
     "review-clause": {
-      "comment": "`@review(looked_at)` on a source, a port or an output, with its keyword directly after the `@` as SPIT reads it.",
+      "comment": "`@review(looked_at)` on a source, an operation output or a call, with its keyword directly after the `@` as SPIT reads it.",
       "begin": "(@)(review)(\\()",
       "beginCaptures": {
         "1": {
@@ -238,6 +238,14 @@
         }
       },
       "patterns": [
+        {
+          "match": "\\b(product|evidence)\\s*(:)(?!:)\\s*([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)",
+          "captures": {
+            "1": { "name": "keyword.other.selector.spit" },
+            "2": { "name": "punctuation.separator.colon.spit" },
+            "3": { "name": "variable.other.product.spit" }
+          }
+        },
         {
           "include": "#review-items"
         }
@@ -438,7 +446,6 @@
                     {
                       "include": "#check-clause"
                     },
-                    { "include": "#review-clause" },
                     {
                       "comment": "A many input's minimum, `items: many Image @min(2)`, matched whole so the `)` of `min(2)` does not end the inputs.",
                       "match": "(@)(min)\\s*(\\()\\s*(\\d+)\\s*(\\))",
@@ -1647,7 +1654,6 @@
             {
               "include": "#check-clause"
             },
-            { "include": "#review-clause" },
             {
               "comment": "A many input's minimum, `items: many Image @min(2)`, matched whole so the `)` of `min(2)` does not end the inputs.",
               "match": "(@)(min)\\s*(\\()\\s*(\\d+)\\s*(\\))",
