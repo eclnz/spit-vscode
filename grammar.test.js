@@ -137,7 +137,6 @@ test('a source\'s rules on the lines beneath it are path rules, wherever it is n
     ['path t1:', '    *_{id}{cohort=patient}/*', '    *_Ctrl_{id}{cohort=ctrl}/*', 'x = f(t1)'],
     ['path:', '    t1:', '        *_{id}{cohort=patient}/*', '        *_Ctrl_{id}{cohort=ctrl}/*', 'x = f(t1)'],
     ['inputs:', '    t1:', '        *_{id}{cohort=patient}/*', '        *_Ctrl_{id}{cohort=ctrl}/*', 'x = f(t1)'],
-    ['source_paths:', '    t1:', '        *_{id}{cohort=patient}/*', '        *_Ctrl_{id}{cohort=ctrl}/*', 'sources:']
   ]) {
     const named = lines.findIndex(line => line.includes('t1:'));
     assert.match(scopes.inFile(lines, named, 't1'), /variable\.other\.product\.spit/, lines[0]);
@@ -754,7 +753,7 @@ test('a recipe names its pipeline', { skip }, async () => {
   assert.doesNotMatch(scopes('pipeline = copy(raw)', 'pipeline'), /keyword\.control\.import/);
 });
 
-test('a pipeline, recipe or .spitout names its dataset root', { skip }, async () => {
+test('a pipeline or recipe names its dataset root', { skip }, async () => {
   const scopes = await tokenizer();
   const line = 'root ../data  # where the dataset is';
   assert.match(scopes(line, 'root'), /keyword\.control\.import\.spit/);
@@ -762,20 +761,20 @@ test('a pipeline, recipe or .spitout names its dataset root', { skip }, async ()
   assert.match(scopes(line, '# where'), /comment\.line/);
   assert.match(scopes('root data=set', 'data=set'), /string\.unquoted\.file\.spit/);
   // A product may not be named `root`, so the word is always the keyword,
-  // though a .spitout's record may still be called `root[...]`.
+  // though a recipe's record may still be called `root[...]`.
   assert.match(scopes('root = copy(raw)', 'root'), /keyword\.control\.import/);
   assert.match(scopes('root : Text = copy(raw)', 'root'), /keyword\.control\.import/);
   assert.doesNotMatch(scopes('    root[sub=01]', 'root'), /keyword\.control\.import/);
 });
 
-test('a pipeline, recipe or .spitout names its output root', { skip }, async () => {
+test('a pipeline or recipe names its output root', { skip }, async () => {
   const scopes = await tokenizer();
   const line = 'output ../results  # where the jobs write';
   assert.match(scopes(line, 'output'), /keyword\.control\.import\.spit/);
   assert.match(scopes(line, '../results'), /string\.unquoted\.file\.spit/);
   assert.match(scopes(line, '# where'), /comment\.line/);
   // A product may not be named `output`, so the word is always the keyword,
-  // though a .spitout's record may still be called `output[...]`, and an
+  // though a recipe's record may still be called `output[...]`, and an
   // operation called `output` keeps its entry in a `command:` block.
   assert.match(scopes('output = copy(raw)', 'output'), /keyword\.control\.import/);
   assert.doesNotMatch(scopes('    output[sub=01]', 'output'), /keyword\.control\.import/);
@@ -788,7 +787,7 @@ test('records mark the product and its dimensions', { skip }, async () => {
   assert.match(scopes(line, 'image'), /variable\.other\.product\.spit/);
   assert.match(scopes(line, 'sub'), /variable\.parameter/);
   assert.match(scopes('    testset', 'testset'), /variable\.other\.product\.spit/);
-  for (const header of ['sources:', 'source_paths:', 'contexts:', 'removed:', 'verdicts:']) {
+  for (const header of ['sources:', 'contexts:']) {
     assert.match(scopes(header, header.slice(0, -1)), /keyword\.other\.section\.spit/, header);
   }
 });
@@ -842,21 +841,6 @@ test('a shape after a source placeholder\'s colon is marked in path rules', { sk
   assert.match(scopes(year, 'year', year.indexOf(':year') + 1), /constant\.language\.shape\.spit/);
   // A word that is not a shape is not marked as one.
   assert.doesNotMatch(scopes('path run: raw/{run:other}.csv', 'other'), /shape/);
-});
-
-test('a shape is marked in a .spitout\'s source_paths', { skip }, async () => {
-  const scopes = await tokenizer();
-  const file = ['root ../data', 'source_paths:', '    log: logs/{server}/{date:date}.log  # one a day', '    run: raw/run-{run:digits}.csv', 'sources:', '    log[server=web1,date=2026-09-01]'];
-  assert.match(scopes.inFile(file, 1, 'source_paths'), /keyword\.other\.section\.spit/);
-  assert.match(scopes.inFile(file, 2, 'log'), /variable\.other\.product\.spit/);
-  assert.match(scopes.inFile(file, 2, 'date', file[2].indexOf('{date') + 2), /constant\.language\.shape\.spit/);
-  assert.match(scopes.inFile(file, 2, 'date', file[2].indexOf('{date')), /variable\.parameter\.placeholder\.dimension\.spit/);
-  assert.match(scopes.inFile(file, 2, '# one'), /comment\.line/);
-  assert.match(scopes.inFile(file, 3, 'digits'), /constant\.language\.shape\.spit/);
-  // The next section ends the block, and its records are records again.
-  assert.match(scopes.inFile(file, 4, 'sources'), /keyword\.other\.section\.spit/);
-  assert.match(scopes.inFile(file, 5, 'log'), /variable\.other\.product\.spit/);
-  assert.doesNotMatch(scopes.inFile(file, 5, 'date'), /shape/);
 });
 
 test('a `command` line\'s `{x:date}` is not a shape', { skip }, async () => {

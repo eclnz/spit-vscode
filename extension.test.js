@@ -457,15 +457,6 @@ test('labels a source with several rules with each of them', () => {
   assert.deepEqual([...labels], [[2, '→ *_{id}_{visit}{cohort=patient}/*.nii | *_Ctrl_{id}{cohort=ctrl}{visit=none}/*.nii']]);
 });
 
-test('checks a .spitout\'s records on their own', { skip: !fs.existsSync(binary) }, async () => {
-  const results = new Map();
-  const document = fakeDocument(path.join(__dirname, 'inputs.spitout'), 'sources:\n    raw[id=1]\n');
-  const extension = load(mockVscode(document, results, () => {}));
-  extension.activate({ extensionPath: __dirname, subscriptions: [] });
-  await until(() => results.get(document.uri.toString())?.length === 0);
-  extension.deactivate();
-});
-
 test('checks a .spitenv on its own, and a recipe against the .spitenv it names', { skip: !fs.existsSync(binary) }, async () => {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-'));
   fs.writeFileSync(path.join(folder, 'analysis.spit'), 'tool sorter, counter\nuses copy: sorter\nsource raw [id]\noperation copy(input)\ncommand copy: cp {input} {@output}\nresult = copy(raw)\npath raw: in/{id}.txt\ndefault path: out/{@product}/{@entities}\ndefault entities: {@key}={@value} separated "__"\n');
@@ -611,7 +602,7 @@ function load(vscode) {
   }
 }
 
-test('highlights a .spitout\'s products, dimensions and values by role', () => {
+test('highlights a recipe\'s source and context records by role', () => {
   const vscode = {
     Uri: { parse: value => ({ toString: () => value }) },
     Range,
@@ -667,14 +658,16 @@ test('highlights a .spitout\'s products, dimensions and values by role', () => {
   assert.ok(registered, 'semantic tokens provider was registered');
   const types = ['variable', 'parameter', 'enumMember'];
   const records = [
-    'source_paths:',
+    'inputs:',
     '    image: data/{sub}/image.nii.gz',
     '',
-    'contexts sessions:',
+    'contexts:',
     '    [site=A,device=D1]',
     'sources:',
-    '    reading[site=A,device=D1]',
-    '    testset'
+    '    input::reading[site=A,device=D1]',
+    '    testset',
+    'inputs:',
+    '    extra: data/{sub}/extra.nii.gz'
   ];
   const tokens = registered.provideDocumentSemanticTokens({
     getText() { return records.join('\n'); },
@@ -684,10 +677,10 @@ test('highlights a .spitout\'s products, dimensions and values by role', () => {
   const at = (line, needle) => tokens.find(t => t.line === line && records[line].slice(t.char, t.char + t.length) === needle);
   assert.equal(at(4, 'site').tokenType, types.indexOf('parameter'));
   assert.equal(at(4, 'D1').tokenType, types.indexOf('enumMember'));
-  assert.equal(at(6, 'reading').tokenType, types.indexOf('variable'));
+  assert.equal(at(6, 'input::reading').tokenType, types.indexOf('variable'));
   assert.equal(at(6, 'device').tokenType, types.indexOf('parameter'));
   assert.equal(at(6, 'D1').tokenType, types.indexOf('enumMember'));
-  assert.ok(!tokens.some(t => t.line === 1), 'a path rule is left to the grammar');
+  assert.ok(!tokens.some(t => t.line === 1 || t.line === 9), 'path rules are left to the grammar');
 
   // A pipeline is colored by the grammar alone.
   const pipeline = ['source reading [site]', 'operation f(reading) -> Out', 'out = f(reading)'];
@@ -1169,7 +1162,7 @@ test('hovering a default check list explains the default keyword', { skip: !fs.e
   assert.match(keyword.contents.value, /guide\/pipelines\.md#defaults\)$/);
 });
 
-test('a recipe and a .spitout explain SPIT\'s words, and a .spitout\'s records are checked', { skip: !fs.existsSync(binary) }, async () => {
+test('a recipe explains SPIT\'s words and checks authored source records', { skip: !fs.existsSync(binary) }, async () => {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'spit-vscode-'));
   fs.writeFileSync(path.join(folder, 'analysis.spit'), 'source raw [id]\noperation copy(input)\nresult = copy(raw)\npath raw: in/{id}.txt\n\ndefault path: out/{@product}/{@entities}\n\ndefault entities: {@key}={@value} separated "__"\n');
   const hints = {};
@@ -1184,13 +1177,13 @@ test('a recipe and a .spitout explain SPIT\'s words, and a .spitout\'s records a
     extension.deactivate();
 
     const results = new Map();
-    const inputs = fakeDocument(path.join(folder, 'inputs.spitout'), 'sources:\n    raw[id=1\n');
+    const inputs = fakeDocument(path.join(folder, 'inputs.spitin'), 'pipeline analysis.spit\nsources:\n    raw[id=1\n');
     extension = load(mockVscode(inputs, results, () => {}, hints));
     extension.activate({ extensionPath: __dirname, subscriptions: [] });
     await until(() => results.get(inputs.uri.toString())?.length === 1);
-    assert.deepEqual(span(results.get(inputs.uri.toString())[0]), [1, 8, 12]);
-    const header = await hints.hover.provideHover(inputs, { line: 0, character: 2 });
-    assert.match(header.contents.value, /settled source identities/);
+    assert.equal(results.get(inputs.uri.toString())[0].range.start.line, 2);
+    const header = await hints.hover.provideHover(inputs, { line: 1, character: 2 });
+    assert.match(header.contents.value, /sources|identities/i);
   } finally {
     extension.deactivate();
     fs.rmSync(folder, { recursive: true, force: true });

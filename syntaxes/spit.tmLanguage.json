@@ -20,7 +20,7 @@
     { "include": "#invocation" },
     { "include": "#operation-signature" },
     { "include": "#product-declaration" },
-    { "include": "#inventory-entry" },
+    { "include": "#source-record" },
     { "include": "#context-entry" },
     { "include": "#command-line" },
     { "include": "#expression" }
@@ -214,44 +214,11 @@
       ]
     },
     "section-headers": {
-      "patterns": [
-        {
-          "comment": "`source_paths:` in a .spitout: each indented `source: path` line is a source path rule, which may hold shapes.",
-          "begin": "^\\s*(source_paths)\\s*(:)\\s*$",
-          "beginCaptures": {
-            "0": { "name": "entity.name.section.spit" },
-            "1": { "name": "keyword.other.section.spit" },
-            "2": { "name": "punctuation.separator.colon.spit" }
-          },
-          "end": "^(?=\\S)",
-          "patterns": [
-            { "include": "#comments" },
-            {
-              "comment": "A source alone, `t1:`, with a rule on each line beneath it.",
-              "begin": "^(\\s+)([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s*(:)\\s*$",
-              "beginCaptures": {
-                "2": { "name": "variable.other.product.spit" },
-                "3": { "name": "punctuation.separator.colon.spit" }
-              },
-              "end": "^(?!\\1[ \\t]+\\S)(?=[ \\t]*[^\\s#])",
-              "patterns": [{ "include": "#comments" }, { "include": "#brace-escape" }, { "include": "#path-group" }, { "include": "#path-placeholder" }]
-            },
-            {
-              "begin": "^(\\s+)([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s*(:)\\s*",
-              "beginCaptures": {
-                "2": { "name": "variable.other.product.spit" },
-                "3": { "name": "punctuation.separator.colon.spit" }
-              },
-              "end": "$",
-              "patterns": [{ "include": "#word-comment" }, { "include": "#brace-escape" }, { "include": "#path-group" }, { "include": "#path-placeholder" }]
-            }
-          ]
-        },
-        {
-          "name": "entity.name.section.spit keyword.other.section.spit",
-          "match": "^\\s*(sources|contexts|removed|verdicts)\\s*:\\s*$"
-        }
-      ]
+      "match": "^(\\s*)(sources|contexts)\\s*(:)\\s*(?=#|$)",
+      "captures": {
+        "2": { "name": "keyword.other.section.spit" },
+        "3": { "name": "punctuation.separator.colon.spit" }
+      }
     },
     "stage-header": {
       "comment": "`stage name:` opens a stage; its lines are indented beneath it.",
@@ -280,7 +247,7 @@
       ]
     },
     "input-header": {
-      "comment": "A .spitin names its pipeline; pipelines, recipes and saved inventories can name a dataset root and an output root. `root` and `output` are reserved, so a line starting with either is that keyword, though a .spitout record may still be called `root[...]` or `output[...]`; `pipeline` is no keyword of a pipeline, so a product may take its name.",
+      "comment": "A .spitin names its pipeline; pipelines and recipes can name a dataset root and an output root. `root` and `output` are reserved, so a line starting with either is that keyword, though a recipe source record may still be called `root[...]` or `output[...]`; `pipeline` is no keyword of a pipeline, so a product may take its name.",
       "match": "^(\\s*)(pipeline(?=\\s+[^\\s=:#])|root(?=\\s|$)|output(?=\\s|$))(?:\\s+([^\\s=:#][^#]*?)\\s*(?=#|$))?",
       "captures": {
         "2": { "name": "keyword.control.import.spit" },
@@ -1829,7 +1796,7 @@
         }
       }
     },
-    "inventory-entry": {
+    "source-record": {
       "comment": "A record. Its source's path rule gives its file, unless the rule writes no path; then the file follows `:`, to the end of the line.",
       "match": "^(\\s*)([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)(\\[)([^\\]]*)(\\])(?:\\s*(:)\\s*(.*\\S))?\\s*(?=#|$)",
       "captures": {

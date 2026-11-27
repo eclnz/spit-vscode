@@ -26,9 +26,8 @@ let pathHintsChanged;
 // version checked, executable identity, and a promise of its items by line.
 const analyses = new Map();
 
-// Semantic highlighting of a .spitout's records: each source product, and
-// each dimension and value in its brackets. Pipelines and recipes are
-// colored by the TextMate grammar alone.
+// Semantic highlighting for a recipe's source and context records. The
+// TextMate grammar handles the rest of the recipe.
 const SEMANTIC_TOKEN_TYPES = ['variable', 'parameter', 'enumMember'];
 const SEMANTIC_TOKEN_MODIFIERS = [];
 const spitSemanticLegend = new vscode.SemanticTokensLegend(SEMANTIC_TOKEN_TYPES, SEMANTIC_TOKEN_MODIFIERS);
@@ -66,7 +65,7 @@ function stripComment(line) {
 }
 
 function isRecordsDocument(lines) {
-  return lines.some(line => /^(?:sources|contexts(?:\s+[A-Za-z_][A-Za-z0-9_]*)?):$/.test(stripComment(line).trim()));
+  return lines.some(line => /^(?:sources|contexts):$/.test(stripComment(line).trim()));
 }
 
 // Splits `text` on top-level occurrences of `separator`, ignoring any inside
@@ -93,11 +92,11 @@ function trimmedRange(text) {
   return { value: text.trim(), start };
 }
 
-function handleInventoryLine(content, push, hasName) {
+function handleSourceRecord(content, push, hasName) {
   let rest = content;
   let offset = 0;
   if (hasName) {
-    const nameMatch = /^[A-Za-z_][A-Za-z0-9_]*/.exec(rest);
+    const nameMatch = /^[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*/.exec(rest);
     if (!nameMatch) return;
     push(0, nameMatch[0].length, 'variable');
     offset += nameMatch[0].length;
@@ -132,9 +131,13 @@ function provideSpitSemanticTokens(document) {
           const indent = /^\s*/.exec(code)[0].length;
           const content = code.slice(indent).trimEnd();
           if (content === '') continue;
-          const header = /^(sources|source_paths|contexts|removed)(?:\s+[A-Za-z_][A-Za-z0-9_]*)?:$/.exec(content);
+          const header = /^(sources|contexts):$/.exec(content);
           if (header) {
             section = header[1];
+            continue;
+          }
+          if (indent === 0) {
+            section = null;
             continue;
           }
           const push = (start, length, type) => {
@@ -142,8 +145,8 @@ function provideSpitSemanticTokens(document) {
               builder.push(index, indent + start, length, SEMANTIC_TOKEN_TYPES.indexOf(type), 0);
             }
           };
-          if (section === 'sources') handleInventoryLine(content, push, true);
-          else if (section === 'contexts') handleInventoryLine(content, push, false);
+          if (section === 'sources') handleSourceRecord(content, push, true);
+          else if (section === 'contexts') handleSourceRecord(content, push, false);
         } catch {
           // Best-effort highlighting: skip a line SPIT's own grammar would reject anyway.
         }
@@ -415,9 +418,9 @@ function showPaths(document, paths) {
 }
 
 // `spit check` compiles a pipeline, checks a recipe against the pipeline
-// its `pipeline` line names, or checks a .spitout's records or a .spitenv's tools.
+// its `pipeline` line names, or checks a .spitenv's tools.
 function checkable(document) {
-  return document.languageId === 'spit' && document.uri.scheme === 'file' && /\.spit(?:in|out|env)?$/i.test(document.uri.fsPath);
+  return document.languageId === 'spit' && document.uri.scheme === 'file' && /\.spit(?:in|env)?$/i.test(document.uri.fsPath);
 }
 
 // What `spit check --hovers` says about each line: a pipeline's products
